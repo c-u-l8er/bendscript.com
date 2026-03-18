@@ -26,12 +26,20 @@
             * {
                 box-sizing: border-box;
             }
-            html,
-            body {
+            html {
                 margin: 0;
                 width: 100%;
                 height: 100%;
                 overflow: hidden;
+                scroll-behavior: smooth;
+            }
+            body {
+                margin: 0;
+                width: 100%;
+                height: 200vh;
+                overflow-x: hidden;
+                overflow-y: auto;
+                scroll-snap-type: y mandatory;
                 background: var(--bg-0);
                 color: var(--text);
                 font-family:
@@ -39,7 +47,326 @@
                     "Liberation Mono", "Courier New", monospace;
                 user-select: none;
                 -webkit-user-select: none;
+            }
+
+            /* ── HERO / MARKETING SECTION ── */
+            .hero-section {
+                position: relative;
+                z-index: 50;
+                width: 100%;
+                height: 100vh;
+                scroll-snap-align: start;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                background: linear-gradient(
+                    168deg,
+                    #0d1117 0%,
+                    #161b22 38%,
+                    #1a1f2b 72%,
+                    #0d1117 100%
+                );
+                overflow: hidden;
+                touch-action: pan-y;
+            }
+            .hero-section::before {
+                content: "";
+                position: absolute;
+                inset: 0;
+                background:
+                    radial-gradient(
+                        ellipse 800px 600px at 25% 20%,
+                        rgba(255, 109, 90, 0.08),
+                        transparent
+                    ),
+                    radial-gradient(
+                        ellipse 600px 500px at 75% 70%,
+                        rgba(139, 92, 246, 0.06),
+                        transparent
+                    ),
+                    radial-gradient(
+                        ellipse 900px 400px at 50% 50%,
+                        rgba(16, 185, 129, 0.04),
+                        transparent
+                    );
+                pointer-events: none;
+            }
+            .hero-grid {
+                position: absolute;
+                inset: 0;
+                background-image:
+                    linear-gradient(
+                        rgba(255, 255, 255, 0.02) 1px,
+                        transparent 1px
+                    ),
+                    linear-gradient(
+                        90deg,
+                        rgba(255, 255, 255, 0.02) 1px,
+                        transparent 1px
+                    );
+                background-size: 48px 48px;
+                pointer-events: none;
+            }
+            .hero-content {
+                position: relative;
+                z-index: 2;
+                max-width: 820px;
+                padding: 0 32px;
+                text-align: center;
+            }
+            .hero-logo {
+                display: inline-flex;
+                align-items: center;
+                gap: 10px;
+                padding: 10px 20px;
+                border: 1px solid rgba(255, 109, 90, 0.25);
+                border-radius: 999px;
+                background: rgba(255, 109, 90, 0.06);
+                margin-bottom: 36px;
+                font-size: 13px;
+                letter-spacing: 0.12em;
+                color: #ff6d5a;
+                font-weight: 700;
+            }
+            .hero-logo .dot {
+                width: 7px;
+                height: 7px;
+                border-radius: 50%;
+                background: #ff6d5a;
+                animation: heroPulse 2.4s ease-in-out infinite;
+            }
+            @keyframes heroPulse {
+                0%,
+                100% {
+                    opacity: 0.4;
+                    transform: scale(1);
+                }
+                50% {
+                    opacity: 1;
+                    transform: scale(1.4);
+                }
+            }
+            .hero-h1 {
+                font-size: clamp(32px, 6vw, 64px);
+                font-weight: 800;
+                color: #f0f2f4;
+                line-height: 1.1;
+                margin: 0 0 20px 0;
+                letter-spacing: -0.02em;
+            }
+            .hero-h1 em {
+                font-style: normal;
+                background: linear-gradient(
+                    135deg,
+                    #ff6d5a 0%,
+                    #ff8f7a 40%,
+                    #8b5cf6 100%
+                );
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+            }
+            .hero-sub {
+                font-size: clamp(15px, 2vw, 19px);
+                color: #8b929a;
+                line-height: 1.65;
+                margin: 0 0 44px 0;
+                max-width: 620px;
+                margin-left: auto;
+                margin-right: auto;
+            }
+            .hero-pills {
+                display: flex;
+                gap: 10px;
+                justify-content: center;
+                flex-wrap: wrap;
+                margin-bottom: 48px;
+            }
+            .hero-pill {
+                padding: 8px 16px;
+                border-radius: 999px;
+                border: 1px solid rgba(255, 255, 255, 0.08);
+                background: rgba(255, 255, 255, 0.04);
+                color: #c9d1d9;
+                font-size: 12px;
+                letter-spacing: 0.04em;
+            }
+            .hero-pill b {
+                color: #f0f2f4;
+            }
+            .hero-pill .accent {
+                color: #ff6d5a;
+            }
+            .hero-pill .green {
+                color: #10b981;
+            }
+            .hero-pill .violet {
+                color: #8b5cf6;
+            }
+            .hero-cta-group {
+                display: flex;
+                gap: 14px;
+                justify-content: center;
+                flex-wrap: wrap;
+                margin-bottom: 56px;
+            }
+            .hero-cta {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                padding: 14px 32px;
+                border-radius: 999px;
+                font: inherit;
+                font-size: 15px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.25s ease;
+                border: none;
+                text-decoration: none;
+            }
+            .hero-cta-primary {
+                background: #ff6d5a;
+                color: #fff;
+                box-shadow: 0 4px 24px rgba(255, 109, 90, 0.3);
+            }
+            .hero-cta-primary:hover {
+                background: #ff8f7a;
+                box-shadow: 0 6px 32px rgba(255, 109, 90, 0.4);
+                transform: translateY(-1px);
+            }
+            .hero-cta-secondary {
+                background: rgba(255, 255, 255, 0.06);
+                color: #c9d1d9;
+                border: 1px solid rgba(255, 255, 255, 0.1);
+            }
+            .hero-cta-secondary:hover {
+                background: rgba(255, 255, 255, 0.1);
+                color: #f0f2f4;
+            }
+            .hero-features {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 1px;
+                max-width: 720px;
+                margin: 0 auto 48px;
+                background: rgba(255, 255, 255, 0.04);
+                border-radius: 16px;
+                overflow: hidden;
+                border: 1px solid rgba(255, 255, 255, 0.06);
+            }
+            .hero-feat {
+                padding: 24px 20px;
+                background: rgba(13, 17, 23, 0.85);
+                text-align: center;
+            }
+            .hero-feat-icon {
+                font-size: 22px;
+                margin-bottom: 8px;
+                display: block;
+            }
+            .hero-feat-label {
+                font-size: 12px;
+                color: #8b929a;
+                line-height: 1.5;
+            }
+            .hero-feat-label b {
+                display: block;
+                color: #f0f2f4;
+                font-size: 13px;
+                margin-bottom: 2px;
+            }
+            .hero-scroll-btn {
+                position: absolute;
+                bottom: 32px;
+                left: 50%;
+                transform: translateX(-50%);
+                z-index: 3;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 6px;
+                background: none;
+                border: none;
+                cursor: pointer;
+                color: #484f58;
+                font: inherit;
+                font-size: 11px;
+                letter-spacing: 0.08em;
+                transition: color 0.3s ease;
+                padding: 8px;
+            }
+            .hero-scroll-btn:hover {
+                color: #ff6d5a;
+            }
+            .hero-scroll-btn svg {
+                animation: heroChevronBounce 2s ease-in-out infinite;
+            }
+            @keyframes heroChevronBounce {
+                0%,
+                100% {
+                    transform: translateY(0);
+                }
+                50% {
+                    transform: translateY(5px);
+                }
+            }
+
+            /* ── GRAPH APP SECTION ── */
+            .app-section {
+                position: relative;
+                width: 100%;
+                height: 100vh;
+                scroll-snap-align: start;
                 touch-action: none;
+            }
+
+            /* ── BACK-TO-TOP BUTTON ── */
+            .back-to-top {
+                position: fixed;
+                bottom: 18px;
+                left: 50%;
+                transform: translateX(-50%);
+                z-index: 40;
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                padding: 8px 14px;
+                border-radius: 999px;
+                border: 1px solid var(--bg-2);
+                background: var(--bg-1);
+                color: var(--muted);
+                font: inherit;
+                font-size: 11px;
+                letter-spacing: 0.04em;
+                cursor: pointer;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+                opacity: 0;
+                pointer-events: none;
+                transition:
+                    opacity 0.3s ease,
+                    color 0.2s ease;
+            }
+            .back-to-top.visible {
+                opacity: 1;
+                pointer-events: auto;
+            }
+            .back-to-top:hover {
+                color: var(--cyan);
+                border-color: var(--cyan);
+            }
+
+            @media (max-width: 640px) {
+                .hero-features {
+                    grid-template-columns: 1fr;
+                }
+                .hero-h1 {
+                    font-size: 28px;
+                }
+                .hero-cta {
+                    padding: 12px 24px;
+                    font-size: 14px;
+                }
             }
 
             #graph {
@@ -618,204 +945,332 @@
         </style>
     </head>
     <body>
-        <canvas id="graph"></canvas>
-
-        <div class="hud">
-            <div class="hud-row">
-                <div class="brand">
-                    <b>BENDSCRIPT</b>
-                    <span>prompts become topology</span>
+        <!-- ── HERO / MARKETING SECTION ── -->
+        <section class="hero-section" id="heroSection">
+            <div class="hero-grid"></div>
+            <div class="hero-content">
+                <div class="hero-logo">
+                    <span class="dot"></span>
+                    BENDSCRIPT
                 </div>
-                <div class="stats">
-                    <div class="pill">nodes <b id="statNodes">0</b></div>
-                    <div class="pill">edges <b id="statEdges">0</b></div>
-                    <div class="pill">depth <b id="statDepth">0</b></div>
-                    <div class="pill">zoom <b id="statZoom">1.00x</b></div>
-                    <button
-                        class="pill pill-btn"
-                        id="nodeModeToggle"
-                        type="button"
+                <h1 class="hero-h1">
+                    Where prompts become<br /><em>topology</em>
+                </h1>
+                <p class="hero-sub">
+                    A knowledge graph that thinks about its own shape. Every
+                    node is a context, every edge is a relationship, every
+                    Stargate is a portal into a deeper plane. AI doesn't just
+                    answer — it builds the graph alongside you.
+                </p>
+                <div class="hero-pills">
+                    <span class="hero-pill"
+                        ><b class="accent">⊛</b> Fractal depth via
+                        Stargates</span
                     >
-                        mode: EDIT
+                    <span class="hero-pill"
+                        ><b class="violet">◆</b> Topology-aware AI
+                        synthesis</span
+                    >
+                    <span class="hero-pill"
+                        ><b class="green">●</b> Zero-friction — no signup</span
+                    >
+                </div>
+                <div class="hero-cta-group">
+                    <button class="hero-cta hero-cta-primary" id="heroCta">
+                        Enter the graph
+                        <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                        >
+                            <path
+                                d="M3 8h10M9 4l4 4-4 4"
+                                stroke="currentColor"
+                                stroke-width="1.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            />
+                        </svg>
                     </button>
+                    <a
+                        class="hero-cta hero-cta-secondary"
+                        href="https://ampersandboxdesign.com"
+                        target="_blank"
+                        rel="noopener"
+                    >
+                        [&] for Agent Intelligence
+                    </a>
+                </div>
+                <div class="hero-features">
+                    <div class="hero-feat">
+                        <span class="hero-feat-icon">🌀</span>
+                        <span class="hero-feat-label"
+                            ><b>Script Bending</b>Reshape conversational flow
+                            through graph topology</span
+                        >
+                    </div>
+                    <div class="hero-feat">
+                        <span class="hero-feat-icon">⊛</span>
+                        <span class="hero-feat-label"
+                            ><b>Stargates</b>Portal into nested sub-graph planes
+                            with fractal depth</span
+                        >
+                    </div>
+                    <div class="hero-feat">
+                        <span class="hero-feat-icon">✦</span>
+                        <span class="hero-feat-label"
+                            ><b>AI Synthesis</b>Claude builds nodes that fit
+                            your graph's shape</span
+                        >
+                    </div>
                 </div>
             </div>
-            <div class="breadcrumbs" id="breadcrumbs"></div>
-            <div class="hint" id="hint">
-                <strong>Drag</strong> nodes to bend layout •
-                <strong>Wheel/Pinch-ish</strong> to zoom •
-                <strong>Right-click</strong> node for
-                fork/merge/pin/stargate/delete • <strong>Click edge</strong> to
-                edit props • <strong>Click stargate</strong> to portal
-            </div>
-        </div>
+            <button class="hero-scroll-btn" id="heroScrollBtn">
+                TRY IT LIVE
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path
+                        d="M5 8l5 5 5-5"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                    />
+                </svg>
+            </button>
+        </section>
 
-        <div class="composer" id="composer">
-            <form class="composer-inner" id="composerForm" autocomplete="off">
-                <input
-                    id="promptInput"
-                    placeholder="Type a prompt into graph space…"
-                    maxlength="220"
-                />
-                <button class="send-btn" type="submit">Bend ↴</button>
-            </form>
-            <div class="composer-sub">
-                <button
-                    class="composer-grip"
-                    id="composerDragHandle"
-                    type="button"
-                    title="Drag prompt composer"
-                >
-                    Drag prompt
-                </button>
-                <div class="target" id="composerTarget">target: BendScript</div>
-                <div>Enter to spawn node + response</div>
-            </div>
-        </div>
+        <!-- ── GRAPH APP SECTION ── -->
+        <section class="app-section" id="appSection">
+            <canvas id="graph"></canvas>
 
-        <div class="menu" id="contextMenu">
-            <button data-action="fork">Fork node</button>
-            <button data-action="merge">Merge with…</button>
-            <button data-action="pin">Pin / Unpin</button>
-            <button data-action="stargate">Convert to Stargate</button>
-            <button data-action="delete" class="danger">Delete</button>
-        </div>
-
-        <div class="legend">
-            <div class="pill">normal</div>
-            <div class="pill" style="border-color: #ff6d5a; color: #ff6d5a">
-                stargate ⊛
-            </div>
-            <div class="pill" style="border-color: #10b981; color: #10b981">
-                pinned
-            </div>
-        </div>
-
-        <div class="site-credit">
-            Copyright 2026. Powered by
-            <a
-                href="https://ampersandboxdesign.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                >[&]</a
-            >
-        </div>
-
-        <aside class="edge-inspector" id="edgeInspector">
-            <h3>EDGE INSPECTOR</h3>
-            <p class="inspector-sub">
-                Select an edge to edit metadata/props for relationship
-                semantics.
-            </p>
-            <div class="field">
-                <label for="edgePropLabel">Label</label>
-                <input
-                    id="edgePropLabel"
-                    type="text"
-                    maxlength="80"
-                    placeholder="e.g. causes, references, expands"
-                />
-            </div>
-            <div class="field">
-                <label for="edgePropKind">Kind</label>
-                <select id="edgePropKind">
-                    <option value="context">Context</option>
-                    <option value="causal">Causal</option>
-                    <option value="temporal">Temporal</option>
-                    <option value="associative">Associative</option>
-                    <option value="user">User-defined</option>
-                </select>
-            </div>
-            <div class="field">
-                <label for="edgePropStrength">Strength</label>
-                <input
-                    id="edgePropStrength"
-                    type="number"
-                    min="1"
-                    max="5"
-                    step="1"
-                    value="1"
-                />
-            </div>
-            <div class="empty" id="edgeInspectorEmpty">
-                No edge selected yet.
-            </div>
-        </aside>
-
-        <aside class="node-inspector" id="nodeInspector">
-            <h3>NODE INSPECTOR</h3>
-            <p class="inspector-sub">
-                Select a node to edit label/content. In preview mode fields are
-                read-only.
-            </p>
-            <div class="field">
-                <label for="nodeText">Node text</label>
-                <textarea
-                    id="nodeText"
-                    maxlength="4000"
-                    placeholder="Node text..."
-                ></textarea>
-            </div>
-            <div class="field">
-                <button
-                    id="nodeMdOpenBtn"
-                    type="button"
-                    class="pill-btn"
-                    style="align-self: flex-start"
-                >
-                    Open Markdown Modal
-                </button>
-            </div>
-            <div class="field">
-                <label for="nodeType">Node type</label>
-                <select id="nodeType">
-                    <option value="normal">Normal</option>
-                    <option value="stargate">Stargate</option>
-                </select>
-            </div>
-            <div class="field">
-                <label for="nodePinned">Pinned</label>
-                <select id="nodePinned">
-                    <option value="false">No</option>
-                    <option value="true">Yes</option>
-                </select>
-            </div>
-            <div class="empty" id="nodeInspectorEmpty">
-                No node selected yet.
-            </div>
-        </aside>
-
-        <div class="node-md-backdrop hidden" id="nodeMdBackdrop"></div>
-        <div class="node-md-overlay hidden" id="nodeMdOverlay">
-            <div class="node-md-header">
-                <div class="node-md-title" id="nodeMdTitle">NODE MARKDOWN</div>
-                <div class="node-md-tabs" id="nodeMdTabs">
-                    <button type="button" data-view="write" class="active">
-                        Write
-                    </button>
-                    <button type="button" data-view="preview">Preview</button>
+            <div class="hud">
+                <div class="hud-row">
+                    <div class="brand">
+                        <b>BENDSCRIPT</b>
+                        <span>prompts become topology</span>
+                    </div>
+                    <div class="stats">
+                        <div class="pill">nodes <b id="statNodes">0</b></div>
+                        <div class="pill">edges <b id="statEdges">0</b></div>
+                        <div class="pill">depth <b id="statDepth">0</b></div>
+                        <div class="pill">zoom <b id="statZoom">1.00x</b></div>
+                        <button
+                            class="pill pill-btn"
+                            id="nodeModeToggle"
+                            type="button"
+                        >
+                            mode: EDIT
+                        </button>
+                    </div>
                 </div>
-                <button type="button" class="node-md-close" id="nodeMdClose">
-                    Close
-                </button>
+                <div class="breadcrumbs" id="breadcrumbs"></div>
+                <div class="hint" id="hint">
+                    <strong>Drag</strong> nodes to bend layout •
+                    <strong>Wheel/Pinch-ish</strong> to zoom •
+                    <strong>Right-click</strong> node for
+                    fork/merge/pin/stargate/delete •
+                    <strong>Click edge</strong> to edit props •
+                    <strong>Click stargate</strong> to portal
+                </div>
             </div>
-            <div class="node-md-body">
-                <textarea
-                    class="node-md-editor"
-                    id="nodeMdEditor"
-                    maxlength="4000"
-                    placeholder="# Heading
+
+            <div class="composer" id="composer">
+                <form
+                    class="composer-inner"
+                    id="composerForm"
+                    autocomplete="off"
+                >
+                    <input
+                        id="promptInput"
+                        placeholder="Type a prompt into graph space…"
+                        maxlength="220"
+                    />
+                    <button class="send-btn" type="submit">Bend ↴</button>
+                </form>
+                <div class="composer-sub">
+                    <button
+                        class="composer-grip"
+                        id="composerDragHandle"
+                        type="button"
+                        title="Drag prompt composer"
+                    >
+                        Drag prompt
+                    </button>
+                    <div class="target" id="composerTarget">
+                        target: BendScript
+                    </div>
+                    <div>Enter to spawn node + response</div>
+                </div>
+            </div>
+
+            <div class="menu" id="contextMenu">
+                <button data-action="fork">Fork node</button>
+                <button data-action="merge">Merge with…</button>
+                <button data-action="pin">Pin / Unpin</button>
+                <button data-action="stargate">Convert to Stargate</button>
+                <button data-action="delete" class="danger">Delete</button>
+            </div>
+
+            <div class="legend">
+                <div class="pill">normal</div>
+                <div class="pill" style="border-color: #ff6d5a; color: #ff6d5a">
+                    stargate ⊛
+                </div>
+                <div class="pill" style="border-color: #10b981; color: #10b981">
+                    pinned
+                </div>
+            </div>
+
+            <div class="site-credit">
+                Copyright 2026. Powered by
+                <a
+                    href="https://ampersandboxdesign.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    >[&]</a
+                >
+            </div>
+
+            <aside class="edge-inspector" id="edgeInspector">
+                <h3>EDGE INSPECTOR</h3>
+                <p class="inspector-sub">
+                    Select an edge to edit metadata/props for relationship
+                    semantics.
+                </p>
+                <div class="field">
+                    <label for="edgePropLabel">Label</label>
+                    <input
+                        id="edgePropLabel"
+                        type="text"
+                        maxlength="80"
+                        placeholder="e.g. causes, references, expands"
+                    />
+                </div>
+                <div class="field">
+                    <label for="edgePropKind">Kind</label>
+                    <select id="edgePropKind">
+                        <option value="context">Context</option>
+                        <option value="causal">Causal</option>
+                        <option value="temporal">Temporal</option>
+                        <option value="associative">Associative</option>
+                        <option value="user">User-defined</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="edgePropStrength">Strength</label>
+                    <input
+                        id="edgePropStrength"
+                        type="number"
+                        min="1"
+                        max="5"
+                        step="1"
+                        value="1"
+                    />
+                </div>
+                <div class="empty" id="edgeInspectorEmpty">
+                    No edge selected yet.
+                </div>
+            </aside>
+
+            <aside class="node-inspector" id="nodeInspector">
+                <h3>NODE INSPECTOR</h3>
+                <p class="inspector-sub">
+                    Select a node to edit label/content. In preview mode fields
+                    are read-only.
+                </p>
+                <div class="field">
+                    <label for="nodeText">Node text</label>
+                    <textarea
+                        id="nodeText"
+                        maxlength="4000"
+                        placeholder="Node text..."
+                    ></textarea>
+                </div>
+                <div class="field">
+                    <button
+                        id="nodeMdOpenBtn"
+                        type="button"
+                        class="pill-btn"
+                        style="align-self: flex-start"
+                    >
+                        Open Markdown Modal
+                    </button>
+                </div>
+                <div class="field">
+                    <label for="nodeType">Node type</label>
+                    <select id="nodeType">
+                        <option value="normal">Normal</option>
+                        <option value="stargate">Stargate</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="nodePinned">Pinned</label>
+                    <select id="nodePinned">
+                        <option value="false">No</option>
+                        <option value="true">Yes</option>
+                    </select>
+                </div>
+                <div class="empty" id="nodeInspectorEmpty">
+                    No node selected yet.
+                </div>
+            </aside>
+
+            <div class="node-md-backdrop hidden" id="nodeMdBackdrop"></div>
+            <div class="node-md-overlay hidden" id="nodeMdOverlay">
+                <div class="node-md-header">
+                    <div class="node-md-title" id="nodeMdTitle">
+                        NODE MARKDOWN
+                    </div>
+                    <div class="node-md-tabs" id="nodeMdTabs">
+                        <button type="button" data-view="write" class="active">
+                            Write
+                        </button>
+                        <button type="button" data-view="preview">
+                            Preview
+                        </button>
+                    </div>
+                    <button
+                        type="button"
+                        class="node-md-close"
+                        id="nodeMdClose"
+                    >
+                        Close
+                    </button>
+                </div>
+                <div class="node-md-body">
+                    <textarea
+                        class="node-md-editor"
+                        id="nodeMdEditor"
+                        maxlength="4000"
+                        placeholder="# Heading
 Write **markdown** here..."
-                ></textarea>
-                <div
-                    class="node-md-preview hidden"
-                    id="nodeMdPreview"
-                    aria-live="polite"
-                ></div>
+                    ></textarea>
+                    <div
+                        class="node-md-preview hidden"
+                        id="nodeMdPreview"
+                        aria-live="polite"
+                    ></div>
+                </div>
             </div>
-        </div>
 
-        <div class="warp" id="warp"></div>
+            <div class="warp" id="warp"></div>
+
+            <!-- Back to top button -->
+            <button class="back-to-top" id="backToTop">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <path
+                        d="M3 8.5l4-4 4 4"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                    />
+                </svg>
+                HOME
+            </button>
+        </section>
+        <!-- /app-section -->
 
         <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.7/dist/purify.min.js"></script>
@@ -2910,7 +3365,7 @@ Write **markdown** here..."
                             const by = my - boxH * 0.5 - 6;
 
                             ctx.fillStyle = "#ffffff";
-                            ctx.fillStyle = "#222222";
+                            ctx.strokeStyle = "#222222";
                             ctx.lineWidth = edgeSelected ? 1.2 : 1;
                             ctx.beginPath();
                             ctx.roundRect(bx, by, boxW, boxH, 7);
@@ -3489,6 +3944,124 @@ Write **markdown** here..."
                 setInterval(saveState, 6000);
 
                 requestAnimationFrame(tick);
+            })();
+        </script>
+
+        <!-- Scroll snap controller -->
+        <script>
+            (() => {
+                const hero = document.getElementById("heroSection");
+                const app = document.getElementById("appSection");
+                const backBtn = document.getElementById("backToTop");
+                const body = document.body;
+                let hasEnteredApp = false;
+                let lockTimer = null;
+
+                function lockIntoAppView() {
+                    body.style.overflow = "hidden";
+                    backBtn.classList.add("visible");
+                }
+
+                function enterApp(e) {
+                    if (e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }
+                    hasEnteredApp = true;
+
+                    // Ensure page can move before trying to jump to app section.
+                    body.style.overflow = "auto";
+                    body.style.overflowX = "hidden";
+
+                    const targetY = app.offsetTop || window.innerHeight;
+
+                    // Primary path: smooth jump to app section.
+                    window.scrollTo({ top: targetY, behavior: "smooth" });
+
+                    // Fallback for browsers that ignore smooth scroll in this layout.
+                    requestAnimationFrame(() => {
+                        const y =
+                            body.scrollTop ||
+                            document.documentElement.scrollTop;
+                        if (y < targetY * 0.5) {
+                            body.scrollTop = targetY;
+                            document.documentElement.scrollTop = targetY;
+                            window.scrollTo(0, targetY);
+                        }
+                    });
+
+                    // Lock scroll after navigation settles.
+                    if (lockTimer) clearTimeout(lockTimer);
+                    lockTimer = setTimeout(lockIntoAppView, 380);
+                }
+
+                function exitToHero() {
+                    // Unlock scroll, reset to full height, jump to top
+                    if (lockTimer) clearTimeout(lockTimer);
+                    body.style.overflow = "auto";
+                    body.style.overflowX = "hidden";
+                    backBtn.classList.remove("visible");
+                    // Jump immediately then smooth-scroll to top for a polished feel
+                    body.scrollTop = 1;
+                    document.documentElement.scrollTop = 1;
+                    requestAnimationFrame(() => {
+                        hero.scrollIntoView({ behavior: "smooth" });
+                    });
+                }
+
+                // CTA buttons → enter app
+                document
+                    .getElementById("heroCta")
+                    .addEventListener("click", enterApp);
+                document
+                    .getElementById("heroScrollBtn")
+                    .addEventListener("click", enterApp);
+
+                // HOME button → exit to hero
+                backBtn.addEventListener("click", (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    exitToHero();
+                });
+
+                // Also catch natural scroll past halfway (mouse wheel on hero)
+                let scrollWatching = true;
+                const onScroll = () => {
+                    if (!scrollWatching) return;
+                    const scrollY =
+                        body.scrollTop || document.documentElement.scrollTop;
+                    if (scrollY > window.innerHeight * 0.35) {
+                        scrollWatching = false;
+                        enterApp();
+                    }
+                };
+                body.addEventListener("scroll", onScroll, { passive: true });
+                document.addEventListener("scroll", onScroll, {
+                    passive: true,
+                });
+
+                // Re-enable scroll watching after returning to hero
+                const heroObserver = new IntersectionObserver(
+                    (entries) => {
+                        entries.forEach((entry) => {
+                            if (
+                                entry.isIntersecting &&
+                                entry.intersectionRatio > 0.8
+                            ) {
+                                scrollWatching = true;
+                            }
+                        });
+                    },
+                    { threshold: [0.8] },
+                );
+                heroObserver.observe(hero);
+
+                // Ensure we start at hero on load (unless user already entered app)
+                window.addEventListener("load", () => {
+                    if (hasEnteredApp) return;
+                    body.scrollTop = 0;
+                    document.documentElement.scrollTop = 0;
+                });
             })();
         </script>
     </body>

@@ -223,34 +223,46 @@ Three things BendScript does that no identified competitor currently offers toge
 | Plan | Price | Graphs | Nodes/graph | Collaboration | AI Generations |
 |---|---|---|---|---|---|
 | Free | $0/mo | 5 | 100 | — | 20 T1 / 5 T2 / 2 T3 per day (Haiku only) |
-| Pro | $15/mo | Unlimited | 500 | — | 100 T1 / 30 T2 / 10 T3 per day (Sonnet) |
+| Pro | $19/mo | Unlimited | 500 | — | 80 T1 / 15 T2 / 5 T3 per day (Sonnet) |
 | Teams | $25/seat/mo | Unlimited | 1,000 | ✓ Real-time | 1,000/mo shared pool, all tiers (Sonnet) |
 | Business | $20/seat/mo (10+) | Unlimited | Unlimited | ✓ + SSO + audit log | 5,000/mo + edge inference (Sonnet) |
 | Enterprise | Custom | Unlimited | Unlimited | ✓ + on-prem option | Custom / self-hosted model |
 
-> **Note on free tier:** Comparable tools (Heptabase $9–12/mo, Flowith $15–$50/mo) are established with large user bases. The free tier is designed to be genuinely usable for solo exploration while creating natural upgrade pressure. Generation caps are tier-aware (not flat) because Tier 3 calls cost ~6× more than Tier 1. Free tier uses Haiku to control costs; paid tiers upgrade to Sonnet.
+> **Note on pricing:** Comparable tools (Heptabase $7–12/mo, Flowith $15–$50/mo) are established with large user bases. The free tier is designed to be genuinely usable for solo exploration while creating natural upgrade pressure. Generation caps are tier-aware (not flat) because Tier 3 calls cost ~6× more than Tier 1. Free tier uses Haiku to control costs; paid tiers upgrade to Sonnet. The Pro tier at $19/mo undercuts Flowith's Professional ($19.90/mo) while maintaining positive AI margins at average utilization levels — see AI Cost Model below for detailed analysis.
 
 ---
 
 ## AI Cost Model
 
-AI generation costs vary significantly by tier. Pricing viability depends on tiered model routing and prompt caching:
+AI generation costs vary significantly by tier. All costs below reflect **March 2026 Anthropic API pricing**: Haiku 4.5 at $1/$5 per MTok, Sonnet 4.6 at $3/$15 per MTok. Prompt caching reduces cached input token costs by 90%.
 
-| AI Tier | Model (Free) | Model (Paid) | Est. Input Tokens | Est. Output Tokens | Cost/Call (Free) | Cost/Call (Paid) |
-|---|---|---|---|---|---|---|
-| Tier 1 — Contextual | Haiku | Sonnet | ~800 | ~600 | $0.004 | $0.011 |
-| Tier 2 — Graph-aware | Haiku | Sonnet | ~3,000 | ~1,500 | $0.009 | $0.032 |
-| Tier 3 — Topic-to-graph | Haiku | Sonnet | ~4,000 | ~4,000 | $0.024 | $0.072 |
-| Tier 4 — Edge inference | — | Sonnet | ~2,500 | ~800 | — | $0.020 |
+| AI Tier | Model (Free) | Model (Paid) | Est. Input Tokens | Est. Output Tokens | Cost/Call (Free) | Cost/Call (Paid) | With Cache (Paid) |
+|---|---|---|---|---|---|---|---|
+| Tier 1 — Contextual | Haiku 4.5 | Sonnet 4.6 | ~800 | ~600 | $0.0038 | $0.0114 | $0.0093 |
+| Tier 2 — Graph-aware | Haiku 4.5 | Sonnet 4.6 | ~3,000 | ~1,500 | $0.0105 | $0.0315 | $0.0240 |
+| Tier 3 — Topic-to-graph | Haiku 4.5 | Sonnet 4.6 | ~4,000 | ~4,000 | $0.0240 | $0.0720 | $0.0630 |
+| Tier 4 — Edge inference | — | Sonnet 4.6 | ~2,500 | ~800 | — | $0.0195 | $0.0150 |
 
-**Worst-case free user (maxes all daily caps):** ~$2.80/month with Haiku. Manageable.
+### Margin Analysis by Plan
 
-**Worst-case Pro user (maxes all daily caps):** ~$85/month with Sonnet. Tight margin — monitor and adjust caps based on actual usage data.
+| Scenario | Daily Usage | AI Cost/Month | Revenue/Month | Margin |
+|---|---|---|---|---|
+| Free user (worst-case, maxes all caps) | 20 T1 + 5 T2 + 2 T3 | $3.84 | $0 | −$3.84 |
+| Free user (avg 30% utilization) | 6 T1 + 1.5 T2 + 0.6 T3 | $1.15 | $0 | −$1.15 |
+| Pro user (worst-case, maxes all caps) | 80 T1 + 15 T2 + 5 T3 | $31.59 | $19 | −$12.59 |
+| Pro user (avg 25% utilization) | 20 T1 + 3.75 T2 + 1.25 T3 | $7.90 | $19 | +$11.10 |
+| Pro user (avg 15% utilization) | 12 T1 + 2.25 T2 + 0.75 T3 | $4.74 | $19 | +$14.26 |
+
+**Worst-case free user:** ~$3.84/month with Haiku. Manageable — most free users will use 15–30% of caps.
+
+**Worst-case Pro user:** ~$31.59/month on a $19 plan. At 25% average utilization (the realistic steady-state), margin is +$11.10/month — healthy. Monitor actual usage in `ai_generations` and adjust caps if average utilization exceeds 40%.
+
+> **Note on cap design:** Previous iteration had 100 T1 / 30 T2 / 10 T3 at $15/mo, which produced worst-case costs of ~$55.80/month — a $40.80 monthly loss per power user. The current caps (80 T1 / 15 T2 / 5 T3 at $19/mo) are still generous for daily use while bringing worst-case losses within tolerance. T3 cap reduction from 10→5 has the largest impact because T3 calls cost ~6× more than T1.
 
 **Required optimizations:**
-- **Prompt caching** — System prompts are identical across all calls of the same tier. Anthropic's prompt caching reduces input token costs by 90% on cache hits. This is a ~10-line code change that saves thousands at scale.
-- **Tiered model routing** — Free tier must use Haiku; Sonnet reserved for paid plans. This is the single biggest lever on unit economics.
-- **Generation logging** — The `ai_generations` table must be written on every call with token counts. Without this, there's no visibility into actual costs per workspace.
+- **Prompt caching** — System prompts are identical across all calls of the same tier. Anthropic's prompt caching reduces input token costs by 90% on cache hits. This is a ~10-line code change that saves thousands at scale. "With Cache" column above assumes ~90% system prompt cache hit rate after first call.
+- **Tiered model routing** — Free tier must use Haiku 4.5; Sonnet 4.6 reserved for paid plans. This is the single biggest lever on unit economics — Haiku is ~5× cheaper per token than Sonnet.
+- **Generation logging** — The `ai_generations` table must be written on every call with token counts. Without this, there's no visibility into actual costs per workspace. A composite index on `(workspace_id, tier, created_at)` is required for rate-limit queries to perform at scale.
 
 ---
 
@@ -264,6 +276,37 @@ Graph portability is a hard requirement for the PKM audience. BendScript must su
 - **Import from JSON** — Reload a previously exported graph. Required for backup/restore and cross-workspace migration.
 
 > **Phase target:** JSON export and Markdown outline at launch. Mermaid export in the first post-launch update. Import is Phase 2.
+
+---
+
+## Go-to-Market Strategy
+
+BendScript's GTM leverages the product itself as the primary acquisition channel, supported by community seeding and content-driven discovery.
+
+### Launch Sequence
+
+1. **Pre-launch (2 weeks before):** Seed teaser posts in PKM communities — r/ObsidianMD, Heptabase Discord, r/PKMS, r/knowledgegraph, Tools for Thought Twitter/X. Frame as "what if your AI built the graph, not just answered questions?" with a short screen recording of Tier 2 synthesis in action.
+2. **Launch day:** Product Hunt launch (Flowith topped PH in June 2025 — the category has proven PH traction). Landing page IS the product: visitors interact with a live graph demo immediately, no signup wall.
+3. **Week 1 post-launch:** Publish comparison content — "BendScript vs Flowith vs Heptabase" targeting "canvas AI tool" and "knowledge graph AI" search terms. Publish a technical deep-dive on topology-aware synthesis for the dev/AI audience (Hacker News, dev.to).
+4. **Ongoing:** Public graph sharing (`/share/[id]`) creates organic discovery — every shared graph is a landing page. Mermaid export renders in GitHub READMEs and Notion pages, driving backlinks.
+
+### Growth Loops
+
+| Loop | Mechanism | Expected Impact |
+|---|---|---|
+| **Product-as-demo** | Landing page is a working graph — zero-friction trial | High — spatial products must be felt, not described |
+| **Public graph sharing** | `/share/[id]` URLs are linkable, embeddable graph views | Medium — every shared graph is an acquisition surface |
+| **Mermaid export → GitHub/Notion** | Exported graphs render natively in popular tools | Medium — drives discovery from technical users |
+| **Community seeding** | PKM communities (Obsidian, Heptabase, Roam) are high-intent | High — these users already understand spatial thinking |
+| **Comparison SEO** | "BendScript vs [competitor]" pages targeting search | Medium — captures active evaluators |
+
+### Key Metrics to Track
+
+- **Activation:** % of landing page visitors who submit at least one Composer prompt (target: >25%)
+- **Graph-to-signup:** % of anonymous graph users who create an account (target: >8%)
+- **T2 engagement:** % of paid users who use Tier 2+ synthesis at least weekly (target: >40% — validates core differentiator)
+- **Share rate:** % of graphs that generate a `/share/[id]` link (target: >10%)
+- **Expansion:** Free → Pro conversion rate (target: >4% monthly)
 
 ---
 
@@ -315,19 +358,21 @@ npm run preview
 ## Roadmap
 
 - [x] HTML prototype — canvas, physics, planes, Markdown, localStorage
+- [ ] **AI Tier 2 validation** — prototype topology-aware synthesis and A/B test against Tier 1 to validate core differentiator (do this BEFORE full migration)
 - [ ] SvelteKit migration — extract engine, Svelte stores, component structure
 - [ ] Supabase persistence — schema, RLS, graph load/save
 - [ ] Auth + workspaces — email, OAuth, multi-tenancy
 - [ ] AI Tier 1–2 — contextual + graph-aware synthesis (replace stub)
-- [ ] Prompt caching + tiered model routing — Haiku for Free, Sonnet for paid; cache system prompts
+- [ ] Prompt caching + tiered model routing — Haiku 4.5 for Free, Sonnet 4.6 for paid; cache system prompts
 - [ ] AI generation rate limiting — enforce per-plan caps, log token usage to `ai_generations`
 - [ ] Graph export — JSON full state, Markdown outline
+- [ ] **Public graph sharing** — read-only `/share/[id]` URL (growth loop — prioritize before collab)
 - [ ] Real-time collaboration — Supabase broadcast, node sync
 - [ ] AI Tier 3 — topic-to-graph full subgraph generation
-- [ ] Public graph sharing — read-only `/share/[id]` URL
 - [ ] Quadtree spatial index (unlocks 500+ node graphs — required before Teams/Business plans go live)
 - [ ] Undo/redo stack — immutable state snapshots
 - [ ] Mermaid export + JSON import
+- [ ] **Comparison SEO pages** — BendScript vs Flowith, vs Heptabase, vs Obsidian Canvas
 - [ ] Semantic search — pgvector node embeddings
 - [ ] Mobile optimization — pinch zoom, two-finger pan, long-press menu
 - [ ] AI Tier 4 — edge inference on node creation

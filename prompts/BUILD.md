@@ -39,7 +39,7 @@ Read `index.html` and extract these systems as-is into their new homes:
 ```
 Frontend:   SvelteKit (latest stable)
 Backend:    Supabase (Postgres + Auth + Realtime + Storage + Edge Functions)
-AI:         Anthropic Claude API (claude-sonnet-4-5 via Edge Function proxy)
+AI:         Anthropic Claude API (claude-haiku-4-5-20251001 for Free, claude-sonnet-4-6 for Paid)
 Styling:    Tailwind CSS v4 (utility classes only — no component libraries)
 Testing:    Vitest (unit) + Playwright (e2e)
 Deploy:     Cloudflare Pages (frontend) + Supabase cloud (backend)
@@ -133,6 +133,81 @@ bendscript/
 ├── vite.config.js
 └── README.md
 ```
+
+---
+
+## Phase 0 — Validate Topology-Aware AI (Day 0)
+
+**This is the single most important milestone.** BendScript's core differentiator is that AI receives graph topology as generative input (Tier 2+). This hypothesis is currently unvalidated — the prototype uses keyword stubs. Before investing 16 days in a full SvelteKit migration, spend one day proving the concept works.
+
+### 0.1 Quick T2 Prototype
+
+Create a standalone test script (not part of the migration) that:
+
+1. Takes the seed graph state (nodes + edges from `seedState()`)
+2. Sends it to Claude as Tier 2 graph context + a user prompt
+3. Compares the structural quality of the response against a Tier 1 (no context) call
+
+```js
+// scripts/validate-t2.js — run with: node scripts/validate-t2.js
+// Requires: ANTHROPIC_API_KEY env var
+
+import Anthropic from '@anthropic-ai/sdk';
+
+const anthropic = new Anthropic();
+
+const seedGraph = {
+  nodes: [
+    { id: 'n1', text: 'BendScript', type: 'normal' },
+    { id: 'n2', text: 'What is Script Bending?', type: 'normal' },
+    { id: 'n3', text: '⊛ Stargates', type: 'stargate' },
+    { id: 'n4', text: 'Graph Prompting', type: 'normal' },
+    { id: 'n5', text: 'The Protocol', type: 'normal' },
+  ],
+  edges: [
+    { a: 'n1', b: 'n2', label: 'defines', kind: 'context' },
+    { a: 'n1', b: 'n3', label: 'portals', kind: 'associative' },
+    { a: 'n1', b: 'n4', label: 'interaction model', kind: 'context' },
+    { a: 'n1', b: 'n5', label: 'spec backbone', kind: 'causal' },
+  ]
+};
+
+const prompt = 'How does the graph topology influence AI reasoning?';
+
+// Tier 1: no graph context
+const t1 = await anthropic.messages.create({
+  model: 'claude-sonnet-4-6',
+  max_tokens: 1024,
+  system: [{ type: 'text', text: `You are BendScript's graph engine. Respond with JSON: { "text": "response (max 280 chars)", "type": "normal"|"stargate", "edgeLabel": "label", "edgeKind": "context"|"causal"|"temporal"|"associative" }. JSON only.` }],
+  messages: [{ role: 'user', content: prompt }],
+});
+
+// Tier 2: with graph context
+const t2 = await anthropic.messages.create({
+  model: 'claude-sonnet-4-6',
+  max_tokens: 1024,
+  system: [{ type: 'text', text: `You are BendScript's graph synthesis engine. You receive a graph's nodes and edges. Generate 2-4 new nodes that enrich this graph's topology. Respond with JSON array: [{ "text": "content", "type": "normal"|"stargate", "edgeTo": "exact text of existing node", "edgeLabel": "label", "edgeKind": "context"|"causal"|"temporal"|"associative" }]. JSON only.` }],
+  messages: [{ role: 'user', content: `Current graph:\n${JSON.stringify(seedGraph, null, 2)}\n\nUser prompt: ${prompt}` }],
+});
+
+console.log('=== TIER 1 (no graph context) ===');
+console.log(t1.content[0].text);
+console.log('\n=== TIER 2 (with graph context) ===');
+console.log(t2.content[0].text);
+console.log('\n=== VALIDATION ===');
+console.log('Does T2 reference existing node names? Does it use edge types that fit the existing topology?');
+console.log('If yes → topology-aware synthesis is validated. Proceed with migration.');
+console.log('If no → revisit system prompts before building the full product.');
+```
+
+### 0.2 Success Criteria
+
+- T2 response references existing nodes by name (demonstrates graph awareness)
+- T2 suggests edge kinds that semantically fit the existing topology (not just random "context")
+- T2 generates nodes that fill structural gaps (e.g., adds a node between two disconnected clusters)
+- T2 output is qualitatively richer than T1 for the same prompt
+
+**If this test fails**, iterate on the Tier 2 system prompt before proceeding. The prompt design is the product — everything else is infrastructure.
 
 ---
 
@@ -448,6 +523,33 @@ create index on edges(plane_id);
 create index on graph_planes(workspace_id);
 create index on graph_planes(graph_id);
 create index on workspace_members(user_id);
+
+-- Composite index for AI rate limiting queries (filters on workspace_id + tier + created_at)
+-- Without this, the rate limit check in the Edge Function becomes a sequential scan at scale.
+create index idx_ai_gen_rate on ai_generations(workspace_id, tier, created_at);
+
+-- Auto-update updated_at on nodes
+create or replace function update_updated_at()
+returns trigger language plpgsql as $$
+begin
+  NEW.updated_at = now();
+  return NEW;
+end;
+$$;
+create trigger nodes_updated_at before update on nodes
+  for each row execute function update_updated_at();
+
+-- Clean up orphaned edges when a node is deleted
+-- (edges.node_a and edges.node_b are text IDs, not FK-constrained, so we use a trigger)
+create or replace function cleanup_orphaned_edges()
+returns trigger language plpgsql as $$
+begin
+  delete from edges where node_a = OLD.id or node_b = OLD.id;
+  return OLD;
+end;
+$$;
+create trigger nodes_delete_cleanup before delete on nodes
+  for each row execute function cleanup_orphaned_edges();
 ```
 
 ### 2.2 RLS Policies
@@ -496,14 +598,34 @@ create policy "workspace members can write planes" on graph_planes
 create policy "workspace members can read nodes" on nodes
   for select using (is_workspace_member(workspace_id));
 
-create policy "workspace members can write nodes" on nodes
-  for all using (is_workspace_member(workspace_id));
+create policy "workspace members can insert nodes" on nodes
+  for insert with check (is_workspace_member(workspace_id));
+
+create policy "workspace members can update nodes" on nodes
+  for update using (is_workspace_member(workspace_id));
+
+create policy "workspace members can delete nodes" on nodes
+  for delete using (is_workspace_member(workspace_id));
 
 create policy "workspace members can read edges" on edges
   for select using (is_workspace_member(workspace_id));
 
-create policy "workspace members can write edges" on edges
-  for all using (is_workspace_member(workspace_id));
+create policy "workspace members can insert edges" on edges
+  for insert with check (is_workspace_member(workspace_id));
+
+create policy "workspace members can update edges" on edges
+  for update using (is_workspace_member(workspace_id));
+
+create policy "workspace members can delete edges" on edges
+  for delete using (is_workspace_member(workspace_id));
+
+-- AI generations: workspace members can read; inserts come from Edge Function (service role)
+-- but also allow authenticated member inserts for client-side logging fallback
+create policy "workspace members can read generations" on ai_generations
+  for select using (is_workspace_member(workspace_id));
+
+create policy "workspace members can insert generations" on ai_generations
+  for insert with check (is_workspace_member(workspace_id));
 ```
 
 ### 2.3 Supabase Client
@@ -616,8 +738,9 @@ const supabase = createClient(
 );
 
 // Tiered model routing: Free gets Haiku, paid gets Sonnet
+// March 2026 pricing: Haiku 4.5 = $1/$5 per MTok, Sonnet 4.6 = $3/$15 per MTok
 function selectModel(plan: string, tier: number): string {
-  if (plan === 'free') return 'claude-haiku-4-5';
+  if (plan === 'free') return 'claude-haiku-4-5-20251001';
   return 'claude-sonnet-4-6';
 }
 
@@ -695,10 +818,13 @@ function todayStart(): string {
 }
 
 // Per-plan daily limits by tier — these match the pricing table in README.md
+// Pro caps set to maintain positive margins at avg 25% utilization ($19/mo plan):
+//   Worst-case (maxed): ~$31.59/mo AI cost → −$12.59 margin (tolerable for outliers)
+//   Avg 25%: ~$7.90/mo AI cost → +$11.10 margin (healthy)
 function getLimit(plan: string, tier: number): number {
   const limits: Record<string, Record<number, number>> = {
     free:       { 1: 20, 2: 5, 3: 2, 4: 0 },
-    pro:        { 1: 100, 2: 30, 3: 10, 4: 0 },
+    pro:        { 1: 80, 2: 15, 3: 5, 4: 0 },
     teams:      { 1: 9999, 2: 9999, 3: 9999, 4: 0 },  // pool-based, checked monthly
     business:   { 1: 9999, 2: 9999, 3: 9999, 4: 9999 },
     enterprise: { 1: 9999, 2: 9999, 3: 9999, 4: 9999 },
@@ -827,17 +953,73 @@ export async function spawnPromptFlow(prompt, plane, currentTargetNode, tier = 1
     body: JSON.stringify({ prompt, graphContext, tier, workspaceId, graphId }),
   });
 
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    console.warn('[BendScript] AI request failed:', res.status, err.error || '');
+    return fallbackResponse(prompt);
+  }
+
   const data = await res.json();
   const text = data.content.find(b => b.type === 'text')?.text || '';
 
-  let parsed;
-  try { parsed = JSON.parse(text); } catch { parsed = null; }
-
+  const parsed = safeParseAIResponse(text);
   if (!parsed) return fallbackResponse(prompt);
 
   // Tier 1: single object → wrap in array for uniform handling
   const nodeSpecs = Array.isArray(parsed) ? parsed : [parsed];
-  return nodeSpecs;
+
+  // Validate and sanitize each node spec individually — don't drop the whole response
+  // if one node is malformed
+  const validSpecs = nodeSpecs
+    .map(spec => validateNodeSpec(spec))
+    .filter(Boolean);
+
+  return validSpecs.length > 0 ? validSpecs : fallbackResponse(prompt);
+}
+
+// Robust JSON extraction — handles markdown fences, mixed text, and partial responses
+function safeParseAIResponse(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+
+  let text = raw.trim();
+
+  // Strip markdown code fences (```json ... ``` or ``` ... ```)
+  text = text.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
+
+  // Try direct parse first (happy path)
+  try { return JSON.parse(text); } catch {}
+
+  // Extract first JSON array from mixed text (e.g., "Here are the nodes: [{...}]")
+  const arrayMatch = text.match(/\[[\s\S]*\]/);
+  if (arrayMatch) {
+    try { return JSON.parse(arrayMatch[0]); } catch {}
+  }
+
+  // Extract first JSON object from mixed text
+  const objMatch = text.match(/\{[\s\S]*\}/);
+  if (objMatch) {
+    try { return JSON.parse(objMatch[0]); } catch {}
+  }
+
+  return null;
+}
+
+// Validate a single node spec — returns sanitized spec or null
+function validateNodeSpec(spec) {
+  if (!spec || typeof spec !== 'object') return null;
+
+  // text is required
+  if (typeof spec.text !== 'string' || !spec.text.trim()) return null;
+
+  return {
+    text: spec.text.slice(0, 280),
+    type: spec.type === 'stargate' ? 'stargate' : 'normal',
+    edgeLabel: typeof spec.edgeLabel === 'string' ? spec.edgeLabel.slice(0, 40) : 'context',
+    edgeKind: ['context', 'causal', 'temporal', 'associative', 'user'].includes(spec.edgeKind)
+      ? spec.edgeKind : 'context',
+    // For Tier 2+: edgeTo references an existing node
+    edgeTo: typeof spec.edgeTo === 'string' ? spec.edgeTo : null,
+  };
 }
 
 function fallbackResponse(prompt) {
@@ -1080,6 +1262,13 @@ The `ANTHROPIC_API_KEY` is **only** used in the Supabase Edge Function. It is **
 
 Before considering any phase complete, verify:
 
+### Phase 0 (T2 Validation)
+- [ ] `scripts/validate-t2.js` runs successfully with live Claude API
+- [ ] T2 response references at least one existing node by name
+- [ ] T2 response uses edge kinds that semantically fit the existing graph
+- [ ] T2 output is qualitatively richer than T1 for the same prompt
+- [ ] If validation fails, system prompts are iterated until it passes
+
 ### Phase 1 (Extract)
 - [ ] All existing graph interactions work identically to `index.html`
 - [ ] Physics simulation produces identical node movement behavior
@@ -1095,18 +1284,26 @@ Before considering any phase complete, verify:
 - [ ] Node positions persist on drag end
 - [ ] New nodes and edges persist immediately
 - [ ] Deleted nodes/edges remove from DB
+- [ ] Deleting a node also removes all connected edges (cleanup trigger fires)
 - [ ] RLS: user cannot read graphs from another workspace
+- [ ] `ai_generations` composite index exists: `(workspace_id, tier, created_at)`
+- [ ] `nodes.updated_at` auto-updates on row modification
 
 ### Phase 3 (AI)
 - [ ] Submitting a prompt spawns a user node + AI response node (Tier 1)
 - [ ] AI response is real Claude output, not keyword stubs
 - [ ] Edge label and kind from AI response are applied to the spawned edge
 - [ ] Stargate nodes are spawned when AI sets `type: "stargate"`
+- [ ] JSON parser handles markdown-fenced responses (```json ... ```)
+- [ ] JSON parser extracts JSON from mixed text/JSON responses
+- [ ] Malformed individual nodes are skipped without dropping the entire response
+- [ ] A completely unparseable response falls back to a single context node (not a crash)
 - [ ] API key is NOT present in any client-side bundle (verify with `grep -r "sk-ant" .svelte-kit/`)
 - [ ] `/api/ai` returns 401 for unauthenticated requests
-- [ ] Free tier uses Haiku; paid tiers use Sonnet (verify model in `ai_generations` log)
+- [ ] Free tier uses Haiku 4.5; paid tiers use Sonnet 4.6 (verify model in `ai_generations` log)
 - [ ] Prompt caching is active — verify `cache_creation_input_tokens` or `cache_read_input_tokens` in API response usage
-- [ ] Generation rate limits enforced: free user hitting daily T1 cap gets 429 response
+- [ ] Generation rate limits enforced: free user hitting daily T1 cap (20) gets 429 response
+- [ ] Pro user hitting daily T3 cap (5) gets 429 response
 - [ ] Every generation writes a row to `ai_generations` with token count and tier
 - [ ] `/api/ai` returns 429 when user exceeds their plan's daily tier limit
 
@@ -1144,25 +1341,27 @@ These are intentional design decisions from the original — do not "fix" them:
 ## Suggested Commit Sequence
 
 ```
+feat: validate T2 topology-aware synthesis (Phase 0 — scripts/validate-t2.js)
 feat: scaffold SvelteKit project with Tailwind
 feat: extract engine modules from index.html (no logic changes)
 feat: create Svelte stores mirroring existing state shape
 feat: rAF → store boundary guard (engineBridge assertions)
 feat: GraphCanvas component with rAF loop
 feat: port all HUD, Inspector, Composer, ContextMenu components
-feat: Supabase schema migrations + RLS policies
+feat: Supabase schema migrations + RLS policies + composite indexes + cleanup triggers
 feat: graph load/save via Supabase queries
 feat: auth flow (email + Google OAuth) + workspace auto-creation
 feat: realtime collaboration via Supabase broadcast
-feat: Claude API Edge Function (ai-proxy) with prompt caching + tiered model routing
-feat: SvelteKit /api/ai proxy route with plan-aware rate limiting
+feat: Claude API Edge Function (ai-proxy) with prompt caching + tiered model routing (Haiku 4.5 / Sonnet 4.6)
+feat: SvelteKit /api/ai proxy route with plan-aware rate limiting (Pro: 80/15/5 daily caps)
 feat: AI generation logging to ai_generations table
+feat: robust AI JSON parser — fence stripping, mixed text extraction, per-node validation
 feat: wire AI synthesis into Composer — replace generateResponse() stub
 feat: Tier 2 graph-aware AI synthesis
 feat: Tier 3 topic-to-graph full subgraph generation
+feat: public graph sharing via /share/[id] route (growth loop)
 feat: graph export (JSON full state + Markdown outline)
-feat: public graph sharing via /share/[id] route
-chore: Playwright e2e tests for core graph interactions
+chore: Playwright e2e tests for core graph interactions (all 5 pointer modes)
 chore: deploy to Cloudflare Pages + Supabase cloud
 ```
 
@@ -1180,5 +1379,6 @@ chore: deploy to Cloudflare Pages + Supabase cloud
 
 ---
 
-*This prompt was generated for BendScript v2.0 — March 2026*
+*This prompt was generated for BendScript v2.1 — March 2026*
 *Source prototype: `index.html` (~3,500 lines) | Target: SvelteKit + Supabase + Claude API*
+*v2.1 changes: Phase 0 T2 validation, Pro plan caps (80/15/5 at $19/mo), hardened JSON parser, composite index, edge cleanup trigger, granular RLS, model ID updates*
