@@ -197,6 +197,88 @@ export const composerPos = writable({ free: false, x: 0, y: 0 });
 export const mergeSourceNodeId = writable(null);
 ```
 
+```js
+// src/lib/stores/workspaceStore.js
+// Matches workspace_members join shape from Supabase
+export const currentWorkspace = writable(null);
+// Shape: { id: uuid, name: string, slug: string, plan: 'free'|'pro'|'teams'|'business'|'enterprise' }
+
+export const currentRole = writable(null);
+// Shape: 'owner' | 'admin' | 'member' | 'viewer'
+
+export const workspaceMembers = writable([]);
+// Shape: [{ user_id: uuid, role: string, joined_at: string, profiles: { email, display_name } }]
+```
+
+### 1.3.1 Canvas ↔ Store Synchronization Contract
+
+**This is the most important architectural boundary in the migration.** The engine (physics, renderer, input) runs on raw mutable JS objects inside each plane. Svelte stores are the reactive layer above it. These two worlds must not be conflated.
+
+**Rule:** The engine mutates plane objects directly (e.g., `node.x += vx`). Svelte stores are *not* called from inside the rAF loop. Stores are only updated when discrete user actions complete (drag end, text save, node add/delete).
+
+```
+┌─────────────────────────────────────────────┐
+│  Svelte Stores (reactive, drives UI)         │
+│  planes, activePlaneId, selectedNodeId, etc. │
+└────────────────┬────────────────────────────┘
+                 │ read on mount / write on action
+┌────────────────▼────────────────────────────┐
+│  Engine State (mutable JS objects)           │
+│  plane.nodes[], plane.edges[], camera        │
+│  — mutated freely by physics + input         │
+└────────────────┬────────────────────────────┘
+                 │ rAF reads directly — no store subscription
+┌────────────────▼────────────────────────────┐
+│  Canvas Renderer (drawNodes, drawEdges)      │
+└─────────────────────────────────────────────┘
+```
+
+**Sync points — when to call `planes.update()`:**
+
+| Event | Store update required |
+|---|---|
+| Node drag **end** (`pointerup`) | Yes — update `node.x`, `node.y` in store |
+| Node text change (debounced 500ms) | Yes — update `node.text` in store |
+| Node added | Yes — push to `plane.nodes` in store |
+| Node deleted | Yes — remove from `plane.nodes` in store |
+| Stargate enter (plane change) | Yes — update `activePlaneId` |
+| Node position during drag | **No** — engine mutates directly, canvas reads directly |
+| Physics tick (every frame) | **No** — never call stores from rAF |
+
+**Pattern for action handlers in `input.js`:**
+
+```js
+// input.js — engine runs mutations; dispatches events for store sync
+import { dispatch } from '$lib/stores/engineBridge';
+
+// On drag end:
+canvas.addEventListener('pointerup', () => {
+  if (draggingNode) {
+    dispatch('node:moved', { id: draggingNode.id, x: draggingNode.x, y: draggingNode.y });
+    draggingNode = null;
+  }
+});
+```
+
+```js
+// src/lib/stores/engineBridge.js — thin event bus between engine and stores
+import { planes } from './graphStore';
+
+const handlers = {};
+export function on(event, fn) { handlers[event] = fn; }
+export function dispatch(event, payload) { handlers[event]?.(payload); }
+
+// In GraphCanvas.svelte onMount:
+on('node:moved', ({ id, x, y }) => {
+  planes.update(ps => {
+    const plane = ps[get(activePlaneId)];
+    const node = plane?.nodes.find(n => n.id === id);
+    if (node) { node.x = x; node.y = y; }
+    return ps;
+  });
+});
+```
+
 ### 1.4 GraphCanvas Component
 
 The canvas lifecycle maps to Svelte's `onMount`/`onDestroy`:
@@ -466,6 +548,18 @@ export async function syncNode(node, workspaceId) {
     updated_at: new Date().toISOString(),
   });
 }
+
+// Debounced text sync — call this on every keystroke; it fires DB write 500ms after typing stops
+export function makeDebouncedTextSync(workspaceId, delay = 500) {
+  let timer;
+  return function syncNodeText(node) {
+    clearTimeout(timer);
+    timer = setTimeout(() => syncNode(node, workspaceId), delay);
+  };
+}
+// Usage in NodeInspector.svelte:
+//   const debouncedSync = makeDebouncedTextSync($currentWorkspace.id);
+//   $: debouncedSync(selectedNode);  // fires on every text change
 
 function dbNodeToEngine(row) {
   return {
@@ -749,20 +843,56 @@ export async function load({ url, locals: { supabase } }) {
 
 ### 5.2 Auth Guard Layout
 
+**Important:** Client-side-only auth guards (`onMount` + `goto`) allow a flash of protected content before redirect. Use a server-side layout load function instead.
+
+```js
+// src/routes/(app)/+layout.server.js
+import { redirect } from '@sveltejs/kit';
+
+export async function load({ locals: { getSession } }) {
+  const session = await getSession();
+  if (!session) {
+    throw redirect(303, '/auth/login');
+  }
+  return { session };
+}
+```
+
 ```svelte
 <!-- src/routes/(app)/+layout.svelte -->
 <script>
-  import { goto } from '$app/navigation';
-  import { supabase } from '$lib/supabase/client';
-  import { onMount } from 'svelte';
-
-  onMount(async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) goto('/auth/login');
-  });
+  export let data; // { session } from layout.server.js
+  // No need for onMount auth check — server already redirected unauthenticated users
 </script>
 
 <slot />
+```
+
+The `getSession` helper comes from `@supabase/auth-helpers-sveltekit`. Ensure `locals.getSession` is set up in `src/hooks.server.js`:
+
+```js
+// src/hooks.server.js
+import { createSupabaseServerClient } from '@supabase/auth-helpers-sveltekit';
+import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
+
+export async function handle({ event, resolve }) {
+  event.locals.supabase = createSupabaseServerClient({
+    supabaseUrl: PUBLIC_SUPABASE_URL,
+    supabaseKey: PUBLIC_SUPABASE_ANON_KEY,
+    event,
+  });
+
+  event.locals.getSession = async () => {
+    const { data: { session } } = await event.locals.supabase.auth.getSession();
+    return session;
+  };
+
+  return resolve(event, {
+    filterSerializedResponseHeaders(name) {
+      return name === 'content-range';
+    },
+  });
+}
 ```
 
 ---

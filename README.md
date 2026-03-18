@@ -20,7 +20,7 @@ BendScript is a multi-tenant, AI-powered knowledge graph editor built on SvelteK
 
 ## The Interface
 
-The landing page IS the product. Users land directly into a graph-based environment:
+The landing page IS the product. Users land directly into a graph-based environment — no account required to feel it:
 
 1. **Canvas** — an infinite, force-directed graph rendered on HTML5 Canvas
 2. **Composer bar** — a floating prompt input that spawns node pairs (user → AI response)
@@ -64,7 +64,7 @@ The Composer connects to the Anthropic Claude API. The AI doesn't just respond w
 
 **Tier 1 — Contextual response:** Prompt → AI returns `{ text, type, edgeLabel, edgeKind }` → spawns 2 nodes.
 
-**Tier 2 — Graph-aware synthesis:** Prompt + current graph context → AI returns array of 2–4 nodes that semantically fit the existing structure.
+**Tier 2 — Graph-aware synthesis:** Prompt + current graph context (nodes + edges) → AI returns 2–4 nodes that semantically fit the existing structure. The graph shape influences the response, not just the text.
 
 **Tier 3 — Topic-to-graph:** Type a topic → AI returns a full subgraph of 8–12 nodes with typed edges, Stargate suggestions, and depth hierarchy. The graph IS the answer.
 
@@ -177,15 +177,56 @@ ai_generations      → workspace_id, user_id, prompt, tier, tokens_used, nodes_
 
 ---
 
+## Positioning
+
+BendScript is where **prompts become topology**. Instead of flat chat, you navigate a living graph of interconnected ideas — and every node is a doorway to somewhere deeper.
+
+**Script bending = thinking in graphs.**
+
+### Who It's For
+
+BendScript targets two high-intent early adopter groups:
+
+**PKM power users** who've hit the ceiling of linear tools — people already using Heptabase, Obsidian Canvas, or Roam who want AI that *generates* graph structure, not just assists reading. They already know spatial thinking works; they want an AI that speaks that language natively and builds the graph alongside them.
+
+**Researchers, developers, and complex thinkers** doing multi-branch work — people who've tried branching chat tools (Canvas Chat, FlowithOS) and found them too shallow, or who work in visual node editors (ComfyUI, LangGraph Studio) and want that energy applied to knowledge work rather than pipelines.
+
+### Competitive Landscape
+
+The canvas-AI space is active and growing. Key tools in the same territory:
+
+| Tool | What it does | The gap BendScript fills |
+|---|---|---|
+| **Canvas Chat** (OSS) | Infinite canvas, DAG-aware branching chat | Flat tree; AI sees conversation history, not graph topology; no nested planes |
+| **FlowithOS Canvas** | Node-based AI workspace with forking | Fixed workflow metaphor; no fractal depth; no topology-aware synthesis |
+| **Chatvas** (OSS) | Visualizes + branches ChatGPT conversations on canvas | Wraps existing chat; nodes are messages, not knowledge contexts |
+| **Heptabase** | Visual canvas PKM, whiteboard + card linking | No AI that *generates* structure; AI assists annotation, not graph building |
+| **Obsidian Canvas** | Spatial layout of notes with graph view | Manual structure only; AI is a plugin layer, not the core mechanic |
+| **Tana** | Structured PKM with supertags and AI | Text/outline-first; no spatial canvas or fractal depth |
+
+### The Real Differentiators
+
+Three things BendScript does that no identified competitor currently offers together:
+
+**1. Fractal depth via Stargates.** Nodes are portals into entirely new graph planes. You don't just branch a conversation — you *enter a sub-world*. The depth metaphor creates genuine spatial reasoning across nested contexts, not a flat branching tree. This is architecturally unique in this category.
+
+**2. Topology-aware AI synthesis (Tier 2–4).** The AI receives the current graph's node and edge structure — not just conversation history — and generates new nodes that semantically fit the *shape* of the existing graph. The topology itself becomes prompt context. No existing tool sends graph structure to the model as generative input in this way.
+
+**3. Zero-friction entry.** The landing page is a live, working graph. No signup to feel the product. The value proposition requires spatial experience to land — and it lands on first contact.
+
+---
+
 ## Pricing
 
 | Plan | Price | Graphs | Nodes/graph | Collaboration | AI |
 |---|---|---|---|---|---|
-| Free | $0/mo | 3 | 50 | — | 10 generations/day |
+| Free | $0/mo | 5 | 100 | — | 20 generations/day |
 | Pro | $15/mo | Unlimited | 500 | — | 100/day + topic-to-graph |
 | Teams | $25/seat/mo | Unlimited | 1,000 | ✓ Real-time | 1,000/mo shared pool |
 | Business | $20/seat/mo (10+) | Unlimited | Unlimited | ✓ + SSO + audit log | 5,000/mo + edge inference |
 | Enterprise | Custom | Unlimited | Unlimited | ✓ + on-prem option | Custom / self-hosted model |
+
+> **Note on free tier:** Comparable tools (Heptabase $9–12/mo, Kosmik $12–15/mo) are local-first or well-established. The original 3-graph / 10-generation free tier was too restrictive for organic growth. The updated 5-graph / 20-generation limit is designed to be genuinely usable for solo exploration while creating natural upgrade pressure. Revisit against actual AI cost data post-launch.
 
 ---
 
@@ -231,16 +272,6 @@ npm run test:e2e      # Playwright
 npm run build
 npm run preview
 ```
-
----
-
-## Positioning
-
-BendScript is where **prompts become topology**. Instead of flat chat, you navigate a living graph of interconnected ideas — and every node is a doorway to somewhere deeper.
-
-The differentiator: the only knowledge graph tool where the AI reasons about the graph's existing shape when generating new content. It doesn't answer your question — it *extends your thinking*.
-
-**Script bending = thinking in graphs.**
 
 ---
 
