@@ -106,8 +106,8 @@ Nodes marked `⊛` are Stargates that open into deeper graph contexts.
 | Backend | Supabase (Postgres) | Graph persistence, multi-tenancy |
 | Auth | Supabase Auth | Email + Google OAuth, workspace isolation |
 | Realtime | Supabase Realtime (broadcast) | Live collaboration — node positions + text |
-| AI | Anthropic Claude API (claude-sonnet-4-5) | Graph synthesis, contextual responses |
-| AI Proxy | Supabase Edge Functions | Server-side Claude API calls (key never exposed) |
+| AI | Anthropic Claude API (tiered model routing) | Haiku for Tier 1 (Free), Sonnet for Tier 2–4 (paid); prompt caching enabled |
+| AI Proxy | Supabase Edge Functions | Server-side Claude API calls (key never exposed), rate limiting per plan |
 | Vector search | pgvector | Semantic node similarity (Phase 2) |
 | Styling | Tailwind CSS v4 | Utility-first CSS |
 | Deploy | Cloudflare Pages + Supabase cloud | Static frontend + managed backend |
@@ -189,20 +189,22 @@ BendScript targets two high-intent early adopter groups:
 
 **PKM power users** who've hit the ceiling of linear tools — people already using Heptabase, Obsidian Canvas, or Roam who want AI that *generates* graph structure, not just assists reading. They already know spatial thinking works; they want an AI that speaks that language natively and builds the graph alongside them.
 
-**Researchers, developers, and complex thinkers** doing multi-branch work — people who've tried branching chat tools (Canvas Chat, FlowithOS) and found them too shallow, or who work in visual node editors (ComfyUI, LangGraph Studio) and want that energy applied to knowledge work rather than pipelines.
+**Researchers, developers, and complex thinkers** doing multi-branch work — people who've tried canvas AI tools (Flowith, Canvas Chat) and want the AI to reason about *graph structure*, not just execute tasks on a flat canvas. Or people who work in visual node editors (ComfyUI, LangGraph Studio) and want that energy applied to knowledge work rather than pipelines.
 
 ### Competitive Landscape
 
 The canvas-AI space is active and growing. Key tools in the same territory:
 
-| Tool | What it does | The gap BendScript fills |
-|---|---|---|
-| **Canvas Chat** (OSS) | Infinite canvas, DAG-aware branching chat | Flat tree; AI sees conversation history, not graph topology; no nested planes |
-| **FlowithOS Canvas** | Node-based AI workspace with forking | Fixed workflow metaphor; no fractal depth; no topology-aware synthesis |
-| **Chatvas** (OSS) | Visualizes + branches ChatGPT conversations on canvas | Wraps existing chat; nodes are messages, not knowledge contexts |
-| **Heptabase** | Visual canvas PKM, whiteboard + card linking | No AI that *generates* structure; AI assists annotation, not graph building |
-| **Obsidian Canvas** | Spatial layout of notes with graph view | Manual structure only; AI is a plugin layer, not the core mechanic |
-| **Tana** | Structured PKM with supertags and AI | Text/outline-first; no spatial canvas or fractal depth |
+| Tool | What it does | Users | The gap BendScript fills |
+|---|---|---|---|
+| **Flowith** | Infinite canvas AI workspace with Agent Neo (autonomous), Knowledge Garden, 40+ models, real-time collab | 1M+ (YC China) | No fractal depth — flat canvas only; no topology-aware synthesis; AI is general-purpose agentic, not graph-structural |
+| **Canvas Chat** (OSS) | Infinite canvas, DAG-aware branching chat with merge/synthesis | OSS | Flat tree; AI sees conversation history, not graph topology; no nested planes |
+| **Thinkvas** | Branching AI conversations with context inheritance, long-term memory | Early | Linear branch model; no typed edges, no graph topology as AI input, no sub-planes |
+| **Heptabase** | Visual canvas PKM, whiteboard + card linking, AI annotation | 350K+ ($7M ARR) | No AI that *generates* structure; AI assists reading/annotation, not graph building |
+| **Obsidian Canvas** | Spatial layout of notes with graph view | Millions | Manual structure only; AI is a plugin layer, not the core mechanic |
+| **Tana** | Structured PKM with supertags and AI | Growing | Text/outline-first; no spatial canvas or fractal depth |
+
+> **Note on Flowith:** Flowith is the most direct competitor in terms of market positioning ("canvas + AI"). With 1M+ users and $15–$500/mo pricing, they've validated the category. However, Flowith's AI is task-agentic (autonomous execution, tool orchestration) — not graph-structural. It doesn't send graph topology to the model as generative input, and it has no concept of nested planes. BendScript's differentiator is specifically *topology-aware synthesis* and *fractal depth*, not "canvas + AI" generically.
 
 ### The Real Differentiators
 
@@ -218,15 +220,50 @@ Three things BendScript does that no identified competitor currently offers toge
 
 ## Pricing
 
-| Plan | Price | Graphs | Nodes/graph | Collaboration | AI |
+| Plan | Price | Graphs | Nodes/graph | Collaboration | AI Generations |
 |---|---|---|---|---|---|
-| Free | $0/mo | 5 | 100 | — | 20 generations/day |
-| Pro | $15/mo | Unlimited | 500 | — | 100/day + topic-to-graph |
-| Teams | $25/seat/mo | Unlimited | 1,000 | ✓ Real-time | 1,000/mo shared pool |
-| Business | $20/seat/mo (10+) | Unlimited | Unlimited | ✓ + SSO + audit log | 5,000/mo + edge inference |
+| Free | $0/mo | 5 | 100 | — | 20 T1 / 5 T2 / 2 T3 per day (Haiku only) |
+| Pro | $15/mo | Unlimited | 500 | — | 100 T1 / 30 T2 / 10 T3 per day (Sonnet) |
+| Teams | $25/seat/mo | Unlimited | 1,000 | ✓ Real-time | 1,000/mo shared pool, all tiers (Sonnet) |
+| Business | $20/seat/mo (10+) | Unlimited | Unlimited | ✓ + SSO + audit log | 5,000/mo + edge inference (Sonnet) |
 | Enterprise | Custom | Unlimited | Unlimited | ✓ + on-prem option | Custom / self-hosted model |
 
-> **Note on free tier:** Comparable tools (Heptabase $9–12/mo, Kosmik $12–15/mo) are local-first or well-established. The original 3-graph / 10-generation free tier was too restrictive for organic growth. The updated 5-graph / 20-generation limit is designed to be genuinely usable for solo exploration while creating natural upgrade pressure. Revisit against actual AI cost data post-launch.
+> **Note on free tier:** Comparable tools (Heptabase $9–12/mo, Flowith $15–$50/mo) are established with large user bases. The free tier is designed to be genuinely usable for solo exploration while creating natural upgrade pressure. Generation caps are tier-aware (not flat) because Tier 3 calls cost ~6× more than Tier 1. Free tier uses Haiku to control costs; paid tiers upgrade to Sonnet.
+
+---
+
+## AI Cost Model
+
+AI generation costs vary significantly by tier. Pricing viability depends on tiered model routing and prompt caching:
+
+| AI Tier | Model (Free) | Model (Paid) | Est. Input Tokens | Est. Output Tokens | Cost/Call (Free) | Cost/Call (Paid) |
+|---|---|---|---|---|---|---|
+| Tier 1 — Contextual | Haiku | Sonnet | ~800 | ~600 | $0.004 | $0.011 |
+| Tier 2 — Graph-aware | Haiku | Sonnet | ~3,000 | ~1,500 | $0.009 | $0.032 |
+| Tier 3 — Topic-to-graph | Haiku | Sonnet | ~4,000 | ~4,000 | $0.024 | $0.072 |
+| Tier 4 — Edge inference | — | Sonnet | ~2,500 | ~800 | — | $0.020 |
+
+**Worst-case free user (maxes all daily caps):** ~$2.80/month with Haiku. Manageable.
+
+**Worst-case Pro user (maxes all daily caps):** ~$85/month with Sonnet. Tight margin — monitor and adjust caps based on actual usage data.
+
+**Required optimizations:**
+- **Prompt caching** — System prompts are identical across all calls of the same tier. Anthropic's prompt caching reduces input token costs by 90% on cache hits. This is a ~10-line code change that saves thousands at scale.
+- **Tiered model routing** — Free tier must use Haiku; Sonnet reserved for paid plans. This is the single biggest lever on unit economics.
+- **Generation logging** — The `ai_generations` table must be written on every call with token counts. Without this, there's no visibility into actual costs per workspace.
+
+---
+
+## Export & Interoperability
+
+Graph portability is a hard requirement for the PKM audience. BendScript must support data export from launch:
+
+- **JSON export** — Full graph state (planes, nodes, edges, metadata) as a single JSON file. This is the "emergency exit" — users must always be able to get their data out.
+- **Markdown outline** — Flatten a graph plane into a nested Markdown document following edge hierarchy. Useful for sharing graph insights in linear formats.
+- **Mermaid diagram** — Export a plane as a Mermaid flowchart definition. Renders in GitHub, Notion, Obsidian, and most modern Markdown tools.
+- **Import from JSON** — Reload a previously exported graph. Required for backup/restore and cross-workspace migration.
+
+> **Phase target:** JSON export and Markdown outline at launch. Mermaid export in the first post-launch update. Import is Phase 2.
 
 ---
 
@@ -282,16 +319,20 @@ npm run preview
 - [ ] Supabase persistence — schema, RLS, graph load/save
 - [ ] Auth + workspaces — email, OAuth, multi-tenancy
 - [ ] AI Tier 1–2 — contextual + graph-aware synthesis (replace stub)
+- [ ] Prompt caching + tiered model routing — Haiku for Free, Sonnet for paid; cache system prompts
+- [ ] AI generation rate limiting — enforce per-plan caps, log token usage to `ai_generations`
+- [ ] Graph export — JSON full state, Markdown outline
 - [ ] Real-time collaboration — Supabase broadcast, node sync
 - [ ] AI Tier 3 — topic-to-graph full subgraph generation
 - [ ] Public graph sharing — read-only `/share/[id]` URL
+- [ ] Quadtree spatial index (unlocks 500+ node graphs — required before Teams/Business plans go live)
 - [ ] Undo/redo stack — immutable state snapshots
+- [ ] Mermaid export + JSON import
 - [ ] Semantic search — pgvector node embeddings
 - [ ] Mobile optimization — pinch zoom, two-finger pan, long-press menu
 - [ ] AI Tier 4 — edge inference on node creation
 - [ ] Graph templates library
 - [ ] API access for workspace graphs
-- [ ] Quadtree spatial index (unlocks 1,000+ node graphs)
 - [ ] Enterprise SSO + audit logging
 
 ---

@@ -2106,6 +2106,19 @@ Write **markdown** here..."
                     });
                 }
 
+                // ============================================================
+                // NOTE: generateResponse() is a KEYWORD STUB for the prototype.
+                // It returns canned strings based on keyword matching — there is
+                // no real AI integration here. The production version replaces
+                // this with Claude API calls via the Edge Function proxy.
+                // See BUILD.md Phase 3 for the real implementation:
+                //   - Tier 1: Contextual response (single node)
+                //   - Tier 2: Graph-aware synthesis (2–4 nodes using topology)
+                //   - Tier 3: Topic-to-graph (8–12 node subgraph)
+                //   - Tier 4: Edge inference (connect to existing nodes)
+                // The spawnPromptFlow() function below is also replaced by
+                // src/lib/ai/graphSynthesis.js in the SvelteKit migration.
+                // ============================================================
                 function generateResponse(prompt) {
                     const p = prompt.toLowerCase();
                     if (

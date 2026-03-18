@@ -145,7 +145,7 @@ npm create svelte@latest bendscript
 # Choose: Skeleton project, TypeScript: No (use JS), ESLint + Prettier: Yes
 cd bendscript
 npm install
-npm install @supabase/supabase-js @supabase/auth-helpers-sveltekit
+npm install @supabase/supabase-js @supabase/ssr
 npm install -D tailwindcss @tailwindcss/vite
 ```
 
@@ -268,8 +268,21 @@ const handlers = {};
 export function on(event, fn) { handlers[event] = fn; }
 export function dispatch(event, payload) { handlers[event]?.(payload); }
 
+// --- rAF → store boundary guard ---
+// The engine mutates objects directly inside rAF. Svelte stores must NEVER be
+// updated from inside the animation loop. This flag catches violations early.
+let _insideRAF = false;
+export function markRAFStart() { _insideRAF = true; }
+export function markRAFEnd() { _insideRAF = false; }
+export function assertNotInRAF(caller = 'unknown') {
+  if (_insideRAF) {
+    throw new Error(`[BendScript] Store update called from inside rAF loop (${caller}). This violates the engine/store boundary. Stores must only be updated on discrete user actions (drag end, text save, node add/delete), never during physics or render ticks.`);
+  }
+}
+
 // In GraphCanvas.svelte onMount:
 on('node:moved', ({ id, x, y }) => {
+  assertNotInRAF('node:moved');
   planes.update(ps => {
     const plane = ps[get(activePlaneId)];
     const node = plane?.nodes.find(n => n.id === id);
@@ -291,6 +304,7 @@ The canvas lifecycle maps to Svelte's `onMount`/`onDestroy`:
   import { simulate } from '$lib/engine/physics';
   import { drawBackground, drawEdges, drawNodes } from '$lib/engine/renderer';
   import { setupInputHandlers } from '$lib/engine/input';
+  import { markRAFStart, markRAFEnd } from '$lib/stores/engineBridge';
 
   let canvas;
   let ctx;
@@ -311,11 +325,12 @@ The canvas lifecycle maps to Svelte's `onMount`/`onDestroy`:
   });
 
   function tick() {
+    markRAFStart(); // --- guard: any store.update() call after this will throw ---
     const t = performance.now();
     const dt = Math.min(33, t - lastT);
     lastT = t;
     const plane = $activePlane;
-    if (!plane) { rafId = requestAnimationFrame(tick); return; }
+    if (!plane) { markRAFEnd(); rafId = requestAnimationFrame(tick); return; }
     const W = window.innerWidth;
     const H = window.innerHeight;
     simulate(plane, dt);
@@ -323,6 +338,7 @@ The canvas lifecycle maps to Svelte's `onMount`/`onDestroy`:
     drawBackground(ctx, W, H, t);
     drawEdges(ctx, plane, W, H, t);
     drawNodes(ctx, plane, W, H, t);
+    markRAFEnd(); // --- guard lifted: store updates are safe again ---
     rafId = requestAnimationFrame(tick);
   }
 
@@ -591,13 +607,43 @@ Create `supabase/functions/ai-proxy/index.ts`:
 
 ```typescript
 import Anthropic from 'npm:@anthropic-ai/sdk';
+import { createClient } from 'npm:@supabase/supabase-js';
 
 const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY') });
+const supabase = createClient(
+  Deno.env.get('SUPABASE_URL')!,
+  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+);
+
+// Tiered model routing: Free gets Haiku, paid gets Sonnet
+function selectModel(plan: string, tier: number): string {
+  if (plan === 'free') return 'claude-haiku-4-5';
+  return 'claude-sonnet-4-6';
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
-  const { prompt, graphContext, tier } = await req.json();
+  const { prompt, graphContext, tier, userId, workspaceId, graphId, plan } = await req.json();
+
+  // --- Rate limiting: check generation count against plan limits ---
+  const { count } = await supabase
+    .from('ai_generations')
+    .select('*', { count: 'exact', head: true })
+    .eq('workspace_id', workspaceId)
+    .eq('tier', tier)
+    .gte('created_at', todayStart());
+
+  const limit = getLimit(plan, tier);
+  if (count !== null && count >= limit) {
+    return new Response(JSON.stringify({ error: 'Generation limit reached for this tier' }), {
+      status: 429,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+
+  // --- Select model based on plan ---
+  const model = selectModel(plan, tier);
 
   const systemPrompt = tier === 3
     ? TOPIC_TO_GRAPH_SYSTEM
@@ -609,17 +655,56 @@ Deno.serve(async (req) => {
     ? `Current graph context:\n${JSON.stringify(graphContext, null, 2)}\n\nUser prompt: ${prompt}`
     : prompt;
 
+  // --- Prompt caching: system prompts are identical across all calls of the same tier.
+  //     Adding cache_control reduces input token costs by 90% on cache hits. ---
   const msg = await anthropic.messages.create({
-    model: 'claude-sonnet-4-5',
+    model,
     max_tokens: 2048,
-    system: systemPrompt,
+    system: [
+      {
+        type: 'text',
+        text: systemPrompt,
+        cache_control: { type: 'ephemeral' }
+      }
+    ],
     messages: [{ role: 'user', content: userMessage }],
+  });
+
+  // --- Log generation for billing and rate limiting ---
+  const tokensUsed = (msg.usage?.input_tokens || 0) + (msg.usage?.output_tokens || 0);
+  await supabase.from('ai_generations').insert({
+    workspace_id: workspaceId,
+    user_id: userId,
+    graph_id: graphId,
+    prompt: prompt.slice(0, 500),
+    model,
+    tier,
+    tokens_used: tokensUsed,
+    nodes_spawned: tier === 3 ? 10 : tier === 2 ? 3 : 1, // estimate, refined by client
   });
 
   return new Response(JSON.stringify({ content: msg.content }), {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' }
   });
 });
+
+function todayStart(): string {
+  const d = new Date();
+  d.setUTCHours(0, 0, 0, 0);
+  return d.toISOString();
+}
+
+// Per-plan daily limits by tier — these match the pricing table in README.md
+function getLimit(plan: string, tier: number): number {
+  const limits: Record<string, Record<number, number>> = {
+    free:       { 1: 20, 2: 5, 3: 2, 4: 0 },
+    pro:        { 1: 100, 2: 30, 3: 10, 4: 0 },
+    teams:      { 1: 9999, 2: 9999, 3: 9999, 4: 0 },  // pool-based, checked monthly
+    business:   { 1: 9999, 2: 9999, 3: 9999, 4: 9999 },
+    enterprise: { 1: 9999, 2: 9999, 3: 9999, 4: 9999 },
+  };
+  return limits[plan]?.[tier] ?? 20;
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -677,10 +762,13 @@ Rules:
 
 ```js
 // src/routes/api/ai/+server.js
-// This is the client-facing endpoint — it validates auth then calls the Edge Function
+// This is the client-facing endpoint — it validates auth, resolves the user's plan, then calls the Edge Function
 
 import { json, error } from '@sveltejs/kit';
 import { SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL } from '$env/static/private';
+import { createClient } from '@supabase/supabase-js';
+
+const adminSupabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 export async function POST({ request, locals }) {
   const session = await locals.getSession();
@@ -688,14 +776,33 @@ export async function POST({ request, locals }) {
 
   const body = await request.json();
 
+  // Resolve user's workspace and plan for rate limiting + model selection
+  const { data: membership } = await adminSupabase
+    .from('workspace_members')
+    .select('workspace_id, workspaces(plan)')
+    .eq('user_id', session.user.id)
+    .eq('workspace_id', body.workspaceId)
+    .single();
+
+  if (!membership) throw error(403, 'Not a member of this workspace');
+
   const response = await fetch(`${SUPABASE_URL}/functions/v1/ai-proxy`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      ...body,
+      userId: session.user.id,
+      plan: membership.workspaces.plan || 'free',
+    }),
   });
+
+  if (response.status === 429) {
+    const err = await response.json();
+    throw error(429, err.error || 'Generation limit reached');
+  }
 
   const data = await response.json();
   return json(data);
@@ -708,7 +815,7 @@ export async function POST({ request, locals }) {
 // src/lib/ai/graphSynthesis.js
 // Replaces generateResponse() with real AI
 
-export async function spawnPromptFlow(prompt, plane, currentTargetNode, tier = 1) {
+export async function spawnPromptFlow(prompt, plane, currentTargetNode, tier = 1, workspaceId, graphId) {
   const graphContext = tier >= 2 ? {
     nodes: plane.nodes.map(n => ({ id: n.id, text: n.text, type: n.type })),
     edges: plane.edges.map(e => ({ a: e.a, b: e.b, label: e.props.label, kind: e.props.kind }))
@@ -717,7 +824,7 @@ export async function spawnPromptFlow(prompt, plane, currentTargetNode, tier = 1
   const res = await fetch('/api/ai', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt, graphContext, tier }),
+    body: JSON.stringify({ prompt, graphContext, tier, workspaceId, graphId }),
   });
 
   const data = await res.json();
@@ -868,22 +975,40 @@ export async function load({ locals: { getSession } }) {
 <slot />
 ```
 
-The `getSession` helper comes from `@supabase/auth-helpers-sveltekit`. Ensure `locals.getSession` is set up in `src/hooks.server.js`:
+The `safeGetSession` helper comes from `@supabase/ssr` (the `@supabase/auth-helpers-sveltekit` package is deprecated). Ensure `locals.safeGetSession` is set up in `src/hooks.server.js`:
 
 ```js
 // src/hooks.server.js
-import { createSupabaseServerClient } from '@supabase/auth-helpers-sveltekit';
+import { createServerClient } from '@supabase/ssr';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
 
 export async function handle({ event, resolve }) {
-  event.locals.supabase = createSupabaseServerClient({
-    supabaseUrl: PUBLIC_SUPABASE_URL,
-    supabaseKey: PUBLIC_SUPABASE_ANON_KEY,
-    event,
-  });
+  event.locals.supabase = createServerClient(
+    PUBLIC_SUPABASE_URL,
+    PUBLIC_SUPABASE_ANON_KEY,
+    {
+      cookies: {
+        getAll: () => event.cookies.getAll(),
+        setAll: (cookiesToSet) => {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            event.cookies.set(name, value, { ...options, path: '/' });
+          });
+        },
+      },
+    }
+  );
 
-  event.locals.getSession = async () => {
+  event.locals.safeGetSession = async () => {
     const { data: { session } } = await event.locals.supabase.auth.getSession();
+    if (!session) return { session: null, user: null };
+    const { data: { user }, error } = await event.locals.supabase.auth.getUser();
+    if (error) return { session: null, user: null };
+    return { session, user };
+  };
+
+  // Alias for backward compat with existing code that calls getSession()
+  event.locals.getSession = async () => {
+    const { session } = await event.locals.safeGetSession();
     return session;
   };
 
@@ -894,6 +1019,8 @@ export async function handle({ event, resolve }) {
   });
 }
 ```
+
+> **Note:** `@supabase/auth-helpers-sveltekit` is deprecated. Use `@supabase/ssr` instead. The key difference is that `safeGetSession()` validates the JWT via `auth.getUser()` to prevent token tampering, whereas the old `getSession()` trusted the JWT without server-side validation.
 
 ---
 
@@ -977,6 +1104,11 @@ Before considering any phase complete, verify:
 - [ ] Stargate nodes are spawned when AI sets `type: "stargate"`
 - [ ] API key is NOT present in any client-side bundle (verify with `grep -r "sk-ant" .svelte-kit/`)
 - [ ] `/api/ai` returns 401 for unauthenticated requests
+- [ ] Free tier uses Haiku; paid tiers use Sonnet (verify model in `ai_generations` log)
+- [ ] Prompt caching is active — verify `cache_creation_input_tokens` or `cache_read_input_tokens` in API response usage
+- [ ] Generation rate limits enforced: free user hitting daily T1 cap gets 429 response
+- [ ] Every generation writes a row to `ai_generations` with token count and tier
+- [ ] `/api/ai` returns 429 when user exceeds their plan's daily tier limit
 
 ### Phase 4 (Realtime)
 - [ ] Two browser tabs on the same graph see each other's node movements
@@ -1015,17 +1147,20 @@ These are intentional design decisions from the original — do not "fix" them:
 feat: scaffold SvelteKit project with Tailwind
 feat: extract engine modules from index.html (no logic changes)
 feat: create Svelte stores mirroring existing state shape
+feat: rAF → store boundary guard (engineBridge assertions)
 feat: GraphCanvas component with rAF loop
 feat: port all HUD, Inspector, Composer, ContextMenu components
 feat: Supabase schema migrations + RLS policies
 feat: graph load/save via Supabase queries
 feat: auth flow (email + Google OAuth) + workspace auto-creation
 feat: realtime collaboration via Supabase broadcast
-feat: Claude API Edge Function (ai-proxy)
-feat: SvelteKit /api/ai proxy route
+feat: Claude API Edge Function (ai-proxy) with prompt caching + tiered model routing
+feat: SvelteKit /api/ai proxy route with plan-aware rate limiting
+feat: AI generation logging to ai_generations table
 feat: wire AI synthesis into Composer — replace generateResponse() stub
 feat: Tier 2 graph-aware AI synthesis
 feat: Tier 3 topic-to-graph full subgraph generation
+feat: graph export (JSON full state + Markdown outline)
 feat: public graph sharing via /share/[id] route
 chore: Playwright e2e tests for core graph interactions
 chore: deploy to Cloudflare Pages + Supabase cloud
