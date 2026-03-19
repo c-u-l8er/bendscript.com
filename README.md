@@ -216,6 +216,8 @@ Three things BendScript does that no identified competitor currently offers toge
 
 **3. Zero-friction entry.** The landing page is a live, working graph. No signup to feel the product. The value proposition requires spatial experience to land — and it lands on first contact.
 
+**4. KAG server — knowledge infrastructure, not just a canvas.** BendScript graphs are queryable knowledge bases. Any LLM system can query a BendScript workspace via MCP or REST API for grounded, multi-hop reasoning over the user's accumulated knowledge. This transforms BendScript from a canvas app competing on UI into a knowledge infrastructure layer competing on data depth. See the KAG section below for full details.
+
 ---
 
 ## Pricing
@@ -276,6 +278,108 @@ Graph portability is a hard requirement for the PKM audience. BendScript must su
 - **Import from JSON** — Reload a previously exported graph. Required for backup/restore and cross-workspace migration.
 
 > **Phase target:** JSON export and Markdown outline at launch. Mermaid export in the first post-launch update. Import is Phase 2.
+
+---
+
+## KAG — Knowledge Augmented Generation Server
+
+BendScript's graph data is structurally identical to a knowledge graph. Every node is an entity, every typed edge is a relation, every Stargate is a sub-domain. This means BendScript can serve as a **KAG (Knowledge Augmented Generation) server** — exposing its graphs as structured knowledge bases that any LLM system can query for grounded, multi-hop reasoning.
+
+KAG is a framework developed by Ant Group (OpenSPG/KAG) that goes beyond traditional RAG by combining knowledge graph structure with vector retrieval and logical-form-guided reasoning. Where RAG retrieves text chunks by similarity, KAG traverses typed relationships, decomposes complex queries into logical steps, and returns reasoning paths — not just content. BendScript's existing data model already encodes the relationships KAG needs: causal, temporal, associative, and contextual edge types provide the semantic structure that pure vector search lacks.
+
+### Why KAG, Not Just RAG
+
+| Capability | RAG | KAG (BendScript) |
+|---|---|---|
+| Retrieval method | Vector similarity on text chunks | Graph traversal + vector search + logical forms |
+| Multi-hop reasoning | Weak — chains of similarity matches | Native — follow typed edges across 2–5 hops |
+| Numerical / temporal logic | Blind — treats "30 days" as text | Aware — temporal edges encode sequence; strength encodes weight |
+| Hallucination resistance | Moderate — retrieves relevant but possibly wrong chunks | Strong — answers are grounded in explicit graph structure |
+| Context for LLM | Flat text chunks | Structured subgraph (nodes, edges, paths, planes) |
+| Domain adaptability | Requires re-indexing documents | Users build domain graphs interactively via AI synthesis |
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────┐
+│  ANY LLM CLIENT                                  │
+│  Claude (MCP) · ChatGPT (function calling)       │
+│  Custom agent · Slack bot · IDE copilot          │
+└──────────────┬──────────────────────────────────┘
+               │ MCP tool call / REST API / webhook
+┌──────────────▼──────────────────────────────────┐
+│  BENDSCRIPT KAG SERVER                           │
+│                                                  │
+│  ┌─ KAG-Solver ──────────────────────────────┐  │
+│  │  1. Decompose query → logical forms        │  │
+│  │  2. Match forms to graph operations        │  │
+│  │  3. Traverse edges (typed, multi-hop)      │  │
+│  │  4. Assemble subgraph + reasoning path     │  │
+│  └────────────────────────────────────────────┘  │
+│                                                  │
+│  ┌─ KAG-Builder ─────────────────────────────┐  │
+│  │  AI Tier 2–3 synthesis = graph building    │  │
+│  │  Ingest text → extract entities/relations  │  │
+│  │  Schema-free + schema-constrained modes    │  │
+│  └────────────────────────────────────────────┘  │
+│                                                  │
+│  ┌─ Graph Store ─────────────────────────────┐  │
+│  │  Supabase (Postgres) + pgvector            │  │
+│  │  Nodes · Edges · Planes · Mutual indexing  │  │
+│  └────────────────────────────────────────────┘  │
+└──────────────┬──────────────────────────────────┘
+               │ Structured context (subgraph JSON)
+┌──────────────▼──────────────────────────────────┐
+│  LLM generates answer grounded in graph topology │
+└─────────────────────────────────────────────────┘
+```
+
+### MCP Server Tools
+
+BendScript exposes its graph as an MCP-compatible server. KAG has already embraced MCP natively (as of KAG v0.8, March 2026), making this a direct alignment with the emerging standard. MCP is now backed by the Linux Foundation's Agentic AI Foundation, with adoption from Anthropic, OpenAI, Google, Microsoft, and 97M+ monthly SDK downloads.
+
+The BendScript MCP server exposes these tools:
+
+| Tool | Description | Input | Output |
+|---|---|---|---|
+| `search_nodes` | Semantic search across node text in a workspace | `{ query, workspace_id, limit? }` | Array of matching nodes with scores |
+| `get_subgraph` | Return a node and its neighborhood to N hops | `{ node_id, depth?, edge_kinds? }` | Subgraph JSON (nodes + edges + plane context) |
+| `traverse_path` | Find reasoning paths between two concepts | `{ from_query, to_query, max_hops? }` | Ordered path with edge labels and types |
+| `query_graph` | Natural language → logical form → graph traversal | `{ question, workspace_id }` | Reasoning result with source nodes and path |
+| `build_from_text` | Ingest text and return extracted nodes/edges | `{ text, workspace_id, schema? }` | New nodes and edges added to graph |
+| `list_planes` | List all graph planes in a workspace | `{ workspace_id }` | Plane hierarchy with node counts |
+
+### Integration Methods
+
+| Method | Transport | Best For | Status |
+|---|---|---|---|
+| **MCP Server** | Streamable HTTP / SSE | Claude, ChatGPT, Cursor, any MCP client | Phase 2 |
+| **REST API** | HTTPS + API key | Custom apps, webhooks, server-to-server | Phase 2 |
+| **OpenAI Function Calling** | JSON schema | ChatGPT plugins, GPT-based agents | Phase 2 |
+| **LangChain Retriever** | Python SDK | LangChain/LlamaIndex pipelines | Phase 3 |
+| **Embedded reasoning page** | iframe / web component | Business apps that need inline Q&A | Phase 3 |
+
+### KAG API Pricing
+
+KAG API access is a separate add-on to the workspace subscription. Queries consume API credits; graph building via the canvas UI is covered by the base plan.
+
+| Plan | Price | API Queries | MCP Endpoint | Webhook | Notes |
+|---|---|---|---|---|---|
+| Pro (included) | $19/mo | 100/day | — | — | Canvas building only; no API access |
+| KAG API | $49/mo | 5,000/mo | ✓ | ✓ | Single workspace; ideal for personal agents |
+| KAG Teams | $99/mo | 20,000/mo | ✓ | ✓ | Multi-workspace; shared team graphs |
+| KAG Enterprise | Custom | Unlimited | ✓ | ✓ | Self-hosted option; SLA; SSO; audit log |
+
+> **Note on positioning:** This shifts BendScript from competing as a canvas app (vs Flowith, Heptabase) to competing as **knowledge infrastructure** (vs Pinecone, Weaviate, but with graph reasoning). The canvas becomes the builder; the API is the product. Users' accumulated graph data becomes the moat — not the UI.
+
+### Relationship to OpenSPG/KAG
+
+BendScript is not a fork of OpenSPG/KAG. It is a complementary product that shares the same architectural principles:
+
+- **KAG (OpenSPG)** is a Python framework for building domain-specific KAG systems with Neo4j, requiring self-hosting and developer expertise. It targets enterprises building internal knowledge Q&A systems.
+- **BendScript KAG Server** is a hosted, visual-first knowledge graph with a managed API. It targets individuals and teams who want to build knowledge graphs interactively (via AI synthesis on a canvas) and then query them from any LLM system via MCP/REST.
+
+The key insight: KAG proved that knowledge graphs + LLMs > vector RAG alone. BendScript makes that capability accessible without requiring a DevOps team to run Neo4j + OpenSPG + Python extractors.
 
 ---
 
@@ -358,6 +462,7 @@ npm run preview
 ## Roadmap
 
 - [x] HTML prototype — canvas, physics, planes, Markdown, localStorage
+- [x] Marketing hero section — SEO-friendly landing above graph demo, snap scroll between hero and canvas
 - [ ] **AI Tier 2 validation** — prototype topology-aware synthesis and A/B test against Tier 1 to validate core differentiator (do this BEFORE full migration)
 - [ ] SvelteKit migration — extract engine, Svelte stores, component structure
 - [ ] Supabase persistence — schema, RLS, graph load/save
@@ -368,16 +473,21 @@ npm run preview
 - [ ] Graph export — JSON full state, Markdown outline
 - [ ] **Public graph sharing** — read-only `/share/[id]` URL (growth loop — prioritize before collab)
 - [ ] Real-time collaboration — Supabase broadcast, node sync
-- [ ] AI Tier 3 — topic-to-graph full subgraph generation
+- [ ] AI Tier 3 — topic-to-graph full subgraph generation (= KAG-Builder)
 - [ ] Quadtree spatial index (unlocks 500+ node graphs — required before Teams/Business plans go live)
 - [ ] Undo/redo stack — immutable state snapshots
 - [ ] Mermaid export + JSON import
 - [ ] **Comparison SEO pages** — BendScript vs Flowith, vs Heptabase, vs Obsidian Canvas
-- [ ] Semantic search — pgvector node embeddings
+- [ ] Semantic search — pgvector node embeddings + mutual indexing (nodes ↔ chunks)
+- [ ] **KAG REST API** — `/api/kag/query` endpoint for natural language graph queries (= KAG-Solver)
+- [ ] **KAG MCP Server** — expose graph tools via Model Context Protocol (Streamable HTTP transport)
+- [ ] KAG `build_from_text` — ingest documents → extract entities/relations → add to graph
+- [ ] KAG `traverse_path` — multi-hop reasoning between concepts with edge-type filtering
 - [ ] Mobile optimization — pinch zoom, two-finger pan, long-press menu
 - [ ] AI Tier 4 — edge inference on node creation
 - [ ] Graph templates library
-- [ ] API access for workspace graphs
+- [ ] **KAG LangChain/LlamaIndex retriever** — drop-in replacement for vector-only retrieval
+- [ ] KAG API dashboard — usage analytics, query logs, cost tracking per workspace
 - [ ] Enterprise SSO + audit logging
 
 ---

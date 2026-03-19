@@ -1358,12 +1358,274 @@ feat: AI generation logging to ai_generations table
 feat: robust AI JSON parser — fence stripping, mixed text extraction, per-node validation
 feat: wire AI synthesis into Composer — replace generateResponse() stub
 feat: Tier 2 graph-aware AI synthesis
-feat: Tier 3 topic-to-graph full subgraph generation
+feat: Tier 3 topic-to-graph full subgraph generation (= KAG-Builder)
 feat: public graph sharing via /share/[id] route (growth loop)
 feat: graph export (JSON full state + Markdown outline)
+feat: pgvector semantic search + mutual indexing (node ↔ chunk cross-references)
+feat: KAG REST API — /api/kag/query endpoint with logical-form decomposition
+feat: KAG MCP server — Streamable HTTP transport, 6 graph tools exposed
+feat: KAG traverse_path — multi-hop reasoning with edge-type filtering
+feat: KAG build_from_text — document ingestion → entity/relation extraction → graph
+feat: KAG API key management + usage metering + rate limiting per plan
 chore: Playwright e2e tests for core graph interactions (all 5 pointer modes)
 chore: deploy to Cloudflare Pages + Supabase cloud
 ```
+
+---
+
+## Phase 7 — KAG Server (Post-Launch)
+
+### 7.1 Overview
+
+The KAG Server transforms BendScript from a canvas application into a knowledge infrastructure layer. It exposes workspace graphs as queryable knowledge bases via MCP and REST API, enabling any LLM system to perform grounded, multi-hop reasoning over user-built graph data.
+
+This phase builds on Phase 3 (AI Integration) and the pgvector semantic search from the roadmap. It reuses the existing Supabase schema (nodes, edges, graph_planes) and adds query decomposition, graph traversal, and structured context assembly.
+
+### 7.2 Repository Structure Additions
+
+```
+bendscript/
+├── src/
+│   ├── lib/
+│   │   ├── kag/
+│   │   │   ├── solver.js          # Query decomposition → logical forms → graph ops
+│   │   │   ├── traversal.js       # Multi-hop graph traversal with edge-type filtering
+│   │   │   ├── context.js         # Assemble subgraph + reasoning path as LLM context
+│   │   │   ├── builder.js         # Text → entity/relation extraction → graph ingestion
+│   │   │   └── search.js          # pgvector semantic search + mutual index lookup
+│   │   └── mcp/
+│   │       ├── server.js           # MCP server entry point (Streamable HTTP)
+│   │       ├── tools.js            # Tool definitions (search_nodes, get_subgraph, etc.)
+│   │       └── auth.js             # API key validation + workspace scoping
+│   ├── routes/
+│   │   └── api/
+│   │       ├── kag/
+│   │       │   ├── query/+server.js       # POST: natural language → graph reasoning
+│   │       │   ├── search/+server.js      # POST: semantic node search
+│   │       │   ├── subgraph/+server.js    # GET: node neighborhood to N hops
+│   │       │   ├── traverse/+server.js    # POST: path between two concepts
+│   │       │   ├── build/+server.js       # POST: ingest text → extract → graph
+│   │       │   └── planes/+server.js      # GET: list planes in workspace
+│   │       └── mcp/
+│   │           └── +server.js             # MCP Streamable HTTP endpoint
+```
+
+### 7.3 KAG-Solver: Query Decomposition
+
+The solver decomposes natural language questions into logical forms that map to graph operations. This replaces vector-only retrieval with structured reasoning.
+
+```js
+// src/lib/kag/solver.js
+// Decomposes a natural language query into graph operations using Claude
+
+export async function decomposeQuery(question, graphContext, model = 'claude-sonnet-4-6') {
+  const response = await callClaude({
+    model,
+    system: KAG_SOLVER_SYSTEM,
+    messages: [{ role: 'user', content: `Graph schema:\n${JSON.stringify(graphContext.schema)}\n\nQuestion: ${question}` }],
+  });
+
+  return parseLogicalForms(response);
+  // Returns: [
+  //   { op: 'search', query: 'authentication system', target: 'node' },
+  //   { op: 'traverse', from: '$result_0', edge_kinds: ['causal', 'context'], depth: 3 },
+  //   { op: 'filter', condition: 'node.text contains billing' },
+  //   { op: 'assemble', format: 'reasoning_path' }
+  // ]
+}
+
+const KAG_SOLVER_SYSTEM = `You are a KAG query planner for BendScript knowledge graphs.
+Given a natural language question and a graph schema (node types, edge types, plane structure),
+decompose the question into an ordered list of graph operations.
+
+Available operations:
+- search: semantic search for nodes matching a query
+- traverse: follow edges from a node to depth N, optionally filtered by edge kind
+- filter: narrow results by node type, text content, or edge properties
+- aggregate: count, list, or summarize matching nodes
+- assemble: format results as reasoning_path (ordered), subgraph (neighborhood), or summary (text)
+
+Edge kinds: context, causal, temporal, associative, user
+Node types: normal, stargate
+
+Respond with JSON array of operations only. No preamble.`;
+```
+
+### 7.4 MCP Server
+
+The MCP server uses the `@modelcontextprotocol/sdk` package with Streamable HTTP transport, hosted as a Supabase Edge Function or SvelteKit server route.
+
+```js
+// src/lib/mcp/tools.js
+// Tool definitions for the BendScript KAG MCP server
+
+export const kagTools = [
+  {
+    name: 'search_nodes',
+    description: 'Semantic search across node text in a BendScript workspace. Returns matching nodes with relevance scores.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Natural language search query' },
+        workspace_id: { type: 'string', description: 'Workspace UUID' },
+        limit: { type: 'number', description: 'Max results (default 10)', default: 10 },
+      },
+      required: ['query', 'workspace_id'],
+    },
+  },
+  {
+    name: 'get_subgraph',
+    description: 'Return a node and its neighborhood to N hops depth. Includes connected nodes, edges with types, and plane context.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        node_id: { type: 'string', description: 'Starting node ID' },
+        depth: { type: 'number', description: 'Hops to traverse (default 2)', default: 2 },
+        edge_kinds: { type: 'array', items: { type: 'string' }, description: 'Filter by edge types (e.g., ["causal", "temporal"])' },
+      },
+      required: ['node_id'],
+    },
+  },
+  {
+    name: 'traverse_path',
+    description: 'Find reasoning paths between two concepts in the graph. Returns ordered paths with edge labels and types for multi-hop reasoning.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        from_query: { type: 'string', description: 'Starting concept (natural language)' },
+        to_query: { type: 'string', description: 'Target concept (natural language)' },
+        workspace_id: { type: 'string', description: 'Workspace UUID' },
+        max_hops: { type: 'number', description: 'Maximum path length (default 5)', default: 5 },
+      },
+      required: ['from_query', 'to_query', 'workspace_id'],
+    },
+  },
+  {
+    name: 'query_graph',
+    description: 'Ask a natural language question and get an answer grounded in the knowledge graph. Uses logical-form decomposition for multi-hop reasoning.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        question: { type: 'string', description: 'Natural language question' },
+        workspace_id: { type: 'string', description: 'Workspace UUID' },
+      },
+      required: ['question', 'workspace_id'],
+    },
+  },
+  {
+    name: 'build_from_text',
+    description: 'Ingest text and extract entities, relations, and events into the knowledge graph. Returns the new nodes and edges created.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        text: { type: 'string', description: 'Text to process (max 10,000 chars)' },
+        workspace_id: { type: 'string', description: 'Workspace UUID' },
+        plane_id: { type: 'string', description: 'Target plane ID (optional — defaults to root plane)' },
+      },
+      required: ['text', 'workspace_id'],
+    },
+  },
+  {
+    name: 'list_planes',
+    description: 'List all graph planes (context levels) in a workspace with node/edge counts and hierarchy.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        workspace_id: { type: 'string', description: 'Workspace UUID' },
+      },
+      required: ['workspace_id'],
+    },
+  },
+];
+```
+
+### 7.5 Database Additions
+
+Add to migration `003_kag.sql`:
+
+```sql
+-- pgvector extension for semantic search
+create extension if not exists vector;
+
+-- Node embeddings for semantic search
+alter table nodes add column embedding vector(1536);
+
+-- Mutual index: link nodes to source text chunks
+create table node_chunks (
+  node_id text references nodes(id) on delete cascade,
+  chunk_text text not null,
+  chunk_source text, -- 'user_input' | 'document' | 'ai_generated'
+  embedding vector(1536),
+  created_at timestamptz default now(),
+  primary key (node_id, created_at)
+);
+
+-- KAG API keys
+create table api_keys (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid references workspaces(id) on delete cascade not null,
+  key_hash text not null, -- bcrypt hash of the API key
+  name text not null default 'Default',
+  permissions text[] default '{"read","query"}', -- 'read' | 'query' | 'build'
+  rate_limit integer default 100, -- queries per day
+  created_at timestamptz default now(),
+  last_used_at timestamptz,
+  revoked boolean default false
+);
+
+-- KAG query log (for usage billing and analytics)
+create table kag_queries (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid references workspaces(id) on delete cascade not null,
+  api_key_id uuid references api_keys(id),
+  query_text text not null,
+  tool_name text not null, -- 'search_nodes' | 'traverse_path' | etc.
+  nodes_returned integer,
+  hops_traversed integer,
+  latency_ms integer,
+  created_at timestamptz default now()
+);
+
+-- Indexes
+create index on nodes using ivfflat (embedding vector_cosine_ops) with (lists = 100);
+create index on node_chunks using ivfflat (embedding vector_cosine_ops) with (lists = 100);
+create index on api_keys(workspace_id) where not revoked;
+create index on kag_queries(workspace_id, created_at);
+create index on kag_queries(api_key_id, created_at);
+
+-- RLS for KAG tables
+alter table node_chunks enable row level security;
+alter table api_keys enable row level security;
+alter table kag_queries enable row level security;
+
+create policy "workspace members can read chunks" on node_chunks
+  for select using (
+    exists (select 1 from nodes n where n.id = node_id and is_workspace_member(n.workspace_id))
+  );
+
+create policy "workspace owners can manage api keys" on api_keys
+  for all using (
+    exists (select 1 from workspace_members
+      where workspace_id = api_keys.workspace_id and user_id = auth.uid() and role in ('owner', 'admin'))
+  );
+
+create policy "workspace members can read query log" on kag_queries
+  for select using (is_workspace_member(workspace_id));
+```
+
+### 7.6 Acceptance Criteria
+
+- [ ] `search_nodes` returns semantically relevant results using pgvector cosine similarity
+- [ ] `get_subgraph` returns correct neighborhood to specified depth with edge-type filtering
+- [ ] `traverse_path` finds multi-hop paths between two concepts (verified on seed graph)
+- [ ] `query_graph` decomposes a 2-hop question into logical forms and returns grounded answer
+- [ ] `build_from_text` extracts entities and relations from a paragraph and adds nodes/edges
+- [ ] MCP server responds to `tools/list` and `tools/call` via Streamable HTTP
+- [ ] API key authentication works — invalid keys return 401
+- [ ] Rate limiting enforced per API key plan
+- [ ] Every query writes a row to `kag_queries` with latency and result stats
+- [ ] RLS prevents cross-workspace data access via API
+- [ ] MCP server is discoverable via `/.well-known/mcp` metadata endpoint
 
 ---
 
@@ -1376,9 +1638,14 @@ chore: deploy to Cloudflare Pages + Supabase cloud
 - Supabase Edge Functions: https://supabase.com/docs/guides/functions
 - Anthropic Claude API: https://docs.anthropic.com/en/api/messages
 - SvelteKit docs: https://kit.svelte.dev/docs
+- MCP Specification: https://modelcontextprotocol.io/specification/2025-11-25
+- MCP TypeScript SDK: https://github.com/modelcontextprotocol/typescript-sdk
+- OpenSPG/KAG: https://github.com/OpenSPG/KAG
+- KAG paper: https://arxiv.org/abs/2409.13731
+- KAG-Thinker: https://github.com/OpenSPG/KAG-Thinker
 
 ---
 
-*This prompt was generated for BendScript v2.1 — March 2026*
-*Source prototype: `index.html` (~3,500 lines) | Target: SvelteKit + Supabase + Claude API*
-*v2.1 changes: Phase 0 T2 validation, Pro plan caps (80/15/5 at $19/mo), hardened JSON parser, composite index, edge cleanup trigger, granular RLS, model ID updates*
+*This prompt was generated for BendScript v3.0 — March 2026*
+*Source prototype: `index.html` (~3,500 lines) | Target: SvelteKit + Supabase + Claude API + KAG Server*
+*v3.0 changes: KAG Server phase (MCP + REST API + pgvector + query decomposition), KAG API pricing, mutual indexing, build_from_text ingestion, updated roadmap and positioning*

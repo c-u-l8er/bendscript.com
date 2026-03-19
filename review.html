@@ -1,0 +1,1644 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>BendScript — Full Spectrum Review</title>
+        <link
+            href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&family=Satoshi:wght@400;500;700;900&display=swap"
+            rel="stylesheet"
+        />
+        <style>
+            :root {
+                --bg: #0c0e12;
+                --surface: #14171d;
+                --surface2: #1a1e26;
+                --border: #262b35;
+                --text: #e4e6ea;
+                --muted: #7a8194;
+                --accent: #ff6d5a;
+                --accent2: #8b5cf6;
+                --green: #10b981;
+                --warn: #f59e0b;
+                --danger: #ef4444;
+                --blue: #3b82f6;
+            }
+
+            * {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+
+            html {
+                scroll-behavior: smooth;
+            }
+
+            body {
+                background: var(--bg);
+                color: var(--text);
+                font-family: "Satoshi", sans-serif;
+                font-size: 15px;
+                line-height: 1.7;
+                -webkit-font-smoothing: antialiased;
+            }
+
+            .container {
+                max-width: 1080px;
+                margin: 0 auto;
+                padding: 0 28px;
+            }
+
+            /* Header */
+            .review-header {
+                padding: 80px 0 48px;
+                border-bottom: 1px solid var(--border);
+            }
+
+            .review-header .tag {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                padding: 6px 14px;
+                border-radius: 999px;
+                border: 1px solid rgba(255, 109, 90, 0.3);
+                background: rgba(255, 109, 90, 0.06);
+                color: var(--accent);
+                font-family: "DM Mono", monospace;
+                font-size: 11px;
+                letter-spacing: 0.1em;
+                margin-bottom: 20px;
+            }
+
+            .review-header h1 {
+                font-family: "Instrument Serif", serif;
+                font-size: clamp(36px, 5vw, 56px);
+                font-weight: 400;
+                line-height: 1.1;
+                color: #fff;
+                margin-bottom: 16px;
+            }
+
+            .review-header h1 em {
+                font-style: italic;
+                color: var(--accent);
+            }
+
+            .review-header .subtitle {
+                font-size: 17px;
+                color: var(--muted);
+                max-width: 680px;
+            }
+
+            .meta-row {
+                display: flex;
+                gap: 24px;
+                margin-top: 24px;
+                flex-wrap: wrap;
+            }
+
+            .meta-item {
+                font-family: "DM Mono", monospace;
+                font-size: 12px;
+                color: var(--muted);
+            }
+
+            .meta-item b {
+                color: var(--text);
+            }
+
+            /* Verdict Bar */
+            .verdict-bar {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+                gap: 1px;
+                background: var(--border);
+                border-radius: 14px;
+                overflow: hidden;
+                margin: 40px 0;
+            }
+
+            .verdict-cell {
+                padding: 20px 18px;
+                background: var(--surface);
+                text-align: center;
+            }
+
+            .verdict-cell .label {
+                font-family: "DM Mono", monospace;
+                font-size: 10px;
+                letter-spacing: 0.1em;
+                color: var(--muted);
+                margin-bottom: 6px;
+                text-transform: uppercase;
+            }
+
+            .verdict-cell .score {
+                font-size: 28px;
+                font-weight: 900;
+                line-height: 1;
+            }
+
+            .verdict-cell .score.high {
+                color: var(--green);
+            }
+            .verdict-cell .score.mid {
+                color: var(--warn);
+            }
+            .verdict-cell .score.low {
+                color: var(--danger);
+            }
+            .verdict-cell .score.accent {
+                color: var(--accent);
+            }
+
+            /* Sections */
+            section {
+                padding: 48px 0;
+                border-bottom: 1px solid var(--border);
+            }
+
+            section:last-child {
+                border-bottom: none;
+            }
+
+            .section-num {
+                font-family: "DM Mono", monospace;
+                font-size: 11px;
+                color: var(--accent);
+                letter-spacing: 0.12em;
+                margin-bottom: 8px;
+            }
+
+            h2 {
+                font-family: "Instrument Serif", serif;
+                font-size: 32px;
+                font-weight: 400;
+                color: #fff;
+                margin-bottom: 20px;
+            }
+
+            h3 {
+                font-size: 16px;
+                font-weight: 700;
+                color: #fff;
+                margin: 28px 0 12px;
+            }
+
+            p {
+                margin-bottom: 14px;
+                color: var(--text);
+            }
+
+            /* Tables */
+            .table-wrap {
+                overflow-x: auto;
+                margin: 20px 0;
+                border-radius: 10px;
+                border: 1px solid var(--border);
+            }
+
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 13px;
+            }
+
+            thead th {
+                background: var(--surface2);
+                padding: 12px 14px;
+                text-align: left;
+                font-family: "DM Mono", monospace;
+                font-size: 11px;
+                font-weight: 500;
+                letter-spacing: 0.06em;
+                color: var(--muted);
+                text-transform: uppercase;
+                border-bottom: 1px solid var(--border);
+                white-space: nowrap;
+            }
+
+            tbody td {
+                padding: 10px 14px;
+                border-bottom: 1px solid var(--border);
+                vertical-align: top;
+            }
+
+            tbody tr:last-child td {
+                border-bottom: none;
+            }
+
+            tbody tr:hover {
+                background: rgba(255, 255, 255, 0.015);
+            }
+
+            /* Rating Chips */
+            .chip {
+                display: inline-block;
+                padding: 2px 8px;
+                border-radius: 6px;
+                font-family: "DM Mono", monospace;
+                font-size: 11px;
+                font-weight: 500;
+            }
+
+            .chip-green {
+                background: rgba(16, 185, 129, 0.12);
+                color: var(--green);
+            }
+            .chip-yellow {
+                background: rgba(245, 158, 11, 0.12);
+                color: var(--warn);
+            }
+            .chip-red {
+                background: rgba(239, 68, 68, 0.12);
+                color: var(--danger);
+            }
+            .chip-blue {
+                background: rgba(59, 130, 246, 0.12);
+                color: var(--blue);
+            }
+            .chip-violet {
+                background: rgba(139, 92, 246, 0.12);
+                color: var(--accent2);
+            }
+            .chip-accent {
+                background: rgba(255, 109, 90, 0.12);
+                color: var(--accent);
+            }
+
+            /* Callout */
+            .callout {
+                padding: 18px 20px;
+                border-radius: 10px;
+                border-left: 3px solid;
+                margin: 20px 0;
+                font-size: 14px;
+            }
+
+            .callout-green {
+                background: rgba(16, 185, 129, 0.06);
+                border-color: var(--green);
+            }
+            .callout-yellow {
+                background: rgba(245, 158, 11, 0.06);
+                border-color: var(--warn);
+            }
+            .callout-red {
+                background: rgba(239, 68, 68, 0.06);
+                border-color: var(--danger);
+            }
+            .callout-blue {
+                background: rgba(59, 130, 246, 0.06);
+                border-color: var(--blue);
+            }
+
+            .callout strong {
+                color: #fff;
+            }
+
+            /* Progress bars */
+            .progress-row {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                margin: 8px 0;
+            }
+
+            .progress-label {
+                font-family: "DM Mono", monospace;
+                font-size: 11px;
+                color: var(--muted);
+                min-width: 120px;
+            }
+
+            .progress-track {
+                flex: 1;
+                height: 6px;
+                background: var(--surface2);
+                border-radius: 3px;
+                overflow: hidden;
+            }
+
+            .progress-fill {
+                height: 100%;
+                border-radius: 3px;
+                transition: width 1s ease;
+            }
+
+            .progress-value {
+                font-family: "DM Mono", monospace;
+                font-size: 12px;
+                color: var(--text);
+                min-width: 36px;
+                text-align: right;
+            }
+
+            /* Risk Matrix */
+            .risk-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 12px;
+                margin: 20px 0;
+            }
+
+            .risk-card {
+                padding: 16px;
+                border-radius: 10px;
+                background: var(--surface);
+                border: 1px solid var(--border);
+            }
+
+            .risk-card .risk-level {
+                font-family: "DM Mono", monospace;
+                font-size: 10px;
+                letter-spacing: 0.1em;
+                text-transform: uppercase;
+                margin-bottom: 6px;
+            }
+
+            .risk-card h4 {
+                font-size: 14px;
+                font-weight: 700;
+                color: #fff;
+                margin-bottom: 6px;
+            }
+
+            .risk-card p {
+                font-size: 13px;
+                color: var(--muted);
+                margin: 0;
+            }
+
+            /* Footer */
+            .review-footer {
+                padding: 40px 0 60px;
+                text-align: center;
+                color: var(--muted);
+                font-family: "DM Mono", monospace;
+                font-size: 12px;
+            }
+
+            @media (max-width: 640px) {
+                .risk-grid {
+                    grid-template-columns: 1fr;
+                }
+                .verdict-bar {
+                    grid-template-columns: repeat(2, 1fr);
+                }
+            }
+
+            /* Scrollbar */
+            ::-webkit-scrollbar {
+                width: 6px;
+                height: 6px;
+            }
+            ::-webkit-scrollbar-track {
+                background: transparent;
+            }
+            ::-webkit-scrollbar-thumb {
+                background: var(--border);
+                border-radius: 3px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <!-- HEADER -->
+            <header class="review-header">
+                <div class="tag">● FULL SPECTRUM REVIEW</div>
+                <h1>
+                    BendScript — Script Bending<br />Through
+                    <em>Graph Space</em>
+                </h1>
+                <p class="subtitle">
+                    A comprehensive product, technical, and market-readiness
+                    review across every dimension that matters for launch
+                    success. Based on full analysis of the prototype (4,068
+                    lines), README spec, and BUILD.md migration plan.
+                </p>
+                <div class="meta-row">
+                    <div class="meta-item">
+                        Review date: <b>March 19, 2026</b>
+                    </div>
+                    <div class="meta-item">
+                        Reviewed by: <b>Claude Opus 4.6</b>
+                    </div>
+                    <div class="meta-item">
+                        Files analyzed:
+                        <b>3 (index.html, README.md, BUILD.md)</b>
+                    </div>
+                    <div class="meta-item">Total LOC: <b>~9,400+</b></div>
+                </div>
+            </header>
+
+            <!-- VERDICT BAR -->
+            <div class="verdict-bar">
+                <div class="verdict-cell">
+                    <div class="label">Overall</div>
+                    <div class="score accent">B+</div>
+                </div>
+                <div class="verdict-cell">
+                    <div class="label">Vision & Positioning</div>
+                    <div class="score high">A</div>
+                </div>
+                <div class="verdict-cell">
+                    <div class="label">Prototype Quality</div>
+                    <div class="score high">A−</div>
+                </div>
+                <div class="verdict-cell">
+                    <div class="label">Technical Plan</div>
+                    <div class="score high">A</div>
+                </div>
+                <div class="verdict-cell">
+                    <div class="label">Unit Economics</div>
+                    <div class="score mid">B</div>
+                </div>
+                <div class="verdict-cell">
+                    <div class="label">Market Timing</div>
+                    <div class="score mid">B+</div>
+                </div>
+                <div class="verdict-cell">
+                    <div class="label">Execution Risk</div>
+                    <div class="score mid">B−</div>
+                </div>
+            </div>
+
+            <!-- SECTION 1: EXECUTIVE SUMMARY -->
+            <section>
+                <div class="section-num">01 — EXECUTIVE SUMMARY</div>
+                <h2>The Big Picture</h2>
+                <p>
+                    BendScript is an ambitious attempt to build a new category:
+                    <strong>topology-aware AI knowledge graphs</strong>. It
+                    combines the spatial thinking of tools like Heptabase and
+                    Obsidian Canvas with generative AI that reasons about graph
+                    structure — not just text. The core concept ("prompts become
+                    topology") is compelling and genuinely differentiated.
+                </p>
+                <p>
+                    The prototype is remarkably polished for a single-file HTML
+                    app: 4,068 lines of working canvas physics, force-directed
+                    layout, multi-plane Stargate navigation, markdown rendering,
+                    and a complete interaction model. The migration plan
+                    (BUILD.md) is among the most thorough coding agent prompts
+                    I've reviewed — it demonstrates deep architectural thinking
+                    about store/engine boundaries, realistic AI cost modeling,
+                    and phased delivery.
+                </p>
+                <p>
+                    The primary risk isn't the idea or the code quality. It's
+                    the <strong>scope-to-resources ratio</strong>. The roadmap
+                    lists 30+ features spanning a SvelteKit migration, Supabase
+                    backend, 4-tier AI system, real-time collaboration, KAG
+                    server with MCP endpoints, and enterprise SSO — all for what
+                    appears to be a solo developer or very small team. The plan
+                    is excellent; the question is whether it can be executed
+                    before the window closes.
+                </p>
+
+                <div class="callout callout-green">
+                    <strong>Key Strength:</strong> The prototype already works
+                    and feels like a real product. The "landing page IS the
+                    product" philosophy is exactly right for a spatial tool.
+                    Most competitors require sign-up before you can feel the
+                    value. BendScript lets you touch the graph immediately.
+                </div>
+                <div class="callout callout-yellow">
+                    <strong>Key Risk:</strong> The core differentiator
+                    (topology-aware AI synthesis) is explicitly flagged as
+                    "unvalidated" in the roadmap. Phase 0 of the build plan
+                    acknowledges this: if Tier 2 synthesis doesn't produce
+                    qualitatively better output than Tier 1, the entire
+                    positioning collapses. This validation must happen before
+                    any other investment.
+                </div>
+            </section>
+
+            <!-- SECTION 2: COMPETITIVE LANDSCAPE -->
+            <section>
+                <div class="section-num">02 — COMPETITIVE LANDSCAPE</div>
+                <h2>Market Context & Positioning</h2>
+                <p>
+                    The canvas-AI category has matured rapidly. BendScript
+                    enters a space with established players who have significant
+                    advantages in users, funding, and feature completeness.
+                </p>
+
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Competitor</th>
+                                <th>Users</th>
+                                <th>Funding / ARR</th>
+                                <th>Price Range</th>
+                                <th>AI Approach</th>
+                                <th>Graph Depth</th>
+                                <th>BendScript Edge</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Flowith</strong></td>
+                                <td>1M+</td>
+                                <td>
+                                    YC China-backed; NVIDIA, Google, MS partners
+                                </td>
+                                <td>$15–$500/mo</td>
+                                <td>
+                                    40+ models, Agent Neo (autonomous),
+                                    task-agentic
+                                </td>
+                                <td>
+                                    <span class="chip chip-red"
+                                        >Flat canvas</span
+                                    >
+                                </td>
+                                <td>
+                                    Fractal depth, typed edges, topology as AI
+                                    input
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Heptabase</strong></td>
+                                <td>~350K+</td>
+                                <td>~$7M ARR, YC W22, $2.2M raised</td>
+                                <td>$7–$25/mo</td>
+                                <td>
+                                    AI annotation/reading (GPT-5.4 integration);
+                                    does NOT generate structure
+                                </td>
+                                <td>
+                                    <span class="chip chip-yellow"
+                                        >Card linking</span
+                                    >
+                                </td>
+                                <td>
+                                    AI builds the graph, not just assists
+                                    reading
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Obsidian Canvas</strong></td>
+                                <td>Millions</td>
+                                <td>Profitable, self-funded</td>
+                                <td>$0–$50/mo</td>
+                                <td>Plugin-layer (Copilot, GPT plugins)</td>
+                                <td>
+                                    <span class="chip chip-yellow"
+                                        >Graph view</span
+                                    >
+                                </td>
+                                <td>
+                                    AI is native to the graph, not bolted on
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Canvas Chat (OSS)</strong></td>
+                                <td>Small OSS</td>
+                                <td>Open source</td>
+                                <td>Free</td>
+                                <td>DAG-aware branching, merge/synthesis</td>
+                                <td>
+                                    <span class="chip chip-yellow"
+                                        >Flat tree</span
+                                    >
+                                </td>
+                                <td>Nested planes, typed edges</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Tana</strong></td>
+                                <td>Growing</td>
+                                <td>VC-backed</td>
+                                <td>$10–$16/mo</td>
+                                <td>Supertag AI, structured knowledge</td>
+                                <td>
+                                    <span class="chip chip-red"
+                                        >Text-first</span
+                                    >
+                                </td>
+                                <td>Spatial canvas with fractal navigation</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h3>Positioning Assessment</h3>
+                <p>
+                    The README's competitive analysis is thorough and honest.
+                    The claimed differentiators — fractal depth via Stargates,
+                    topology-aware AI synthesis, and zero-friction entry — are
+                    legitimate gaps that no identified competitor currently
+                    fills. However, these gaps exist partly because they're hard
+                    to build and partly because the market may not yet demand
+                    them. Flowith's 1M+ users were acquired with flat-canvas AI
+                    and agentic workflows, suggesting the "spatial thinking"
+                    audience may be satisfied without fractal depth.
+                </p>
+
+                <div class="callout callout-blue">
+                    <strong>Market Validation Signal:</strong> Flowith topped
+                    Product Hunt in June 2025 and now has 1M+ users, confirming
+                    strong demand for canvas-AI tools. Heptabase hit ~$7M ARR
+                    with visual PKM alone. The category is real. The question is
+                    whether BendScript's specific differentiator (topology as AI
+                    input) converts that demand into a defensible niche.
+                </div>
+            </section>
+
+            <!-- SECTION 3: PROTOTYPE QUALITY -->
+            <section>
+                <div class="section-num">03 — PROTOTYPE ASSESSMENT</div>
+                <h2>index.html — 4,068 Lines of Working Product</h2>
+                <p>
+                    The prototype is the strongest asset in this package. It's a
+                    fully functional graph editor rendered on HTML5 Canvas with
+                    force-directed physics, multi-plane navigation, markdown
+                    rendering, and a complete CRUD interaction model — all in a
+                    single file. This is not a mockup; it's a working
+                    application.
+                </p>
+
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>System</th>
+                                <th>Implementation</th>
+                                <th>Quality</th>
+                                <th>Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Physics simulation</td>
+                                <td>
+                                    N-body repulsion + spring edges + damping +
+                                    center pull + breathing noise
+                                </td>
+                                <td>
+                                    <span class="chip chip-green"
+                                        >Excellent</span
+                                    >
+                                </td>
+                                <td>
+                                    Custom constants tuned for feel, not just
+                                    correctness. Breathing oscillation is a nice
+                                    touch.
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Canvas rendering</td>
+                                <td>
+                                    Full rAF loop with node cards, gradient
+                                    fills, chromatic headers, edge flow
+                                    particles
+                                </td>
+                                <td>
+                                    <span class="chip chip-green"
+                                        >Excellent</span
+                                    >
+                                </td>
+                                <td>
+                                    60fps on modern hardware. DPR-aware.
+                                    Depth-of-field blur on distant nodes.
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Node cards</td>
+                                <td>
+                                    Auto-sizing, resize handles,
+                                    scroll-on-hover, markdown rendering inside
+                                    canvas
+                                </td>
+                                <td>
+                                    <span class="chip chip-green"
+                                        >Excellent</span
+                                    >
+                                </td>
+                                <td>
+                                    Full word-wrap with heading/code/list
+                                    detection. Scrollbar track visualization.
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Edge system</td>
+                                <td>
+                                    Typed edges (5 kinds), variable strength,
+                                    labeled, directional flow particles
+                                </td>
+                                <td>
+                                    <span class="chip chip-green"
+                                        >Excellent</span
+                                    >
+                                </td>
+                                <td>
+                                    Edge kind coloring, hit-testing on line
+                                    segments, inspector panel for metadata.
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Plane system (Stargates)</td>
+                                <td>
+                                    Nested planes, breadcrumb navigation, warp
+                                    transition, auto-seeded portal content
+                                </td>
+                                <td>
+                                    <span class="chip chip-green"
+                                        >Very good</span
+                                    >
+                                </td>
+                                <td>
+                                    Fractal depth works. Could use plane-level
+                                    camera memory on return.
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Markdown modal</td>
+                                <td>
+                                    Write/Preview tabs, marked.js + DOMPurify,
+                                    fallback to custom renderer
+                                </td>
+                                <td>
+                                    <span class="chip chip-green">Good</span>
+                                </td>
+                                <td>
+                                    Two-pass: lexer for canvas, full HTML for
+                                    modal. Smart fallback.
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Hero/Marketing section</td>
+                                <td>
+                                    Dark gradient hero with scroll-snap
+                                    transition to canvas app
+                                </td>
+                                <td>
+                                    <span class="chip chip-green"
+                                        >Very good</span
+                                    >
+                                </td>
+                                <td>
+                                    Clean two-section layout. "Enter the graph"
+                                    CTA → smooth scroll → lock.
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>AI integration</td>
+                                <td>Keyword stub only (generateResponse)</td>
+                                <td>
+                                    <span class="chip chip-red"
+                                        >Placeholder</span
+                                    >
+                                </td>
+                                <td>
+                                    Explicitly documented as stub. Real
+                                    integration is BUILD.md Phase 3.
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Persistence</td>
+                                <td>
+                                    localStorage with versioned key, auto-save
+                                    every 6s
+                                </td>
+                                <td>
+                                    <span class="chip chip-yellow"
+                                        >Adequate</span
+                                    >
+                                </td>
+                                <td>
+                                    Good for prototype. State serialization is
+                                    clean and well-guarded.
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Mobile support</td>
+                                <td>Responsive hero; canvas is desktop-only</td>
+                                <td>
+                                    <span class="chip chip-red">Minimal</span>
+                                </td>
+                                <td>
+                                    No touch gestures. Roadmap item —
+                                    appropriate for this stage.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h3>Code Quality Metrics</h3>
+                <div class="progress-row">
+                    <span class="progress-label">Readability</span>
+                    <div class="progress-track">
+                        <div
+                            class="progress-fill"
+                            style="width: 85%; background: var(--green)"
+                        ></div>
+                    </div>
+                    <span class="progress-value">85%</span>
+                </div>
+                <div class="progress-row">
+                    <span class="progress-label">Modularity</span>
+                    <div class="progress-track">
+                        <div
+                            class="progress-fill"
+                            style="width: 40%; background: var(--warn)"
+                        ></div>
+                    </div>
+                    <span class="progress-value">40%</span>
+                </div>
+                <div class="progress-row">
+                    <span class="progress-label">Error handling</span>
+                    <div class="progress-track">
+                        <div
+                            class="progress-fill"
+                            style="width: 70%; background: var(--green)"
+                        ></div>
+                    </div>
+                    <span class="progress-value">70%</span>
+                </div>
+                <div class="progress-row">
+                    <span class="progress-label">State management</span>
+                    <div class="progress-track">
+                        <div
+                            class="progress-fill"
+                            style="width: 75%; background: var(--green)"
+                        ></div>
+                    </div>
+                    <span class="progress-value">75%</span>
+                </div>
+                <div class="progress-row">
+                    <span class="progress-label">Scalability (500+ nodes)</span>
+                    <div class="progress-track">
+                        <div
+                            class="progress-fill"
+                            style="width: 25%; background: var(--danger)"
+                        ></div>
+                    </div>
+                    <span class="progress-value">25%</span>
+                </div>
+
+                <p
+                    style="
+                        margin-top: 16px;
+                        font-size: 13px;
+                        color: var(--muted);
+                    "
+                >
+                    Modularity is low because it's a single file (by design for
+                    the prototype). The BUILD.md extraction plan addresses this
+                    well. Scalability is flagged because the physics simulation
+                    is O(n²) without spatial indexing — the roadmap correctly
+                    identifies quadtree as a requirement before Teams/Business
+                    plans.
+                </p>
+            </section>
+
+            <!-- SECTION 4: TECHNICAL ARCHITECTURE -->
+            <section>
+                <div class="section-num">
+                    04 — TECHNICAL ARCHITECTURE REVIEW
+                </div>
+                <h2>BUILD.md — Migration Plan Quality</h2>
+                <p>
+                    The BUILD.md is exceptional. It reads like a senior
+                    engineer's design doc, not a wishlist. Key strengths:
+                </p>
+
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Dimension</th>
+                                <th>Rating</th>
+                                <th>Evidence</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Phase 0 validation</td>
+                                <td>
+                                    <span class="chip chip-green"
+                                        >Outstanding</span
+                                    >
+                                </td>
+                                <td>
+                                    Correctly prioritizes validating the core
+                                    differentiator BEFORE investing 16 days in
+                                    migration. Includes runnable test script
+                                    with success criteria.
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Engine/Store boundary</td>
+                                <td>
+                                    <span class="chip chip-green"
+                                        >Outstanding</span
+                                    >
+                                </td>
+                                <td>
+                                    The rAF guard (markRAFStart/markRAFEnd with
+                                    assertNotInRAF) is a novel pattern that
+                                    prevents the #1 architectural mistake in
+                                    canvas+framework apps.
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Database schema</td>
+                                <td>
+                                    <span class="chip chip-green"
+                                        >Excellent</span
+                                    >
+                                </td>
+                                <td>
+                                    Complete SQL with FK constraints, RLS
+                                    policies, composite indexes for rate
+                                    limiting, orphan cleanup triggers, and
+                                    updated_at auto-triggers.
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>AI cost modeling</td>
+                                <td>
+                                    <span class="chip chip-green"
+                                        >Excellent</span
+                                    >
+                                </td>
+                                <td>
+                                    Per-tier token estimates with
+                                    cached/uncached breakdowns. Worst-case
+                                    margin analysis shows awareness of
+                                    power-user economics.
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Auth implementation</td>
+                                <td>
+                                    <span class="chip chip-green"
+                                        >Very good</span
+                                    >
+                                </td>
+                                <td>
+                                    Correctly uses @supabase/ssr (not deprecated
+                                    auth-helpers). Server-side guard prevents
+                                    flash of protected content. safeGetSession
+                                    validates JWT.
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>AI JSON parsing</td>
+                                <td>
+                                    <span class="chip chip-green"
+                                        >Very good</span
+                                    >
+                                </td>
+                                <td>
+                                    Three-layer fallback (direct → array
+                                    extraction → object extraction). Per-node
+                                    validation instead of all-or-nothing.
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Prompt caching</td>
+                                <td>
+                                    <span class="chip chip-green">Good</span>
+                                </td>
+                                <td>
+                                    Identified as "~10-line code change that
+                                    saves thousands at scale." Implementation
+                                    shown with cache_control: ephemeral.
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Realtime architecture</td>
+                                <td>
+                                    <span class="chip chip-yellow">Good</span>
+                                </td>
+                                <td>
+                                    Correctly uses broadcast (not Postgres
+                                    changes) for performance. Warns against
+                                    per-frame broadcasting. Could use conflict
+                                    resolution strategy.
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>KAG server design</td>
+                                <td>
+                                    <span class="chip chip-yellow"
+                                        >Ambitious</span
+                                    >
+                                </td>
+                                <td>
+                                    Well-researched reference to OpenSPG/KAG.
+                                    MCP tool definitions are complete. But this
+                                    is a Phase 2+ feature that could consume 3–6
+                                    months alone.
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Timeline realism</td>
+                                <td>
+                                    <span class="chip chip-red"
+                                        >Aggressive</span
+                                    >
+                                </td>
+                                <td>
+                                    16 days for Phases 1–6 (SvelteKit migration
+                                    + Supabase + AI + Realtime + Auth + Visual
+                                    parity) is very tight even for an
+                                    experienced engineer.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- SECTION 5: UNIT ECONOMICS -->
+            <section>
+                <div class="section-num">05 — UNIT ECONOMICS</div>
+                <h2>Pricing & AI Cost Analysis</h2>
+                <p>
+                    The AI cost model is one of the most thoughtful elements of
+                    the plan. Here's an independent analysis of the numbers.
+                </p>
+
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Scenario</th>
+                                <th>Daily Usage</th>
+                                <th>AI Cost/Mo</th>
+                                <th>Revenue/Mo</th>
+                                <th>Margin</th>
+                                <th>Verdict</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Free — worst case</td>
+                                <td>20 T1 + 5 T2 + 2 T3</td>
+                                <td>$3.84</td>
+                                <td>$0</td>
+                                <td style="color: var(--danger)">−$3.84</td>
+                                <td>
+                                    <span class="chip chip-yellow"
+                                        >Manageable</span
+                                    >
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Free — avg (30%)</td>
+                                <td>6 T1 + 1.5 T2 + 0.6 T3</td>
+                                <td>$1.15</td>
+                                <td>$0</td>
+                                <td style="color: var(--danger)">−$1.15</td>
+                                <td>
+                                    <span class="chip chip-green"
+                                        >Acceptable</span
+                                    >
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Pro — worst case</td>
+                                <td>80 T1 + 15 T2 + 5 T3</td>
+                                <td>$31.59</td>
+                                <td>$19</td>
+                                <td style="color: var(--danger)">−$12.59</td>
+                                <td>
+                                    <span class="chip chip-red"
+                                        >Needs monitoring</span
+                                    >
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Pro — avg (25%)</td>
+                                <td>20 T1 + 3.75 T2 + 1.25 T3</td>
+                                <td>$7.90</td>
+                                <td>$19</td>
+                                <td style="color: var(--green)">+$11.10</td>
+                                <td>
+                                    <span class="chip chip-green">Healthy</span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Pro — light (15%)</td>
+                                <td>12 T1 + 2.25 T2 + 0.75 T3</td>
+                                <td>$4.74</td>
+                                <td>$19</td>
+                                <td style="color: var(--green)">+$14.26</td>
+                                <td>
+                                    <span class="chip chip-green">Strong</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h3>Pricing Comparison vs. Market</h3>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Plan Level</th>
+                                <th>BendScript</th>
+                                <th>Flowith</th>
+                                <th>Heptabase</th>
+                                <th>Assessment</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Free tier</td>
+                                <td>$0 (5 graphs, 20 T1/day)</td>
+                                <td>$0 (300 credits)</td>
+                                <td>7-day trial only</td>
+                                <td>
+                                    <span class="chip chip-green"
+                                        >Competitive</span
+                                    >
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Individual</td>
+                                <td>$19/mo</td>
+                                <td>$15–$19.90/mo</td>
+                                <td>$6.99–$11.99/mo</td>
+                                <td>
+                                    <span class="chip chip-yellow"
+                                        >Premium for unproven</span
+                                    >
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Team</td>
+                                <td>$25/seat/mo</td>
+                                <td>$39.90/mo</td>
+                                <td>$25/user/mo</td>
+                                <td>
+                                    <span class="chip chip-green"
+                                        >In range</span
+                                    >
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>KAG API add-on</td>
+                                <td>$49–$99/mo</td>
+                                <td>N/A</td>
+                                <td>N/A</td>
+                                <td>
+                                    <span class="chip chip-violet"
+                                        >Unique revenue line</span
+                                    >
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="callout callout-yellow">
+                    <strong>Concern:</strong> At $19/mo for Pro, BendScript is
+                    priced at Flowith's Professional tier — but Flowith offers
+                    40+ AI models, Agent Neo, Knowledge Garden, video/image
+                    generation, and 1M+ users of social proof. BendScript's core
+                    value (topology-aware synthesis) must be compelling enough
+                    to justify parity pricing with far fewer features. Consider
+                    $12–15/mo at launch to reduce friction, then raise after
+                    establishing the differentiator.
+                </div>
+            </section>
+
+            <!-- SECTION 6: GTM STRATEGY -->
+            <section>
+                <div class="section-num">06 — GO-TO-MARKET EVALUATION</div>
+                <h2>Growth Strategy & Metrics</h2>
+
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Target Metric</th>
+                                <th>Stated Goal</th>
+                                <th>Benchmark</th>
+                                <th>Realism</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Activation (1st Composer prompt)</td>
+                                <td>&gt;25%</td>
+                                <td>Industry avg for spatial tools: 15–20%</td>
+                                <td>
+                                    <span class="chip chip-yellow"
+                                        >Ambitious but possible</span
+                                    >
+                                    — zero-friction demo helps
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Graph-to-signup</td>
+                                <td>&gt;8%</td>
+                                <td>Freemium conversion benchmarks: 2–5%</td>
+                                <td>
+                                    <span class="chip chip-yellow"
+                                        >Stretch goal</span
+                                    >
+                                    — graph-to-signup is a novel funnel with no
+                                    precedent
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>T2+ engagement (weekly)</td>
+                                <td>&gt;40% of paid</td>
+                                <td>
+                                    Feature adoption for power features: 20–35%
+                                </td>
+                                <td>
+                                    <span class="chip chip-yellow"
+                                        >Ambitious</span
+                                    >
+                                    — depends entirely on T2 quality
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Share rate</td>
+                                <td>&gt;10%</td>
+                                <td>Content sharing for tools: 5–15%</td>
+                                <td>
+                                    <span class="chip chip-green"
+                                        >Achievable</span
+                                    >
+                                    — graphs are inherently shareable
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Free→Pro conversion</td>
+                                <td>&gt;4% monthly</td>
+                                <td>SaaS freemium avg: 2–5%</td>
+                                <td>
+                                    <span class="chip chip-green"
+                                        >In range</span
+                                    >
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h3>Growth Loop Assessment</h3>
+                <div class="progress-row">
+                    <span class="progress-label">Product-as-demo</span>
+                    <div class="progress-track">
+                        <div
+                            class="progress-fill"
+                            style="width: 90%; background: var(--green)"
+                        ></div>
+                    </div>
+                    <span class="progress-value">High</span>
+                </div>
+                <div class="progress-row">
+                    <span class="progress-label">Public sharing</span>
+                    <div class="progress-track">
+                        <div
+                            class="progress-fill"
+                            style="width: 65%; background: var(--green)"
+                        ></div>
+                    </div>
+                    <span class="progress-value">Med+</span>
+                </div>
+                <div class="progress-row">
+                    <span class="progress-label">Mermaid export</span>
+                    <div class="progress-track">
+                        <div
+                            class="progress-fill"
+                            style="width: 50%; background: var(--warn)"
+                        ></div>
+                    </div>
+                    <span class="progress-value">Med</span>
+                </div>
+                <div class="progress-row">
+                    <span class="progress-label">Community seeding</span>
+                    <div class="progress-track">
+                        <div
+                            class="progress-fill"
+                            style="width: 75%; background: var(--green)"
+                        ></div>
+                    </div>
+                    <span class="progress-value">High</span>
+                </div>
+                <div class="progress-row">
+                    <span class="progress-label">Comparison SEO</span>
+                    <div class="progress-track">
+                        <div
+                            class="progress-fill"
+                            style="width: 55%; background: var(--warn)"
+                        ></div>
+                    </div>
+                    <span class="progress-value">Med</span>
+                </div>
+            </section>
+
+            <!-- SECTION 7: RISK MATRIX -->
+            <section>
+                <div class="section-num">07 — RISK MATRIX</div>
+                <h2>Critical Risks & Mitigations</h2>
+
+                <div class="risk-grid">
+                    <div class="risk-card">
+                        <div class="risk-level" style="color: var(--danger)">
+                            ● CRITICAL
+                        </div>
+                        <h4>T2 Synthesis May Not Work</h4>
+                        <p>
+                            The entire product thesis rests on topology-aware AI
+                            producing qualitatively better output than text-only
+                            prompts. If T2 feels like T1 with extra context, the
+                            differentiator evaporates.
+                            <strong>Mitigation:</strong> Phase 0 validation is
+                            correctly prioritized. Run it. If it fails, iterate
+                            prompts before building anything else.
+                        </p>
+                    </div>
+                    <div class="risk-card">
+                        <div class="risk-level" style="color: var(--danger)">
+                            ● CRITICAL
+                        </div>
+                        <h4>Scope Overwhelm</h4>
+                        <p>
+                            The roadmap lists 30+ features. SvelteKit migration
+                            alone is 2–3 weeks. Adding Supabase, AI tiers,
+                            realtime, auth, KAG server, and enterprise features
+                            could take 6–12 months solo.
+                            <strong>Mitigation:</strong> Ship MVP with Phases
+                            0–3 only (prototype + AI). Defer realtime, KAG, and
+                            enterprise until revenue validates demand.
+                        </p>
+                    </div>
+                    <div class="risk-card">
+                        <div class="risk-level" style="color: var(--warn)">
+                            ● HIGH
+                        </div>
+                        <h4>Flowith Is Moving Fast</h4>
+                        <p>
+                            Flowith shipped FlowithOS (desktop app), Agent Neo,
+                            Knowledge Garden, and iOS app in the last 12 months.
+                            They could add graph depth features at any time.
+                            With 1M+ users and VC backing, they can iterate
+                            faster. <strong>Mitigation:</strong> Ship the
+                            differentiator first. Don't try to match Flowith on
+                            breadth — win on depth.
+                        </p>
+                    </div>
+                    <div class="risk-card">
+                        <div class="risk-level" style="color: var(--warn)">
+                            ● HIGH
+                        </div>
+                        <h4>Canvas Performance at Scale</h4>
+                        <p>
+                            The O(n²) physics loop will become unusable above
+                            ~200 nodes. Teams/Business plans promise
+                            500–unlimited nodes per graph.
+                            <strong>Mitigation:</strong> Quadtree spatial index
+                            is on the roadmap — but it must ship before paid
+                            plans with high node limits launch.
+                        </p>
+                    </div>
+                    <div class="risk-card">
+                        <div class="risk-level" style="color: var(--warn)">
+                            ● MODERATE
+                        </div>
+                        <h4>Pro Pricing vs. Feature Gap</h4>
+                        <p>
+                            At $19/mo, BendScript is priced alongside tools with
+                            40+ models and autonomous agents. Early adopters may
+                            resist this price until the value is proven.
+                            <strong>Mitigation:</strong> Lower launch price
+                            ($12/mo) or extended free tier to maximize adoption.
+                        </p>
+                    </div>
+                    <div class="risk-card">
+                        <div class="risk-level" style="color: var(--blue)">
+                            ● OPPORTUNITY
+                        </div>
+                        <h4>KAG API Is a Moat</h4>
+                        <p>
+                            The KAG server concept (exposing user graphs as
+                            queryable knowledge bases via MCP) is the most
+                            strategically interesting part of the plan. It
+                            transforms BendScript from a canvas app into
+                            knowledge infrastructure — a much more defensible
+                            position. If executed well, this is the actual
+                            long-term play.
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION 8: RECOMMENDATIONS -->
+            <section>
+                <div class="section-num">08 — RECOMMENDATIONS</div>
+                <h2>Prioritized Action Items</h2>
+
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Action</th>
+                                <th>Priority</th>
+                                <th>Impact</th>
+                                <th>Effort</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>1</td>
+                                <td>
+                                    <strong
+                                        >Run Phase 0 T2 validation
+                                        immediately.</strong
+                                    >
+                                    This is make-or-break. If the AI doesn't
+                                    produce structurally richer output with
+                                    graph context, stop and iterate prompts.
+                                </td>
+                                <td><span class="chip chip-red">P0</span></td>
+                                <td>Existential</td>
+                                <td>1 day</td>
+                            </tr>
+                            <tr>
+                                <td>2</td>
+                                <td>
+                                    <strong
+                                        >Ship AI integration into the existing
+                                        prototype first.</strong
+                                    >
+                                    Skip the SvelteKit migration initially. Wire
+                                    real Claude calls into the existing
+                                    index.html via a simple proxy. Get real
+                                    users testing real AI synthesis on the live
+                                    demo.
+                                </td>
+                                <td><span class="chip chip-red">P0</span></td>
+                                <td>Very high</td>
+                                <td>3–5 days</td>
+                            </tr>
+                            <tr>
+                                <td>3</td>
+                                <td>
+                                    <strong
+                                        >Lower Pro pricing to $12/mo at
+                                        launch.</strong
+                                    >
+                                    Undercut Flowith and Heptabase, then raise
+                                    after product-market fit signal (T2+
+                                    engagement >30% weekly).
+                                </td>
+                                <td>
+                                    <span class="chip chip-accent">P1</span>
+                                </td>
+                                <td>High</td>
+                                <td>0 days</td>
+                            </tr>
+                            <tr>
+                                <td>4</td>
+                                <td>
+                                    <strong
+                                        >Cut scope to launch: Phases 0–3 +
+                                        public sharing only.</strong
+                                    >
+                                    Defer realtime collab, KAG server, and
+                                    enterprise features. Ship a working product
+                                    with real AI that people can share.
+                                </td>
+                                <td>
+                                    <span class="chip chip-accent">P1</span>
+                                </td>
+                                <td>Very high</td>
+                                <td>Saves weeks</td>
+                            </tr>
+                            <tr>
+                                <td>5</td>
+                                <td>
+                                    <strong>Add analytics from day one.</strong>
+                                    The ai_generations table is planned — good.
+                                    Also add Plausible or similar for web
+                                    analytics. Track the 5 key metrics from the
+                                    GTM section. You cannot measure success
+                                    without instrumentation.
+                                </td>
+                                <td>
+                                    <span class="chip chip-accent">P1</span>
+                                </td>
+                                <td>High</td>
+                                <td>1 day</td>
+                            </tr>
+                            <tr>
+                                <td>6</td>
+                                <td>
+                                    <strong
+                                        >Prototype KAG API early as a technical
+                                        demo.</strong
+                                    >
+                                    Even a read-only MCP endpoint that exposes
+                                    graph search would validate the "knowledge
+                                    infrastructure" positioning and attract a
+                                    different class of user (developers, AI
+                                    builders).
+                                </td>
+                                <td>
+                                    <span class="chip chip-yellow">P2</span>
+                                </td>
+                                <td>Strategic</td>
+                                <td>1–2 weeks</td>
+                            </tr>
+                            <tr>
+                                <td>7</td>
+                                <td>
+                                    <strong
+                                        >Implement quadtree before scaling paid
+                                        plans.</strong
+                                    >
+                                    The O(n²) physics will cause visible lag at
+                                    150+ nodes. Teams paying $25/seat/mo will
+                                    not tolerate this.
+                                </td>
+                                <td>
+                                    <span class="chip chip-yellow">P2</span>
+                                </td>
+                                <td>High</td>
+                                <td>3–5 days</td>
+                            </tr>
+                            <tr>
+                                <td>8</td>
+                                <td>
+                                    <strong
+                                        >Add JSON export from the prototype
+                                        immediately.</strong
+                                    >
+                                    The PKM audience cares deeply about data
+                                    portability. Having an "export all" button
+                                    in the prototype builds trust with early
+                                    adopters.
+                                </td>
+                                <td>
+                                    <span class="chip chip-yellow">P2</span>
+                                </td>
+                                <td>Medium</td>
+                                <td>0.5 day</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- SECTION 9: FINAL VERDICT -->
+            <section>
+                <div class="section-num">09 — FINAL VERDICT</div>
+                <h2>Conclusion</h2>
+                <p>
+                    BendScript is a rare combination: a genuinely novel concept
+                    backed by a working prototype and a thorough technical plan.
+                    The "prompts become topology" vision is compelling. The
+                    prototype proves the team can ship. The BUILD.md
+                    demonstrates senior-level architectural thinking.
+                </p>
+                <p>
+                    The challenge is focus. The plan tries to be a SvelteKit
+                    app, a Supabase backend, a 4-tier AI system, a real-time
+                    collaboration tool, an MCP-compatible KAG server, and an
+                    enterprise platform — simultaneously. For a small team
+                    entering a market with Flowith (1M+ users,
+                    NVIDIA/Google/Microsoft backing) and Heptabase (~$7M ARR,
+                    YC), execution speed is everything.
+                </p>
+                <p>
+                    The single most important thing to do next is
+                    <strong>validate Tier 2 synthesis</strong>. If feeding graph
+                    topology to Claude produces meaningfully better output than
+                    text-only prompts, BendScript has a real differentiator that
+                    no competitor currently offers. If it doesn't, the product
+                    needs a different thesis. Everything else — migration,
+                    pricing, GTM, KAG — is downstream of that answer.
+                </p>
+
+                <div class="callout callout-green">
+                    <strong>Bottom line:</strong> The vision is A-tier. The
+                    prototype is A−. The plan is A. Execution risk brings it to
+                    B+. Validate the core hypothesis, ruthlessly cut scope to
+                    ship fast, and this has a real shot at carving a defensible
+                    niche in a growing market.
+                </div>
+            </section>
+
+            <footer class="review-footer">
+                BendScript Full Spectrum Review · March 2026 · Prepared for
+                Ampersand Box Design
+            </footer>
+        </div>
+        <!-- .container -->
+    </body>
+</html>
