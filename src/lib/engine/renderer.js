@@ -216,7 +216,7 @@ export function drawNodes({ ctx, plane, W, H, t, state, deps = {} }) {
     const blur = clamp((far - 0.58) * 8, 0, 3);
 
     const selected = n.id === selectedId;
-    const dimmed = selectedId && !selected && !connected?.has(n.id);
+    const surrounding = !!selectedId && !selected && connected?.has(n.id);
 
     let cardTop = "#ffffff";
     let cardBottom = "#ffffff";
@@ -247,10 +247,12 @@ export function drawNodes({ ctx, plane, W, H, t, state, deps = {} }) {
 
     if (selected) {
       border = "#ff6d5a";
-      glow = "rgba(255,109,90,0.3)";
+      glow = "rgba(255,109,90,0.55)";
+    } else if (surrounding) {
+      glow = glow.replace(/[\d.]+\)$/, "0.34)");
     }
 
-    const alpha = dimmed ? 0.18 : 1;
+    const alpha = 1;
     const pulse = 1 + Math.sin(t * 0.0015 + n.pulse) * 0.012;
 
     ctx.save();
@@ -262,8 +264,8 @@ export function drawNodes({ ctx, plane, W, H, t, state, deps = {} }) {
     grad.addColorStop(1, cardBottom);
 
     ctx.shadowColor = glow;
-    ctx.shadowBlur = selected ? 16 : 8;
-    ctx.shadowOffsetY = 4;
+    ctx.shadowBlur = selected ? 24 : surrounding ? 14 : 8;
+    ctx.shadowOffsetY = selected ? 4 : surrounding ? 4 : 4;
     ctx.fillStyle = grad;
     ctx.beginPath();
     ctx.roundRect(
