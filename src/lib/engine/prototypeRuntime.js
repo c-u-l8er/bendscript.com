@@ -1,12 +1,36 @@
 import { marked } from "marked";
 import DOMPurify from "dompurify";
+import {
+  newPlane as graphNewPlane,
+  addNode as graphAddNode,
+  normalizeEdgeProps as graphNormalizeEdgeProps,
+  addEdge as graphAddEdge,
+  findNode as graphFindNode,
+  findEdge as graphFindEdge,
+  connectedNodes as graphConnectedNodes,
+  activePlane as graphActivePlane,
+  depthOfPlane as graphDepthOfPlane,
+  breadcrumbList as graphBreadcrumbList,
+} from "./graph";
+import { simulate as simulatePhysics } from "./physics";
+import {
+  drawBackground as drawBackgroundRenderer,
+  drawEdges as drawEdgesRenderer,
+  drawNodes as drawNodesRenderer,
+} from "./renderer";
+import { setupInputHandlers } from "./input";
+import { createInspectorController } from "./inspectors";
+import { createBreadcrumbController } from "./breadcrumbs";
 
-export function initPrototypeRuntime() {
-  if (typeof window === "undefined") return;
+export function initPrototypeRuntime(options = {}) {
+  if (typeof window === "undefined") return null;
   window.marked = marked;
   window.DOMPurify = DOMPurify;
 
-  (() => {
+  const { autoStartLoop = true } = options;
+  let runtimeControls = null;
+
+  runtimeControls = (() => {
     const STORAGE_KEY = "bendscript-state-v1";
     const canvas = document.getElementById("graph");
     const ctx = canvas.getContext("2d");
@@ -44,11 +68,6 @@ export function initPrototypeRuntime() {
     const nodeType = document.getElementById("nodeType");
     const nodePinned = document.getElementById("nodePinned");
     const nodeInspectorEmpty = document.getElementById("nodeInspectorEmpty");
-
-    let nodeMdOverlayClosedByUser = false;
-    let nodeMdOverlayView = "write";
-    let nodeMdOverlayBoundNodeId = null;
-    let nodeMdSyncing = false;
 
     const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
     const rand = (a, b) => a + Math.random() * (b - a);
@@ -90,9 +109,6 @@ export function initPrototypeRuntime() {
       nodeMdOverlayView:
         state.ui?.nodeMdOverlayView === "preview" ? "preview" : "write",
     };
-
-    nodeMdOverlayClosedByUser = !state.ui.nodeMdOverlayOpen;
-    nodeMdOverlayView = state.ui.nodeMdOverlayView;
 
     function seedState() {
       const root = newPlane({
@@ -211,122 +227,44 @@ export function initPrototypeRuntime() {
       return s;
     }
 
-    function newPlane({
-      id = uid("plane"),
-      name = "Graph Plane",
-      parentPlaneId = null,
-      parentNodeId = null,
-    }) {
-      return {
-        id,
-        name,
-        parentPlaneId,
-        parentNodeId,
-        nodes: [],
-        edges: [],
-        camera: { x: 0, y: 0, zoom: 1 },
-        tick: 0,
-      };
+    function newPlane(args) {
+      return graphNewPlane(args);
     }
 
-    function addNode(
-      plane,
-      {
-        text = "Node",
-        x = 0,
-        y = 0,
-        type = "normal",
-        pinned = false,
-        portalPlaneId = null,
-      },
-    ) {
-      const node = {
-        id: uid("node"),
-        text: String(text).slice(0, 4000),
-        x,
-        y,
-        vx: 0,
-        vy: 0,
-        fx: 0,
-        fy: 0,
-        pinned: !!pinned,
-        type: type === "stargate" ? "stargate" : "normal",
-        portalPlaneId: portalPlaneId || null,
-        pulse: Math.random() * Math.PI * 2,
-        createdAt: Date.now(),
-        width: null,
-        height: null,
-        scrollY: 0,
-      };
-      plane.nodes.push(node);
-      return node;
+    function addNode(plane, spec) {
+      return graphAddNode(plane, spec);
     }
 
     function normalizeEdgeProps(props = {}) {
-      return {
-        label: String(props.label || "").slice(0, 80),
-        kind: ["context", "causal", "temporal", "associative", "user"].includes(
-          props.kind,
-        )
-          ? props.kind
-          : "context",
-        strength: clamp(Number(props.strength) || 1, 1, 5),
-      };
+      return graphNormalizeEdgeProps(props);
     }
 
     function addEdge(plane, nodeA, nodeB, props = {}) {
-      const a = typeof nodeA === "string" ? nodeA : nodeA.id;
-      const b = typeof nodeB === "string" ? nodeB : nodeB.id;
-      const edge = {
-        id: uid("edge"),
-        a,
-        b,
-        flowOffset: Math.random(),
-        props: normalizeEdgeProps(props),
-      };
-      plane.edges.push(edge);
-      return edge;
+      return graphAddEdge(plane, nodeA, nodeB, props);
     }
 
     function findNode(plane, nodeId) {
-      return plane.nodes.find((n) => n.id === nodeId) || null;
+      return graphFindNode(plane, nodeId);
     }
 
     function findEdge(plane, edgeId) {
-      return plane.edges.find((e) => e.id === edgeId) || null;
+      return graphFindEdge(plane, edgeId);
     }
 
     function connectedNodes(plane, nodeId) {
-      const ids = new Set();
-      for (const e of plane.edges) {
-        if (e.a === nodeId) ids.add(e.b);
-        if (e.b === nodeId) ids.add(e.a);
-      }
-      return ids;
+      return graphConnectedNodes(plane, nodeId);
     }
 
     function activePlane() {
-      return state.planes[state.activePlaneId];
+      return graphActivePlane(state);
     }
 
     function depthOfPlane(planeId) {
-      let depth = 0;
-      let p = state.planes[planeId];
-      while (p && p.parentPlaneId) {
-        depth++;
-        p = state.planes[p.parentPlaneId];
-      }
-      return depth;
+      return graphDepthOfPlane(state, planeId);
     }
 
     function breadcrumbList(planeId) {
-      const out = [];
-      let p = state.planes[planeId];
-      while (p) {
-        out.push(p);
-        p = p.parentPlaneId ? state.planes[p.parentPlaneId] : null;
-      }
-      return out.reverse();
+      return graphBreadcrumbList(state, planeId);
     }
 
     function ensurePortalPlane(node, sourcePlane) {
@@ -575,6 +513,9 @@ export function initPrototypeRuntime() {
     applyComposerPosition();
 
     let lastT = now();
+    let rafId = null;
+    let loopRunning = false;
+    let autosaveIntervalId = null;
     let saveTimer = null;
     function saveSoon() {
       clearTimeout(saveTimer);
@@ -658,437 +599,75 @@ export function initPrototypeRuntime() {
       hintEl.innerHTML = msg;
     }
 
+    const inspectorController = createInspectorController({
+      state,
+      activePlane,
+      findNode,
+      findEdge,
+      normalizeEdgeProps,
+      trimText,
+      saveSoon,
+      refs: {
+        edgePropLabel,
+        edgePropKind,
+        edgePropStrength,
+        edgeInspectorEmpty,
+        nodeText,
+        nodeType,
+        nodePinned,
+        nodeInspectorEmpty,
+        nodeModeToggle,
+        composerTargetEl,
+        nodeMdBackdrop,
+        nodeMdOverlay,
+        nodeMdTitle,
+        nodeMdTabs,
+        nodeMdClose,
+        nodeMdOpenBtn,
+        nodeMdEditor,
+        nodeMdPreview,
+      },
+    });
+
     function currentTargetNode() {
-      const plane = activePlane();
-      let n = findNode(plane, state.ui.selectedNodeId);
-      if (!n) n = plane.nodes[0] || null;
-      return n;
+      return inspectorController.currentTargetNode();
     }
 
     function setSelected(nodeId) {
-      state.ui.selectedNodeId = nodeId;
-      state.ui.selectedEdgeId = null;
-
-      if (!nodeId) {
-        state.ui.nodeMdOverlayOpen = false;
-        nodeMdOverlayClosedByUser = true;
-        nodeMdOverlayBoundNodeId = null;
-      } else if (state.ui.nodeMdOverlayOpen) {
-        nodeMdOverlayClosedByUser = false;
-      }
-
-      const node = currentTargetNode();
-      composerTargetEl.textContent = `target: ${node ? trimText(node.text, 64) : "none"}`;
-      syncEdgeInspector();
-      syncNodeInspector();
+      inspectorController.setSelected(nodeId);
     }
 
     function setSelectedEdge(edgeId) {
-      if (!isEditMode() && edgeId) return;
-      state.ui.selectedEdgeId = edgeId || null;
-      syncEdgeInspector();
+      inspectorController.setSelectedEdge(edgeId);
     }
 
     function syncEdgeInspector() {
-      const plane = activePlane();
-      const edge = findEdge(plane, state.ui.selectedEdgeId);
-
-      if (!edge) {
-        edgeInspectorEmpty.textContent = "No edge selected yet.";
-        edgePropLabel.value = "";
-        edgePropKind.value = "context";
-        edgePropStrength.value = "1";
-        edgePropLabel.disabled = true;
-        edgePropKind.disabled = true;
-        edgePropStrength.disabled = true;
-        return;
-      }
-
-      edge.props = normalizeEdgeProps(edge.props);
-      edgeInspectorEmpty.textContent = `Editing ${trimText(findNode(plane, edge.a)?.text || edge.a, 32)} → ${trimText(findNode(plane, edge.b)?.text || edge.b, 32)}`;
-      edgePropLabel.value = edge.props.label || "";
-      edgePropKind.value = edge.props.kind || "context";
-      edgePropStrength.value = String(edge.props.strength || 1);
-      const allowEdgeEdit = isEditMode();
-      edgePropLabel.disabled = !allowEdgeEdit;
-      edgePropKind.disabled = !allowEdgeEdit;
-      edgePropStrength.disabled = !allowEdgeEdit;
-    }
-
-    function applyEdgeInspectorToSelection() {
-      if (!isEditMode()) return;
-      const plane = activePlane();
-      const edge = findEdge(plane, state.ui.selectedEdgeId);
-      if (!edge) return;
-
-      edge.props = normalizeEdgeProps({
-        label: edgePropLabel.value,
-        kind: edgePropKind.value,
-        strength: edgePropStrength.value,
-      });
-      saveSoon();
-    }
-
-    edgePropLabel.addEventListener("input", applyEdgeInspectorToSelection);
-    edgePropKind.addEventListener("change", applyEdgeInspectorToSelection);
-    edgePropStrength.addEventListener("input", applyEdgeInspectorToSelection);
-
-    function escapeHtml(s) {
-      return String(s || "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
-    }
-
-    function markdownToInspectorHtml(md) {
-      const lines = String(md || "")
-        .replace(/\r\n/g, "\n")
-        .split("\n");
-      const out = [];
-      let inCode = false;
-      let inUl = false;
-      let inOl = false;
-
-      const closeLists = () => {
-        if (inUl) {
-          out.push("</ul>");
-          inUl = false;
-        }
-        if (inOl) {
-          out.push("</ol>");
-          inOl = false;
-        }
-      };
-
-      const inline = (raw) => {
-        let s = escapeHtml(raw);
-        s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
-        s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-        s = s.replace(/__([^_]+)__/g, "<strong>$1</strong>");
-        s = s.replace(/\*([^*]+)\*/g, "<em>$1</em>");
-        s = s.replace(/_([^_]+)_/g, "<em>$1</em>");
-        s = s.replace(
-          /\[([^\]]+)\]\(([^)\s]+)\)/g,
-          '<a href="$2" target="_blank" rel="noreferrer">$1</a>',
-        );
-        return s;
-      };
-
-      for (const raw of lines) {
-        if (/^\s*```/.test(raw)) {
-          closeLists();
-          if (!inCode) {
-            out.push("<pre><code>");
-            inCode = true;
-          } else {
-            out.push("</code></pre>");
-            inCode = false;
-          }
-          continue;
-        }
-
-        if (inCode) {
-          out.push(`${escapeHtml(raw)}\n`);
-          continue;
-        }
-
-        const h = raw.match(/^\s{0,3}(#{1,6})\s+(.*)$/);
-        if (h) {
-          closeLists();
-          const lvl = h[1].length;
-          out.push(`<h${lvl}>${inline(h[2])}</h${lvl}>`);
-          continue;
-        }
-
-        const ul = raw.match(/^\s*[-*+]\s+(.*)$/);
-        if (ul) {
-          if (!inUl) {
-            if (inOl) {
-              out.push("</ol>");
-              inOl = false;
-            }
-            out.push("<ul>");
-            inUl = true;
-          }
-          out.push(`<li>${inline(ul[1])}</li>`);
-          continue;
-        }
-
-        const ol = raw.match(/^\s*\d+\.\s+(.*)$/);
-        if (ol) {
-          if (!inOl) {
-            if (inUl) {
-              out.push("</ul>");
-              inUl = false;
-            }
-            out.push("<ol>");
-            inOl = true;
-          }
-          out.push(`<li>${inline(ol[1])}</li>`);
-          continue;
-        }
-
-        const quote = raw.match(/^\s*>\s?(.*)$/);
-        if (quote) {
-          closeLists();
-          out.push(`<blockquote>${inline(quote[1])}</blockquote>`);
-          continue;
-        }
-
-        if (!raw.trim()) {
-          closeLists();
-          out.push("<p></p>");
-          continue;
-        }
-
-        closeLists();
-        out.push(`<p>${inline(raw)}</p>`);
-      }
-
-      closeLists();
-      if (inCode) out.push("</code></pre>");
-      return out.join("");
-    }
-
-    function setNodeMdView(view) {
-      nodeMdOverlayView = view === "preview" ? "preview" : "write";
-      state.ui.nodeMdOverlayView = nodeMdOverlayView;
-
-      const previewMode = nodeMdOverlayView === "preview";
-      const writeBtn = nodeMdTabs?.querySelector('[data-view="write"]');
-      const previewBtn = nodeMdTabs?.querySelector('[data-view="preview"]');
-
-      if (writeBtn) writeBtn.classList.toggle("active", !previewMode);
-      if (previewBtn) previewBtn.classList.toggle("active", previewMode);
-
-      if (nodeMdEditor) nodeMdEditor.classList.toggle("hidden", previewMode);
-      if (nodeMdPreview) nodeMdPreview.classList.toggle("hidden", !previewMode);
-
-      if (previewMode) updateNodeMarkdownPreview();
-    }
-
-    function updateNodeMarkdownPreview() {
-      if (!nodeMdPreview) return;
-      const source = nodeMdEditor?.value ?? nodeText?.value ?? "";
-      if (window.marked && window.DOMPurify) {
-        const unsafe = window.marked.parse(source, {
-          gfm: true,
-          breaks: true,
-        });
-        nodeMdPreview.innerHTML = window.DOMPurify.sanitize(unsafe, {
-          USE_PROFILES: { html: true },
-        });
-      } else {
-        nodeMdPreview.innerHTML = markdownToInspectorHtml(source);
-      }
-    }
-
-    function syncNodeMdOverlayForSelection() {
-      if (!nodeMdOverlay) return;
-
-      const edit = isEditMode();
-      const node = findNode(activePlane(), state.ui.selectedNodeId);
-      const shouldShow =
-        edit &&
-        !!node &&
-        !nodeMdOverlayClosedByUser &&
-        !!state.ui.nodeMdOverlayOpen;
-
-      if (!shouldShow) {
-        nodeMdOverlay.classList.add("hidden");
-        if (nodeMdBackdrop) nodeMdBackdrop.classList.add("hidden");
-        return;
-      }
-
-      if (nodeMdTitle)
-        nodeMdTitle.textContent = `NODE MARKDOWN · ${trimText(node.text || "Node", 38)}`;
-
-      if (nodeMdOverlayBoundNodeId !== node.id) {
-        nodeMdOverlayBoundNodeId = node.id;
-        nodeMdSyncing = true;
-        if (nodeMdEditor) nodeMdEditor.value = node.text || "";
-        updateNodeMarkdownPreview();
-        nodeMdSyncing = false;
-      }
-
-      nodeMdOverlay.classList.remove("hidden");
-      if (nodeMdBackdrop) nodeMdBackdrop.classList.remove("hidden");
-    }
-
-    function isEditMode() {
-      return state.ui.editMode === "edit";
+      inspectorController.syncEdgeInspector();
     }
 
     function syncModeUI() {
-      const edit = isEditMode();
-      nodeModeToggle.textContent = `mode: ${edit ? "EDIT" : "PREVIEW"}`;
-      nodeModeToggle.style.borderColor = edit ? "#ff6d5a" : "#e0e4e8";
-      nodeModeToggle.style.color = edit ? "#ff6d5a" : "#666666";
-
-      const hasNode = !!findNode(activePlane(), state.ui.selectedNodeId);
-      nodeText.disabled = !edit || !hasNode;
-      if (nodeMdEditor) {
-        nodeMdEditor.disabled = !edit || !hasNode;
-      }
-      if (!edit && nodeMdOverlay) {
-        nodeMdOverlay.classList.add("hidden");
-        if (nodeMdBackdrop) nodeMdBackdrop.classList.add("hidden");
-      }
-      if (nodeMdOpenBtn) {
-        nodeMdOpenBtn.disabled = !edit || !hasNode;
-      }
-      nodeType.disabled = !edit || !hasNode;
-      nodePinned.disabled = !edit || !hasNode;
-      edgePropLabel.disabled = !edit || !state.ui.selectedEdgeId;
-      edgePropKind.disabled = !edit || !state.ui.selectedEdgeId;
-      edgePropStrength.disabled = !edit || !state.ui.selectedEdgeId;
+      inspectorController.syncModeUI();
     }
 
     function syncNodeInspector() {
-      const plane = activePlane();
-      const node = findNode(plane, state.ui.selectedNodeId);
-      if (!node) {
-        nodeInspectorEmpty.textContent = "No node selected yet.";
-        nodeText.value = "";
-        if (nodeMdEditor) nodeMdEditor.value = "";
-        updateNodeMarkdownPreview();
-        nodeType.value = "normal";
-        nodePinned.value = "false";
-
-        nodeMdOverlayBoundNodeId = null;
-        nodeMdOverlayClosedByUser = true;
-        nodeMdOverlayView = "write";
-        state.ui.nodeMdOverlayOpen = false;
-        state.ui.nodeMdOverlayView = "write";
-        setNodeMdView("write");
-
-        if (nodeMdOverlay) nodeMdOverlay.classList.add("hidden");
-        if (nodeMdBackdrop) nodeMdBackdrop.classList.add("hidden");
-        syncModeUI();
-        return;
-      }
-
-      nodeInspectorEmpty.textContent = `Editing ${trimText(node.text, 56)}`;
-      nodeText.value = node.text || "";
-      if (!nodeMdSyncing && nodeMdEditor) {
-        nodeMdSyncing = true;
-        nodeMdEditor.value = node.text || "";
-        nodeMdSyncing = false;
-      }
-      updateNodeMarkdownPreview();
-      nodeType.value = node.type === "stargate" ? "stargate" : "normal";
-      nodePinned.value = node.pinned ? "true" : "false";
-      syncModeUI();
-      syncNodeMdOverlayForSelection();
+      inspectorController.syncNodeInspector();
     }
 
     function applyNodeInspectorToSelection() {
-      if (!isEditMode()) return;
-      const node = findNode(activePlane(), state.ui.selectedNodeId);
-      if (!node) return;
-
-      node.text = String(nodeText.value || "").slice(0, 4000);
-      node.type = nodeType.value === "stargate" ? "stargate" : "normal";
-      node.pinned = nodePinned.value === "true";
-      if (node.type === "stargate" && node.text && !/^⊛/.test(node.text))
-        node.text = "⊛ " + node.text;
-
-      if (
-        nodeMdEditor &&
-        !nodeMdSyncing &&
-        document.activeElement !== nodeMdEditor &&
-        nodeMdEditor.value !== node.text
-      ) {
-        nodeMdSyncing = true;
-        nodeMdEditor.value = node.text;
-        nodeMdSyncing = false;
-      }
-
-      updateNodeMarkdownPreview();
-      composerTargetEl.textContent = `target: ${trimText(node.text || "none", 64)}`;
-      saveSoon();
+      inspectorController.applyNodeInspectorToSelection();
     }
 
-    nodeText.addEventListener("input", applyNodeInspectorToSelection);
-
-    if (nodeMdTabs) {
-      nodeMdTabs.addEventListener("click", (e) => {
-        const btn = e.target.closest("button[data-view]");
-        if (!btn) return;
-        setNodeMdView(btn.getAttribute("data-view"));
-        saveSoon();
-      });
+    function isEditMode() {
+      return inspectorController.isEditMode();
     }
 
-    if (nodeMdClose) {
-      nodeMdClose.addEventListener("click", () => {
-        nodeMdOverlayClosedByUser = true;
-        state.ui.nodeMdOverlayOpen = false;
-        if (nodeMdOverlay) nodeMdOverlay.classList.add("hidden");
-        if (nodeMdBackdrop) nodeMdBackdrop.classList.add("hidden");
-        saveSoon();
-      });
+    function updateNodeMarkdownPreview() {
+      inspectorController.updateNodeMarkdownPreview();
     }
 
-    if (nodeMdOpenBtn) {
-      nodeMdOpenBtn.addEventListener("click", () => {
-        if (!isEditMode()) return;
-        const node = findNode(activePlane(), state.ui.selectedNodeId);
-        if (!node) return;
-        nodeMdOverlayClosedByUser = false;
-        state.ui.nodeMdOverlayOpen = true;
-        nodeMdOverlayBoundNodeId = null;
-        syncNodeMdOverlayForSelection();
-        saveSoon();
-      });
+    function syncNodeMdOverlayForSelection() {
+      inspectorController.syncNodeMdOverlayForSelection();
     }
-
-    if (nodeMdBackdrop) {
-      nodeMdBackdrop.addEventListener("click", () => {
-        nodeMdOverlayClosedByUser = true;
-        state.ui.nodeMdOverlayOpen = false;
-        nodeMdOverlay.classList.add("hidden");
-        nodeMdBackdrop.classList.add("hidden");
-        saveSoon();
-      });
-    }
-
-    if (nodeMdEditor) {
-      nodeMdEditor.addEventListener("input", () => {
-        if (!isEditMode() || nodeMdSyncing) return;
-        nodeText.value = nodeMdEditor.value;
-        applyNodeInspectorToSelection();
-        updateNodeMarkdownPreview();
-      });
-      nodeMdEditor.addEventListener("wheel", (e) => {
-        e.stopPropagation();
-      });
-      nodeMdEditor.addEventListener("pointerdown", (e) => {
-        e.stopPropagation();
-      });
-    }
-
-    if (nodeMdPreview) {
-      nodeMdPreview.addEventListener("wheel", (e) => {
-        e.stopPropagation();
-      });
-      nodeMdPreview.addEventListener("pointerdown", (e) => {
-        e.stopPropagation();
-      });
-    }
-
-    setNodeMdView(state.ui.nodeMdOverlayView || "write");
-
-    nodeType.addEventListener("change", applyNodeInspectorToSelection);
-    nodePinned.addEventListener("change", applyNodeInspectorToSelection);
-
-    nodeModeToggle.addEventListener("click", () => {
-      state.ui.editMode = isEditMode() ? "preview" : "edit";
-      syncModeUI();
-      saveSoon();
-    });
 
     function applyComposerPosition() {
       if (state.ui.composerPos?.free) {
@@ -1226,221 +805,6 @@ export function initPrototypeRuntime() {
       saveSoon();
     }
 
-    composerForm.addEventListener("submit", (e) => {
-      e.preventDefault();
-      if (!isEditMode()) return;
-      spawnPromptFlow(promptInput.value);
-    });
-
-    function openContextMenu(x, y, nodeId) {
-      if (!isEditMode()) return;
-      state.ui.contextNodeId = nodeId;
-      const plane = activePlane();
-      const node = findNode(plane, nodeId);
-      if (!node) return;
-      const pinBtn = menu.querySelector('[data-action="pin"]');
-      const sgBtn = menu.querySelector('[data-action="stargate"]');
-      pinBtn.textContent = node.pinned ? "Unpin node" : "Pin node";
-      sgBtn.textContent =
-        node.type === "stargate" ? "Convert to Normal" : "Convert to Stargate";
-
-      menu.style.display = "block";
-      menu.style.left = Math.round(x) + "px";
-      menu.style.top = Math.round(y) + "px";
-    }
-
-    function closeContextMenu() {
-      menu.style.display = "none";
-      state.ui.contextNodeId = null;
-    }
-
-    menu.addEventListener("click", (e) => {
-      const btn = e.target.closest("button[data-action]");
-      if (!btn) return;
-      const action = btn.getAttribute("data-action");
-      const plane = activePlane();
-      const node = findNode(plane, state.ui.contextNodeId);
-      closeContextMenu();
-      if (!node) return;
-
-      if (action === "fork") {
-        const clone = addNode(plane, {
-          text: `${trimText(node.text, 100)} (fork)`,
-          x: node.x + rand(-110, 110),
-          y: node.y + rand(-90, 90),
-          type: node.type,
-        });
-        addEdge(plane, node, clone);
-        setSelected(clone.id);
-        saveSoon();
-        return;
-      }
-
-      if (action === "merge") {
-        state.ui.mergeSourceNodeId = node.id;
-        state.ui.connectSourceNodeId = null;
-        resetHint(
-          `<strong>Merge mode:</strong> click a second node to merge with <em>${trimText(node.text, 44)}</em>.`,
-        );
-        return;
-      }
-
-      if (action === "connect") {
-        state.ui.connectSourceNodeId = node.id;
-        state.ui.mergeSourceNodeId = null;
-        setSelected(node.id);
-        resetHint(
-          `<strong>Connect mode:</strong> Click a target node to create a directed edge`,
-        );
-        return;
-      }
-
-      if (action === "pin") {
-        node.pinned = !node.pinned;
-        if (node.pinned) {
-          node.vx = 0;
-          node.vy = 0;
-        }
-        saveSoon();
-        return;
-      }
-
-      if (action === "stargate") {
-        node.type = node.type === "stargate" ? "normal" : "stargate";
-        if (node.type === "stargate" && !/^⊛/.test(node.text))
-          node.text = "⊛ " + node.text;
-        saveSoon();
-        return;
-      }
-
-      if (action === "delete") {
-        if (plane.nodes.length <= 1) return;
-        removeNode(plane, node.id);
-        saveSoon();
-      }
-    });
-
-    document.addEventListener("click", (e) => {
-      if (!menu.contains(e.target)) closeContextMenu();
-    });
-
-    canvas.addEventListener("contextmenu", (e) => {
-      e.preventDefault();
-      const plane = activePlane();
-      const rect = canvas.getBoundingClientRect();
-      const sx = e.clientX - rect.left;
-      const sy = e.clientY - rect.top;
-      const w = screenToWorld(sx, sy, plane.camera, rect.width, rect.height);
-      const n = nodeAtPoint(plane, w.x, w.y);
-      if (n) {
-        setSelected(n.id);
-        openContextMenu(e.clientX + 4, e.clientY + 4, n.id);
-      } else {
-        closeContextMenu();
-      }
-    });
-
-    let pointerId = null;
-    canvas.addEventListener("pointerdown", (e) => {
-      closeContextMenu();
-      canvas.setPointerCapture(e.pointerId);
-      pointerId = e.pointerId;
-      const plane = activePlane();
-      const rect = canvas.getBoundingClientRect();
-      const sx = e.clientX - rect.left;
-      const sy = e.clientY - rect.top;
-      const w = screenToWorld(sx, sy, plane.camera, rect.width, rect.height);
-      const n = nodeAtPoint(plane, w.x, w.y);
-      const hitEdge = n ? null : edgeAtPoint(plane, w.x, w.y);
-
-      state.ui.pointerDownAt = {
-        x: e.clientX,
-        y: e.clientY,
-        t: now(),
-        nodeId: n?.id || null,
-        edgeId: hitEdge?.id || null,
-      };
-      state.ui.pointerMoved = false;
-
-      if (
-        n &&
-        isEditMode() &&
-        isPointOnNodeResizeHandle(n, w.x, w.y, plane.camera.zoom)
-      ) {
-        setSelected(n.id);
-        state.ui.resizeNodeId = n.id;
-        state.ui.dragNodeId = null;
-        state.ui.panMode = false;
-        return;
-      }
-
-      if (n) {
-        setSelected(n.id);
-        state.ui.resizeNodeId = null;
-        state.ui.dragNodeId = n.id;
-        state.ui.panMode = false;
-        state.ui.dragOffsetX = w.x - n.x;
-        state.ui.dragOffsetY = w.y - n.y;
-      } else if (hitEdge && isEditMode()) {
-        state.ui.resizeNodeId = null;
-        state.ui.dragNodeId = null;
-        state.ui.panMode = false;
-        setSelectedEdge(hitEdge.id);
-      } else {
-        state.ui.resizeNodeId = null;
-        state.ui.panMode = true;
-        state.ui.dragNodeId = null;
-        state.ui.selectedEdgeId = null;
-        syncEdgeInspector();
-        canvas.classList.add("dragging");
-      }
-    });
-
-    canvas.addEventListener("pointermove", (e) => {
-      if (pointerId == null) return;
-      const plane = activePlane();
-      const rect = canvas.getBoundingClientRect();
-      const sx = e.clientX - rect.left;
-      const sy = e.clientY - rect.top;
-      const w = screenToWorld(sx, sy, plane.camera, rect.width, rect.height);
-
-      if (state.ui.pointerDownAt) {
-        const md = dist(
-          e.clientX,
-          e.clientY,
-          state.ui.pointerDownAt.x,
-          state.ui.pointerDownAt.y,
-        );
-        if (md > 4) state.ui.pointerMoved = true;
-      }
-
-      if (state.ui.resizeNodeId) {
-        const n = findNode(plane, state.ui.resizeNodeId);
-        if (!n) return;
-        n.width = clamp((w.x - n.x) * 2, NODE_MIN_WIDTH, NODE_MAX_WIDTH);
-        n.height = clamp((w.y - n.y) * 2, NODE_MIN_HEIGHT, NODE_MAX_HEIGHT);
-        state.ui.pointerMoved = true;
-        return;
-      }
-
-      if (state.ui.dragNodeId) {
-        const n = findNode(plane, state.ui.dragNodeId);
-        if (!n) return;
-        n.x = w.x - state.ui.dragOffsetX;
-        n.y = w.y - state.ui.dragOffsetY;
-        n.vx *= 0.7;
-        n.vy *= 0.7;
-        return;
-      }
-
-      if (state.ui.panMode && state.ui.pointerDownAt) {
-        const dx = (e.movementX || 0) / plane.camera.zoom;
-        const dy = (e.movementY || 0) / plane.camera.zoom;
-        plane.camera.x -= dx;
-        plane.camera.y -= dy;
-      }
-    });
-
     function triggerWarp(callback) {
       warp.classList.add("active");
       setTimeout(() => {
@@ -1449,475 +813,110 @@ export function initPrototypeRuntime() {
       }, 280);
     }
 
-    canvas.addEventListener("pointerup", (e) => {
-      if (pointerId !== e.pointerId) return;
-      canvas.releasePointerCapture(e.pointerId);
-      pointerId = null;
-      canvas.classList.remove("dragging");
+    const cleanupInputHandlers = setupInputHandlers({
+      canvas,
+      canvasCtx: ctx,
+      menu,
+      composerForm,
+      promptInput,
+      composer,
+      composerDragHandle,
+      composerTargetEl,
+      state,
 
-      const plane = activePlane();
-      const clickWasNode = state.ui.pointerDownAt?.nodeId;
-      const wasMoved = state.ui.pointerMoved;
-      const draggedNodeId = state.ui.dragNodeId;
-      const wasResizing = !!state.ui.resizeNodeId;
+      activePlane,
+      findNode,
+      edgeAtPoint,
+      nodeAtPoint,
+      isPointOnNodeResizeHandle,
+      screenToWorld,
+      clamp,
+      dist,
+      now,
+      isEditMode,
+      setSelected,
+      setSelectedEdge,
+      syncEdgeInspector,
+      saveSoon,
+      saveState,
+      addNode,
+      addEdge,
+      removeNode,
+      mergeNodes,
+      ensurePortalPlane,
+      resetHint,
+      trimText,
+      rand,
+      currentTargetNode,
+      generateResponse,
+      triggerWarp,
+      nodeCardSize,
+      wrapMarkdownLines,
 
-      state.ui.panMode = false;
-      state.ui.dragNodeId = null;
-      state.ui.resizeNodeId = null;
+      nodeMdOverlay,
+      nodeMdBackdrop,
 
-      if (wasResizing) {
-        saveSoon();
-        state.ui.pointerDownAt = null;
-        return;
-      }
+      NODE_MIN_WIDTH,
+      NODE_MAX_WIDTH,
+      NODE_MIN_HEIGHT,
+      NODE_MAX_HEIGHT,
+      NODE_BODY_TOP_PAD,
+      NODE_BODY_BOTTOM_PAD,
 
-      if (!wasMoved && clickWasNode) {
-        const node = findNode(plane, clickWasNode);
-        if (node) {
-          if (
-            state.ui.mergeSourceNodeId &&
-            state.ui.mergeSourceNodeId !== node.id
-          ) {
-            const source = findNode(plane, state.ui.mergeSourceNodeId);
-            if (source) mergeNodes(plane, source, node);
-            state.ui.mergeSourceNodeId = null;
-            state.ui.connectSourceNodeId = null;
-            resetHint(
-              `<strong>Drag</strong> nodes to bend layout • <strong>Wheel/Pinch-ish</strong> to zoom • <strong>Right-click</strong> node for fork/merge/connect/pin/stargate/delete • <strong>Click edge</strong> to edit props • <strong>Click stargate</strong> to portal`,
-            );
-            saveSoon();
-          } else if (
-            state.ui.connectSourceNodeId &&
-            state.ui.connectSourceNodeId !== node.id
-          ) {
-            const source = findNode(plane, state.ui.connectSourceNodeId);
-            if (source) {
-              const edge = addEdge(plane, source, node, {
-                kind: "causal",
-              });
-              setSelected(source.id);
-              setSelectedEdge(edge.id);
-            }
-            state.ui.connectSourceNodeId = null;
-            state.ui.mergeSourceNodeId = null;
-            resetHint(
-              `<strong>Drag</strong> nodes to bend layout • <strong>Wheel/Pinch-ish</strong> to zoom • <strong>Right-click</strong> node for fork/merge/connect/pin/stargate/delete • <strong>Click edge</strong> to edit props • <strong>Click stargate</strong> to portal`,
-            );
-            saveSoon();
-          } else if (
-            (node.type === "stargate" && clickWasNode === draggedNodeId) ||
-            node.type === "stargate"
-          ) {
-            const targetPlane = ensurePortalPlane(node, plane);
-            triggerWarp(() => {
-              state.activePlaneId = targetPlane.id;
-              const hub = targetPlane.nodes[0];
-              setSelected(hub?.id || null);
-              targetPlane.camera.zoom = 1;
-              targetPlane.camera.x = 0;
-              targetPlane.camera.y = 0;
-              saveSoon();
-            });
-          }
-        }
-      }
-
-      state.ui.pointerDownAt = null;
+      applyComposerPosition,
     });
 
-    canvas.addEventListener(
-      "wheel",
-      (e) => {
-        e.preventDefault();
-        const plane = activePlane();
-        const rect = canvas.getBoundingClientRect();
-        const sx = e.clientX - rect.left;
-        const sy = e.clientY - rect.top;
-        const world = screenToWorld(
-          sx,
-          sy,
-          plane.camera,
-          rect.width,
-          rect.height,
-        );
-        const overNode = nodeAtPoint(plane, world.x, world.y);
-
-        if (overNode) {
-          const size = nodeCardSize(overNode);
-          const w = size.width * plane.camera.zoom;
-          const h = size.height * plane.camera.zoom;
-          const headerH = clamp(h * 0.2, 24, 70);
-          const pad = clamp(h * 0.09, 10, 28);
-          const bodyW = Math.max(28, w - pad * 2);
-          const bodyH = Math.max(
-            18,
-            h - headerH - NODE_BODY_TOP_PAD - NODE_BODY_BOTTOM_PAD,
-          );
-          const bodySize = clamp(h * 0.072, 11, 20);
-          const lineHeight = Math.round(bodySize * 1.28);
-
-          ctx.save();
-          ctx.font = `${bodySize}px ui-monospace, monospace`;
-          const lines = wrapMarkdownLines(overNode.text, bodyW, bodySize);
-          ctx.restore();
-
-          const maxScroll = Math.max(
-            0,
-            lines.reduce(
-              (acc, ln) =>
-                acc + (ln.kind === "h" ? lineHeight * 1.18 : lineHeight),
-              0,
-            ) - bodyH,
-          );
-
-          if (maxScroll > 0) {
-            overNode.scrollY = clamp(
-              (Number(overNode.scrollY) || 0) + e.deltaY,
-              0,
-              maxScroll,
-            );
-            saveSoon();
-            return;
-          }
-        }
-
-        const before = screenToWorld(
-          sx,
-          sy,
-          plane.camera,
-          rect.width,
-          rect.height,
-        );
-
-        const zoomFactor = Math.exp(-e.deltaY * 0.0014);
-        plane.camera.zoom = clamp(plane.camera.zoom * zoomFactor, 0.32, 2.8);
-
-        const after = screenToWorld(
-          sx,
-          sy,
-          plane.camera,
-          rect.width,
-          rect.height,
-        );
-        plane.camera.x += before.x - after.x;
-        plane.camera.y += before.y - after.y;
-      },
-      { passive: false },
-    );
-
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") {
-        state.ui.mergeSourceNodeId = null;
-        closeContextMenu();
-        resetHint(
-          `<strong>Drag</strong> nodes to bend layout • <strong>Wheel/Pinch-ish</strong> to zoom • <strong>Right-click</strong> node for fork/merge/connect/pin/stargate/delete • <strong>Click edge</strong> to edit props • <strong>Click stargate</strong> to portal`,
-        );
-
-        if (nodeMdOverlay && !nodeMdOverlay.classList.contains("hidden")) {
-          nodeMdOverlayClosedByUser = true;
-          state.ui.nodeMdOverlayOpen = false;
-          nodeMdOverlay.classList.add("hidden");
-          if (nodeMdBackdrop) nodeMdBackdrop.classList.add("hidden");
-          saveSoon();
-        }
-      }
-      if (e.key === "Delete" || e.key === "Backspace") {
-        if (!isEditMode()) return;
-        const plane = activePlane();
-
-        if (state.ui.selectedEdgeId) {
-          const before = plane.edges.length;
-          plane.edges = plane.edges.filter(
-            (edge) => edge.id !== state.ui.selectedEdgeId,
-          );
-          if (plane.edges.length !== before) {
-            state.ui.selectedEdgeId = null;
-            syncEdgeInspector();
-            saveSoon();
-          }
-          return;
-        }
-
-        const selected = findNode(plane, state.ui.selectedNodeId);
-        if (!selected) return;
-        if (plane.nodes.length > 1) {
-          removeNode(plane, selected.id);
-          saveSoon();
-        }
-      }
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
-        e.preventDefault();
-        saveState();
-      }
+    const breadcrumbController = createBreadcrumbController({
+      breadcrumbsEl,
+      state,
+      breadcrumbList,
+      triggerWarp,
+      activePlane,
+      setSelected,
+      saveSoon,
     });
-
-    let breadcrumbSignature = "";
 
     function updateBreadcrumbs() {
-      if (!updateBreadcrumbs.bound) {
-        breadcrumbsEl.addEventListener("pointerdown", (e) => {
-          const btn = e.target.closest(".crumb[data-plane-id]");
-          if (!btn) return;
-          if (btn.classList.contains("current")) return;
-          e.preventDefault();
-          const planeId = btn.getAttribute("data-plane-id");
-          if (!planeId || !state.planes[planeId]) return;
-
-          triggerWarp(() => {
-            state.activePlaneId = planeId;
-            const p = activePlane();
-            setSelected(p.nodes[0]?.id || null);
-            saveSoon();
-          });
-        });
-        updateBreadcrumbs.bound = true;
-      }
-
-      const crumbs = breadcrumbList(state.activePlaneId);
-      const signature = crumbs.map((p) => `${p.id}:${p.name}`).join(">");
-      if (signature === breadcrumbSignature) return;
-      breadcrumbSignature = signature;
-
-      breadcrumbsEl.innerHTML = "";
-      crumbs.forEach((plane, i) => {
-        const btn = document.createElement("button");
-        btn.className = "crumb" + (i === crumbs.length - 1 ? " current" : "");
-        btn.textContent = plane.name;
-        btn.setAttribute("data-plane-id", plane.id);
-
-        breadcrumbsEl.appendChild(btn);
-        if (i < crumbs.length - 1) {
-          const sep = document.createElement("span");
-          sep.className = "crumb-sep";
-          sep.textContent = "›";
-          breadcrumbsEl.appendChild(sep);
-        }
-      });
+      breadcrumbController.update();
     }
 
     function simulate(dt) {
       const plane = activePlane();
-      const nodes = plane.nodes;
-      const edges = plane.edges;
-      plane.tick += dt;
-
-      const repulsion = 98000;
-      const springK = 0.0095;
-      const edgeLen = 290;
-      const centerPull = 0.00042;
-      const damping = 0.9;
-      const maxSpeed = 8.2;
-
-      for (const n of nodes) {
-        n.fx = 0;
-        n.fy = 0;
-      }
-
-      for (let i = 0; i < nodes.length; i++) {
-        const a = nodes[i];
-        for (let j = i + 1; j < nodes.length; j++) {
-          const b = nodes[j];
-          let dx = b.x - a.x;
-          let dy = b.y - a.y;
-          const d2 = dx * dx + dy * dy + 0.001;
-          const d = Math.sqrt(d2);
-          const f = repulsion / d2;
-          const fx = (dx / d) * f;
-          const fy = (dy / d) * f;
-          a.fx -= fx;
-          a.fy -= fy;
-          b.fx += fx;
-          b.fy += fy;
-        }
-      }
-
-      for (const e of edges) {
-        const a = findNode(plane, e.a);
-        const b = findNode(plane, e.b);
-        if (!a || !b) continue;
-        const anchors = edgeAnchorPair(a, b);
-        let dx = anchors.b.x - anchors.a.x;
-        let dy = anchors.b.y - anchors.a.y;
-        let d = Math.hypot(dx, dy) + 0.001;
-        const stretch = d - edgeLen;
-        const f = stretch * springK;
-        const fx = (dx / d) * f;
-        const fy = (dy / d) * f;
-        a.fx += fx;
-        a.fy += fy;
-        b.fx -= fx;
-        b.fy -= fy;
-      }
-
-      for (const n of nodes) {
-        if (n.pinned || state.ui.dragNodeId === n.id) continue;
-        n.fx += -n.x * centerPull;
-        n.fy += -n.y * centerPull;
-
-        n.fx += Math.sin(plane.tick * 0.0007 + n.pulse) * 0.03;
-        n.fy += Math.cos(plane.tick * 0.0006 + n.pulse * 1.31) * 0.03;
-
-        n.vx = (n.vx + n.fx * dt * 0.06) * damping;
-        n.vy = (n.vy + n.fy * dt * 0.06) * damping;
-
-        const spd = Math.hypot(n.vx, n.vy);
-        if (spd > maxSpeed) {
-          n.vx = (n.vx / spd) * maxSpeed;
-          n.vy = (n.vy / spd) * maxSpeed;
-        }
-
-        n.x += n.vx;
-        n.y += n.vy;
-      }
+      simulatePhysics(dt, plane, {
+        dragNodeId: state.ui.dragNodeId,
+        findNode,
+        edgeAnchorPair,
+      });
     }
 
     function drawBackground(W, H, t) {
-      ctx.fillStyle = "#f4f6f8";
-      ctx.fillRect(0, 0, W, H);
-
-      ctx.fillStyle = "#e0e4e8";
-      const spacing = 20;
-      for (let x = 0; x < W; x += spacing) {
-        for (let y = 0; y < H; y += spacing) {
-          ctx.beginPath();
-          ctx.arc(x, y, 1, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
+      drawBackgroundRenderer({
+        ctx,
+        W,
+        H,
+        t,
+        state,
+      });
     }
 
     function drawEdges(plane, W, H, t) {
-      const selectedNodeId = state.ui.selectedNodeId;
-      const selectedEdgeId = state.ui.selectedEdgeId;
-      const connected = selectedNodeId
-        ? connectedNodes(plane, selectedNodeId)
-        : null;
-
-      const kindColor = (kind) => {
-        if (kind === "causal") return [255, 109, 90];
-        if (kind === "temporal") return [139, 92, 246];
-        if (kind === "associative") return [16, 185, 129];
-        if (kind === "user") return [245, 158, 11];
-        return [163, 168, 176];
-      };
-
-      for (const e of plane.edges) {
-        const a = findNode(plane, e.a);
-        const b = findNode(plane, e.b);
-        if (!a || !b) continue;
-
-        const anchors = edgeAnchorPair(a, b);
-        const A = projectToScreen(anchors.a.x, anchors.a.y, plane.camera, W, H);
-        const B = projectToScreen(anchors.b.x, anchors.b.y, plane.camera, W, H);
-        const edgeDist = dist(
-          anchors.a.x,
-          anchors.a.y,
-          anchors.b.x,
-          anchors.b.y,
-        );
-        const props = normalizeEdgeProps(e.props);
-
-        const nodeHighlight =
-          selectedNodeId && (e.a === selectedNodeId || e.b === selectedNodeId);
-        const nearSelectedNode =
-          selectedNodeId && connected?.has(e.a) && connected?.has(e.b);
-        const edgeSelected = selectedEdgeId === e.id;
-
-        const [r, g, bCol] = kindColor(props.kind);
-
-        let alpha = 0.4;
-        if (nodeHighlight) alpha = 0.8;
-        else if (nearSelectedNode) alpha = 0.6;
-        if (edgeSelected) alpha = 1.0;
-
-        const strength = clamp(Number(props.strength) || 1, 1, 5);
-        const baseWidth = 1.1 + strength * 0.45;
-        const width = edgeSelected
-          ? baseWidth + 1.4
-          : nodeHighlight
-            ? baseWidth + 0.75
-            : baseWidth;
-
-        ctx.strokeStyle = `rgba(${r},${g},${bCol},${alpha})`;
-        ctx.lineWidth = width;
-        ctx.shadowColor = "transparent";
-        ctx.shadowBlur = 0;
-
-        ctx.beginPath();
-        ctx.moveTo(A.x, A.y);
-        ctx.lineTo(B.x, B.y);
-        ctx.stroke();
-
-        if (props.kind === "causal" || props.kind === "temporal") {
-          const angle = Math.atan2(B.y - A.y, B.x - A.x);
-          const arrowLen = 10;
-          const arrowAngle = Math.PI / 6;
-          ctx.beginPath();
-          ctx.moveTo(B.x, B.y);
-          ctx.lineTo(
-            B.x - arrowLen * Math.cos(angle - arrowAngle),
-            B.y - arrowLen * Math.sin(angle - arrowAngle),
-          );
-          ctx.moveTo(B.x, B.y);
-          ctx.lineTo(
-            B.x - arrowLen * Math.cos(angle + arrowAngle),
-            B.y - arrowLen * Math.sin(angle + arrowAngle),
-          );
-          ctx.stroke();
-        }
-
-        const flowCount = edgeSelected ? 5 : nodeHighlight ? 4 : 2;
-        for (let i = 0; i < flowCount; i++) {
-          const tt =
-            (t * 0.00024 * (edgeSelected ? 1.85 : nodeHighlight ? 1.35 : 1.0) +
-              e.flowOffset +
-              i / flowCount) %
-            1;
-          const px = A.x + (B.x - A.x) * tt;
-          const py = A.y + (B.y - A.y) * tt;
-          const rad = edgeSelected ? 2.8 : nodeHighlight ? 2.2 : 1.55;
-          const glow = `rgba(${r},${g},${bCol},1)`;
-          ctx.fillStyle = glow;
-          ctx.shadowColor = "transparent";
-          ctx.shadowBlur = 0;
-          ctx.beginPath();
-          ctx.arc(px, py, rad, 0, Math.PI * 2);
-          ctx.fill();
-        }
-
-        const showLabel =
-          (props.label && props.label.trim()) || plane.camera.zoom > 0.95;
-        if (showLabel && edgeDist > 110) {
-          const mx = (A.x + B.x) * 0.5;
-          const my = (A.y + B.y) * 0.5;
-          const label = props.label?.trim()
-            ? props.label.trim()
-            : `${props.kind} · ${props.strength}`;
-
-          ctx.font = "11px ui-monospace, monospace";
-          const tw = Math.ceil(ctx.measureText(label).width);
-          const padX = 6;
-          const boxW = tw + padX * 2;
-          const boxH = 18;
-          const bx = mx - boxW * 0.5;
-          const by = my - boxH * 0.5 - 6;
-
-          ctx.fillStyle = "#ffffff";
-          ctx.strokeStyle = "#222222";
-          ctx.lineWidth = edgeSelected ? 1.2 : 1;
-          ctx.beginPath();
-          ctx.roundRect(bx, by, boxW, boxH, 7);
-          ctx.fill();
-          ctx.stroke();
-
-          ctx.fillStyle = `rgba(${r},${g},${bCol},0.98)`;
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          ctx.fillText(label, mx, by + boxH * 0.55);
-        }
-      }
-
-      ctx.shadowBlur = 0;
+      drawEdgesRenderer({
+        ctx,
+        plane,
+        W,
+        H,
+        t,
+        state,
+        deps: {
+          connectedNodes,
+          findNode,
+          edgeAnchorPair,
+          projectToScreen,
+          dist,
+          normalizeEdgeProps,
+          clamp,
+        },
+      });
     }
 
     function markdownToPlainLines(text) {
@@ -2164,224 +1163,26 @@ export function initPrototypeRuntime() {
     }
 
     function drawNodes(plane, W, H, t) {
-      const selectedId = state.ui.selectedNodeId;
-      const connected = selectedId ? connectedNodes(plane, selectedId) : null;
-
-      for (const n of plane.nodes) {
-        const P = projectToScreen(n.x, n.y, plane.camera, W, H);
-        const size = nodeCardSize(n);
-        const w = size.width * plane.camera.zoom;
-        const h = size.height * plane.camera.zoom;
-        const r = Math.max(10, size.corner * plane.camera.zoom);
-
-        const x = P.x - w * 0.5;
-        const y = P.y - h * 0.5;
-        const headerH = clamp(h * 0.2, 24, 70);
-        const pad = clamp(h * 0.09, 10, 28);
-
-        const dFromCenter = dist(P.x, P.y, W * 0.5, H * 0.5);
-        const far = dFromCenter / Math.max(W, H);
-        const blur = clamp((far - 0.58) * 8, 0, 3);
-
-        const selected = n.id === selectedId;
-        const dimmed = selectedId && !selected && !connected?.has(n.id);
-
-        let cardTop = "#ffffff";
-        let cardBottom = "#ffffff";
-        let chrome = "#f4f6f8";
-        let border = "#e0e4e8";
-        let glow = "rgba(0,0,0,0.08)";
-        let titleColor = "#222222";
-        let bodyColor = "#666666";
-        let badgeBg = "#f4f6f8";
-        let badgeText = "#666666";
-
-        if (n.type === "stargate") {
-          cardTop = "#ffffff";
-          cardBottom = "#ffffff";
-          chrome = "#fff0ed";
-          border = "#ff6d5a";
-          glow = "rgba(255,109,90,0.2)";
-          titleColor = "#222222";
-          bodyColor = "#666666";
-          badgeBg = "#fff0ed";
-          badgeText = "#ff6d5a";
-        }
-
-        if (n.pinned) {
-          border = "#10b981";
-          glow = "rgba(16,185,129,0.2)";
-        }
-
-        if (selected) {
-          border = "#ff6d5a";
-          glow = "rgba(255,109,90,0.3)";
-        }
-
-        const alpha = dimmed ? 0.18 : 1;
-        const pulse = 1 + Math.sin(t * 0.0015 + n.pulse) * 0.012;
-
-        ctx.save();
-        ctx.globalAlpha = alpha;
-        ctx.filter = blur > 0 ? `blur(${blur}px)` : "none";
-
-        const grad = ctx.createLinearGradient(x, y, x, y + h);
-        grad.addColorStop(0, cardTop);
-        grad.addColorStop(1, cardBottom);
-
-        ctx.shadowColor = glow;
-        ctx.shadowBlur = selected ? 16 : 8;
-        ctx.shadowOffsetY = 4;
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.roundRect(
-          x - w * (pulse - 1) * 0.5,
-          y - h * (pulse - 1) * 0.5,
-          w * pulse,
-          h * pulse,
-          r,
-        );
-        ctx.fill();
-
-        ctx.fillStyle = chrome;
-        ctx.beginPath();
-        ctx.roundRect(x, y, w, headerH, [r, r, 10, 10]);
-        ctx.fill();
-
-        ctx.strokeStyle = border;
-        ctx.lineWidth = selected ? 2 : 1;
-        ctx.beginPath();
-        ctx.roundRect(x, y, w, h, r);
-        ctx.stroke();
-
-        const modeTag = isEditMode() ? "EDIT" : "PREVIEW";
-        ctx.font = `${Math.max(10, h * 0.072)}px ui-monospace, monospace`;
-        const modeW = ctx.measureText(modeTag).width + 14;
-        const modeX = x + pad;
-        const modeY = y + headerH * 0.5 - 8;
-        ctx.fillStyle = isEditMode()
-          ? "rgba(255,109,90,0.15)"
-          : "rgba(224,228,232,0.5)";
-        ctx.beginPath();
-        ctx.roundRect(modeX, modeY, modeW, 16, 8);
-        ctx.fill();
-        ctx.fillStyle = isEditMode() ? "#ff6d5a" : "#666666";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(modeTag, modeX + modeW * 0.5, modeY + 8.4);
-
-        const badge =
-          n.type === "stargate" ? "STARGATE ⊛" : n.pinned ? "PINNED" : "NODE";
-        ctx.font = `${clamp(h * 0.062, 9, 15)}px ui-monospace, monospace`;
-        const badgeW = ctx.measureText(badge).width + 12;
-        const bx = x + w - pad - badgeW;
-        const by = y + headerH * 0.5 - 8;
-        ctx.fillStyle = badgeBg;
-        ctx.beginPath();
-        ctx.roundRect(bx, by, badgeW, 16, 8);
-        ctx.fill();
-        ctx.fillStyle = badgeText;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(badge, bx + badgeW * 0.5, by + 8.5);
-
-        if (n.type === "stargate") {
-          const spin = t * 0.0017;
-          const cx = x + w - pad - 14;
-          const cy = y + h - pad - 14;
-          const rr = clamp(h * 0.115, 11, 28);
-          for (let k = 0; k < 2; k++) {
-            ctx.strokeStyle =
-              k === 0 ? "rgba(255,109,90,0.8)" : "rgba(139,92,246,0.8)";
-            ctx.lineWidth = 1.15;
-            ctx.beginPath();
-            ctx.arc(
-              cx,
-              cy,
-              rr + k * 4,
-              spin + k * Math.PI * 0.65,
-              spin + Math.PI + k * Math.PI * 0.65,
-            );
-            ctx.stroke();
-          }
-        }
-
-        const bodySize = clamp(h * 0.072, 11, 20);
-        const lineHeight = Math.round(bodySize * 1.28);
-        const bodyX = x + pad;
-        const bodyY = y + headerH + NODE_BODY_TOP_PAD;
-        const bodyW = Math.max(28, w - pad * 2);
-        const bodyH = Math.max(
-          18,
-          h - headerH - NODE_BODY_TOP_PAD - NODE_BODY_BOTTOM_PAD,
-        );
-
-        ctx.fillStyle = bodyColor;
-        const content = drawNodeText(
-          n,
-          n.text,
-          bodyX,
-          bodyY,
-          bodyW,
-          bodyH,
-          lineHeight,
-          bodyColor,
-          bodySize,
-        );
-
-        if (content.maxScroll > 0) {
-          const trackW = 5;
-          const tx = x + w - 9;
-          const ty = bodyY;
-          const th = bodyH;
-
-          ctx.fillStyle = "rgba(163,168,176,0.25)";
-          ctx.beginPath();
-          ctx.roundRect(tx, ty, trackW, th, 3);
-          ctx.fill();
-
-          const thumbH = clamp(
-            (bodyH / (bodyH + content.maxScroll)) * th,
-            18,
-            th,
-          );
-          const ratio =
-            content.maxScroll <= 0 ? 0 : n.scrollY / content.maxScroll;
-          const thumbY = ty + (th - thumbH) * ratio;
-
-          ctx.fillStyle = "rgba(255,109,90,0.72)";
-          ctx.beginPath();
-          ctx.roundRect(tx, thumbY, trackW, thumbH, 3);
-          ctx.fill();
-        }
-
-        if (isEditMode()) {
-          const hx = x + w - 12;
-          const hy = y + h - 12;
-          ctx.strokeStyle = "rgba(163,168,176,0.85)";
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.moveTo(hx - 8, hy);
-          ctx.lineTo(hx, hy - 8);
-          ctx.moveTo(hx - 4, hy);
-          ctx.lineTo(hx, hy - 4);
-          ctx.stroke();
-        }
-
-        if (selected) {
-          ctx.strokeStyle = "#ff6d5a";
-          ctx.lineWidth = 1;
-          ctx.setLineDash([6, 5]);
-          ctx.beginPath();
-          ctx.roundRect(x - 6, y - 6, w + 12, h + 12, r + 4);
-          ctx.stroke();
-          ctx.setLineDash([]);
-        }
-
-        ctx.restore();
-      }
-
-      syncNodeMdOverlayForSelection();
+      drawNodesRenderer({
+        ctx,
+        plane,
+        W,
+        H,
+        t,
+        state,
+        deps: {
+          connectedNodes,
+          projectToScreen,
+          nodeCardSize,
+          dist,
+          clamp,
+          isEditMode,
+          drawNodeText,
+          syncNodeMdOverlayForSelection,
+          NODE_BODY_TOP_PAD,
+          NODE_BODY_BOTTOM_PAD,
+        },
+      });
     }
 
     function updateStats() {
@@ -2392,7 +1193,7 @@ export function initPrototypeRuntime() {
       statZoom.textContent = `${plane.camera.zoom.toFixed(2)}x`;
     }
 
-    function tick() {
+    function frame() {
       const t = now();
       const dt = Math.min(33, t - lastT);
       lastT = t;
@@ -2410,8 +1211,39 @@ export function initPrototypeRuntime() {
 
       updateStats();
       updateBreadcrumbs();
+    }
 
-      requestAnimationFrame(tick);
+    function startLoop() {
+      if (loopRunning) return;
+      loopRunning = true;
+
+      const step = () => {
+        if (!loopRunning) return;
+        frame();
+        rafId = requestAnimationFrame(step);
+      };
+
+      rafId = requestAnimationFrame(step);
+    }
+
+    function stopLoop() {
+      loopRunning = false;
+      if (rafId != null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+    }
+
+    function destroy() {
+      stopLoop();
+      if (autosaveIntervalId != null) {
+        clearInterval(autosaveIntervalId);
+        autosaveIntervalId = null;
+      }
+      cleanupInputHandlers();
+      inspectorController.cleanup();
+      breadcrumbController.cleanup();
+      saveState();
     }
 
     setSelected(state.ui.selectedNodeId || activePlane().nodes[0]?.id || null);
@@ -2423,14 +1255,25 @@ export function initPrototypeRuntime() {
     syncNodeInspector();
     syncModeUI();
     applyComposerPosition();
-    installComposerDrag();
 
     promptInput.value = "";
     promptInput.focus({ preventScroll: true });
 
-    window.addEventListener("beforeunload", saveState);
-    setInterval(saveState, 6000);
+    window.addEventListener("beforeunload", destroy);
+    autosaveIntervalId = setInterval(saveState, 6000);
 
-    requestAnimationFrame(tick);
+    if (autoStartLoop) {
+      startLoop();
+    }
+
+    return {
+      frame,
+      startLoop,
+      stopLoop,
+      destroy,
+      getState: () => state,
+    };
   })();
+
+  return runtimeControls;
 }

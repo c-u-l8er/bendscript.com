@@ -1,7 +1,8 @@
 <script>
     import "../app.css";
-    import { onMount, tick } from "svelte";
+    import { onMount } from "svelte";
     import HeroSection from "../components/hero/HeroSection.svelte";
+    import GraphCanvas from "../components/canvas/GraphCanvas.svelte";
     import Breadcrumbs from "../components/canvas/Breadcrumbs.svelte";
     import Hint from "../components/canvas/Hint.svelte";
     import Composer from "../components/canvas/Composer.svelte";
@@ -12,16 +13,9 @@
     import WarpOverlay from "../components/canvas/WarpOverlay.svelte";
     import Legend from "../components/canvas/Legend.svelte";
     import { initHeroController } from "$lib/engine/heroController";
-    import { initPrototypeRuntime } from "$lib/engine/prototypeRuntime";
 
-    onMount(async () => {
+    onMount(() => {
         initHeroController();
-
-        // Ensure all sibling DOM (including #breadcrumbs) is mounted before runtime boot.
-        await tick();
-        requestAnimationFrame(() => {
-            initPrototypeRuntime();
-        });
     });
 </script>
 
@@ -36,7 +30,7 @@
 <HeroSection />
 
 <section class="app-section" id="appSection">
-    <canvas id="graph"></canvas>
+    <GraphCanvas />
 
     <div class="hud">
         <div class="hud-row">

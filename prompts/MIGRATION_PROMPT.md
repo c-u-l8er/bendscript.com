@@ -667,73 +667,91 @@ Use Tailwind for **new CSS only** (layout utilities in components). Do NOT rewri
 
 ## 5. Testing Checklist
 
+Status legend:
+- `[x]` = verified in current migration pass
+- `[~]` = implemented in code, needs manual browser confirmation
+- `[ ]` = not verified yet
+
 ### Visual Parity
 
 ```
-[ ] Canvas renders identically to index.html prototype
-[ ] Physics simulation produces identical node movement
-[ ] Dot grid background matches (20px spacing)
-[ ] Edge flow particles animate correctly
-[ ] Edge colors match per kind (context=gray, causal=coral, temporal=yellow, etc.)
-[ ] Node cards render with correct border colors, text, badges
-[ ] Stargate nodes show ⊛ prefix and distinct styling
-[ ] Mode badge shows EDIT (coral) or PREVIEW (gray)
-[ ] Pinned nodes show green border
-[ ] Zoom works (wheel), range 0.32–2.8
-[ ] Pan works (drag on empty canvas)
+[~] Canvas renders identically to index.html prototype
+[~] Physics simulation produces identical node movement
+[x] Dot grid background matches (20px spacing)
+[x] Edge flow particles animate correctly
+[x] Edge colors match per kind (context=gray, causal=coral, temporal=yellow, etc.)
+[x] Node cards render with correct border colors, text, badges
+[x] Stargate nodes show ⊛ prefix and distinct styling
+[x] Mode badge shows EDIT (coral) or PREVIEW (gray)
+[x] Pinned nodes show green border
+[~] Zoom works (wheel), range 0.32–2.8
+[~] Pan works (drag on empty canvas)
 ```
 
 ### Interactions
 
 ```
-[ ] Click node → selects, inspector populates
-[ ] Click edge → selects, edge inspector populates
-[ ] Drag node → moves node, physics continues on release
-[ ] Resize node → drag bottom-right handle
-[ ] Right-click node → context menu appears (edit mode only)
-[ ] Fork → creates clone + edge
-[ ] Merge → enters merge mode, second click merges
-[ ] Pin/Unpin → toggles, zero velocity when pinned
-[ ] Convert to/from Stargate → type changes, ⊛ prefix
-[ ] Delete → removes node + edges (min 1 node)
-[ ] Click stargate → warp transition → enter sub-plane
-[ ] Breadcrumbs → navigate back up plane hierarchy
-[ ] Edit/Preview toggle → disables/enables editing
-[ ] Markdown modal → opens, renders, saves
-[ ] Composer → submit creates user node + response node
-[ ] Composer drag → repositions, dblclick recenters
-[ ] Keyboard: Escape, Delete/Backspace, Ctrl+S
+[~] Click node → selects, inspector populates
+[~] Click edge → selects, edge inspector populates
+[~] Drag node → moves node, physics continues on release
+[~] Resize node → drag bottom-right handle
+[~] Right-click node → context menu appears (edit mode only)
+[~] Fork → creates clone + edge
+[~] Merge → enters merge mode, second click merges
+[~] Pin/Unpin → toggles, zero velocity when pinned
+[~] Convert to/from Stargate → type changes, ⊛ prefix
+[~] Delete → removes node + edges (min 1 node)
+[~] Click stargate → warp transition → enter sub-plane
+[~] Breadcrumbs → navigate back up plane hierarchy
+[~] Edit/Preview toggle → disables/enables editing
+[~] Markdown modal → opens, renders, saves
+[~] Composer → submit creates user node + response node
+[~] Composer drag → repositions, dblclick recenters
+[~] Keyboard: Escape, Delete/Backspace, Ctrl+S
 ```
 
 ### New Feature: Directed Edges
 
 ```
-[ ] "Connect to…" appears in context menu
-[ ] Click target node → creates causal edge
-[ ] Edge inspector opens for new edge
-[ ] Arrowheads render on causal edges (a → b direction)
-[ ] Arrowheads render on temporal edges
-[ ] No arrowheads on context/associative/user edges
-[ ] Edge kind can be changed in inspector after creation
+[x] "Connect to…" appears in context menu
+[~] Click target node → creates causal edge
+[~] Edge inspector opens for new edge
+[x] Arrowheads render on causal edges (a → b direction)
+[x] Arrowheads render on temporal edges
+[x] No arrowheads on context/associative/user edges
+[~] Edge kind can be changed in inspector after creation
 ```
 
 ### Persistence
 
 ```
-[ ] State loads from localStorage on page mount
-[ ] State saves on node drag end, text edit, mode change
-[ ] Autosave fires every 6 seconds
-[ ] beforeunload saves state
-[ ] Existing localStorage data from prototype loads correctly (backward compat)
+[x] State loads from localStorage on page mount
+[x] State saves on node drag end, text edit, mode change
+[x] Autosave fires every 6 seconds
+[x] beforeunload saves state
+[~] Existing localStorage data from prototype loads correctly (backward compat)
 ```
 
 ### Build
 
 ```
-[ ] npm run dev → opens working canvas
-[ ] npm run build → produces static build
-[ ] No console errors in dev mode
+[~] npm run dev → opens working canvas
+[x] npm run build → produces static build
+[~] No console errors in dev mode
 [ ] No ESLint errors
+```
+
+### Cloudflare Pages Deployment
+
+```
+[x] wrangler.toml exists in project root
+[x] wrangler.toml sets pages_build_output_dir = "build"
+[x] package.json includes Cloudflare-friendly build script(s)
+[~] Cloudflare Pages project root directory is set to bendscript.com
+[~] Cloudflare Pages build command is set to npm run build
+[~] Cloudflare Pages output directory is set to build
+[ ] Preview deployment loads without runtime errors
+[ ] Production deployment loads without runtime errors
 ```
 
 ---

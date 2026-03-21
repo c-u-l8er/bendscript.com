@@ -8,13 +8,15 @@
     "predev": "svelte-kit sync",
     "dev": "vite dev",
     "build": "vite build",
+    "build:cf": "vite build",
     "preview": "vite preview",
-    "check": "svelte-kit sync && svelte-check --tsconfig ./jsconfig.json"
+    "check": "svelte-kit sync && svelte-check --tsconfig ./jsconfig.json",
+    "cf:pages:build": "npm run build:cf"
   },
   "devDependencies": {
     "@sveltejs/adapter-static": "^3.0.3",
     "@sveltejs/kit": "^2.5.27",
-    "@sveltejs/vite-plugin-svelte": "^3.1.2",
+    "@sveltejs/vite-plugin-svelte": "^4.0.0-next.6",
     "svelte": "^5.0.0",
     "svelte-check": "^3.8.6",
     "vite": "^5.4.2"
