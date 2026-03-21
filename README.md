@@ -1,8 +1,11 @@
 # BendScript — Script Bending Through Graph Space
 
 > A knowledge graph that thinks about its own shape.
+> **Humans build it on a canvas. Agents query it via MCP.**
 
 BendScript is a multi-tenant, AI-powered knowledge graph editor built on SvelteKit + Supabase. Conversation flows through interconnected node graphs — every node is a context, every edge is a typed relationship, and every Stargate is a portal into a deeper graph plane.
+
+BendScript has two surfaces: a **visual canvas** where humans build knowledge interactively, and an **MCP/REST API** where AI agents query, traverse, and extend that knowledge programmatically. The canvas is the builder. The graph data is the moat. The API is the product.
 
 ---
 
@@ -28,6 +31,60 @@ The landing page IS the product. Users land directly into a graph-based environm
 4. **Breadcrumbs** — show depth path through nested planes; click to navigate up
 5. **Inspectors** — right-panel editors for node text/type and edge metadata
 6. **Edit / Preview modes** — toggle between authoring and read-only presentation
+
+---
+
+## Data Freedom
+
+BendScript is built for the PKM audience — people who've been burned by lock-in. Your graph data is yours:
+
+- **JSON export** of full graph state (planes, nodes, edges, metadata) from day one — the "emergency exit" is always unlocked
+- **Markdown outline** flattens any graph plane into a portable document
+- **Mermaid export** renders in GitHub, Notion, Obsidian, and most Markdown tools
+- **No vendor lock-in** — BendScript will never hold your knowledge hostage
+
+> This is a core value, not a feature checkbox. If you can't export everything at any time, we've failed.
+
+---
+
+## BendScript for Agents
+
+BendScript graphs are structurally identical to knowledge graphs. Every node is an entity, every typed edge is a relation, every Stargate is a sub-domain. This makes BendScript a **Knowledge Augmented Generation (KAG) server** — any LLM system can query it for grounded, multi-hop reasoning.
+
+The MCP server exposes these tools:
+
+| Tool | Description | Input | Output |
+|---|---|---|---|
+| `search_nodes` | Semantic search across node text in a workspace | `{ query, workspace_id, limit? }` | Matching nodes with scores |
+| `get_subgraph` | Return a node and its neighborhood to N hops | `{ node_id, depth?, edge_kinds? }` | Subgraph JSON (nodes + edges + plane context) |
+| `traverse_path` | Find reasoning paths between two concepts | `{ from_query, to_query, max_hops? }` | Ordered path with edge labels and types |
+| `query_graph` | Natural language → logical form → graph traversal | `{ question, workspace_id }` | Reasoning result with source nodes and path |
+| `build_from_text` | Ingest text and return extracted nodes/edges | `{ text, workspace_id, schema? }` | New nodes and edges added to graph |
+| `list_planes` | List all graph planes in a workspace | `{ workspace_id }` | Plane hierarchy with node counts |
+
+### MCP & Agent Interoperability
+
+BendScript is MCP-native. The Model Context Protocol — now governed by the Agentic AI Foundation under the Linux Foundation, backed by Anthropic, OpenAI, Google, Microsoft, and AWS — is the de facto standard for AI-to-tool integration with 97M+ monthly SDK downloads and 10,000+ public servers as of 2026.
+
+Integration methods:
+
+| Method | Transport | Best For | Status |
+|---|---|---|---|
+| **MCP Server** | Streamable HTTP / SSE | Claude, ChatGPT, Cursor, any MCP client | v1.0 (read-only), v1.1 (full) |
+| **REST API** | HTTPS + API key | Custom apps, webhooks, server-to-server | v1.1 |
+| **AGENTS.md** | File in repository | Agent discovery and capability declaration | v1.0 |
+
+> See `AGENTS.md` in the repository root for the full agent interface specification.
+
+### Why KAG, Not Just RAG
+
+| Capability | RAG | KAG (BendScript) |
+|---|---|---|
+| Retrieval method | Vector similarity on text chunks | Graph traversal + vector search + logical forms |
+| Multi-hop reasoning | Weak — chains of similarity matches | Native — follow typed edges across 2–5 hops |
+| Hallucination resistance | Moderate | Strong — answers grounded in explicit graph structure |
+| Context for LLM | Flat text chunks | Structured subgraph (nodes, edges, paths, planes) |
+| Domain adaptability | Requires re-indexing documents | Users build domain graphs interactively via AI synthesis |
 
 ---
 
@@ -181,15 +238,17 @@ ai_generations      → workspace_id, user_id, prompt, tier, tokens_used, nodes_
 
 BendScript is where **prompts become topology**. Instead of flat chat, you navigate a living graph of interconnected ideas — and every node is a doorway to somewhere deeper.
 
-**Script bending = thinking in graphs.**
+**Script bending = thinking in graphs. Agent-native knowledge infrastructure.**
 
 ### Who It's For
 
-BendScript targets two high-intent early adopter groups:
+BendScript targets three high-intent early adopter groups:
 
 **PKM power users** who've hit the ceiling of linear tools — people already using Heptabase, Obsidian Canvas, or Roam who want AI that *generates* graph structure, not just assists reading. They already know spatial thinking works; they want an AI that speaks that language natively and builds the graph alongside them.
 
 **Researchers, developers, and complex thinkers** doing multi-branch work — people who've tried canvas AI tools (Flowith, Canvas Chat) and want the AI to reason about *graph structure*, not just execute tasks on a flat canvas. Or people who work in visual node editors (ComfyUI, LangGraph Studio) and want that energy applied to knowledge work rather than pipelines.
+
+**AI builders and agent developers** who need structured knowledge backends — people building agents with LangChain, Claude Code, or custom MCP clients who want a queryable knowledge graph they (or their users) can build interactively rather than requiring a DevOps team to run Neo4j + OpenSPG.
 
 ### Competitive Landscape
 
@@ -197,7 +256,7 @@ The canvas-AI space is active and growing. Key tools in the same territory:
 
 | Tool | What it does | Users | The gap BendScript fills |
 |---|---|---|---|
-| **Flowith** | Infinite canvas AI workspace with Agent Neo (autonomous), Knowledge Garden, 40+ models, real-time collab | 1M+ (YC China) | No fractal depth — flat canvas only; no topology-aware synthesis; AI is general-purpose agentic, not graph-structural |
+| **Flowith** | Infinite canvas AI workspace with Agent Neo (autonomous), Knowledge Garden, 40+ models, real-time collab. **FlowithOS** desktop agent OS navigates websites, clicks buttons, chains cross-platform workflows | 1M+ (YC China; NVIDIA, Google, MS, AWS backing) | No fractal depth — flat canvas only; no topology-aware synthesis; AI is task-agentic, not graph-structural; no KAG/MCP knowledge API |
 | **Canvas Chat** (OSS) | Infinite canvas, DAG-aware branching chat with merge/synthesis | OSS | Flat tree; AI sees conversation history, not graph topology; no nested planes |
 | **Thinkvas** | Branching AI conversations with context inheritance, long-term memory | Early | Linear branch model; no typed edges, no graph topology as AI input, no sub-planes |
 | **Heptabase** | Visual canvas PKM, whiteboard + card linking, AI annotation | 350K+ ($7M ARR) | No AI that *generates* structure; AI assists reading/annotation, not graph building |
@@ -222,15 +281,26 @@ Three things BendScript does that no identified competitor currently offers toge
 
 ## Pricing
 
+### Canvas Plans (for humans)
+
 | Plan | Price | Graphs | Nodes/graph | Collaboration | AI Generations |
 |---|---|---|---|---|---|
 | Free | $0/mo | 5 | 100 | — | 20 T1 / 5 T2 / 2 T3 per day (Haiku only) |
-| Pro | $19/mo | Unlimited | 500 | — | 80 T1 / 15 T2 / 5 T3 per day (Sonnet) |
-| Teams | $25/seat/mo | Unlimited | 1,000 | ✓ Real-time | 1,000/mo shared pool, all tiers (Sonnet) |
-| Business | $20/seat/mo (10+) | Unlimited | Unlimited | ✓ + SSO + audit log | 5,000/mo + edge inference (Sonnet) |
+| Pro | $12/mo | Unlimited | 500 | — | 80 T1 / 15 T2 / 5 T3 per day (Sonnet) |
+| Teams | $22/seat/mo | Unlimited | 1,000 | ✓ Real-time | 1,000/mo shared pool, all tiers (Sonnet) |
+| Business | $18/seat/mo (10+) | Unlimited | Unlimited | ✓ + SSO + audit log | 5,000/mo + edge inference (Sonnet) |
 | Enterprise | Custom | Unlimited | Unlimited | ✓ + on-prem option | Custom / self-hosted model |
 
-> **Note on pricing:** Comparable tools (Heptabase $7–12/mo, Flowith $15–$50/mo) are established with large user bases. The free tier is designed to be genuinely usable for solo exploration while creating natural upgrade pressure. Generation caps are tier-aware (not flat) because Tier 3 calls cost ~6× more than Tier 1. Free tier uses Haiku to control costs; paid tiers upgrade to Sonnet. The Pro tier at $19/mo undercuts Flowith's Professional ($19.90/mo) while maintaining positive AI margins at average utilization levels — see AI Cost Model below for detailed analysis.
+### KAG API Plans (for agents)
+
+| Plan | Price | API Queries | Overage | MCP Endpoint | Webhook |
+|---|---|---|---|---|---|
+| Pro (included) | $12/mo | 200/mo (read-only) | — | ✓ (read-only) | — |
+| KAG API | $49/mo | 5,000/mo | $0.003/query | ✓ | ✓ |
+| KAG Teams | $99/mo | 20,000/mo | $0.002/query | ✓ | ✓ |
+| KAG Enterprise | Custom | Unlimited | Custom | ✓ | ✓ |
+
+> **Note on pricing evolution:** The SaaS industry is shifting from seat-based to usage-based pricing — Gartner predicts 40% of SaaS spend will shift to usage-, agent-, or outcome-based models by 2030. BendScript uses a hybrid: seat-based for the canvas (human tool) + usage-based for the KAG API (agent surface). This aligns with how agents consume knowledge — in bursts, not seats. Pro at $12/mo undercuts Heptabase ($12/mo) and Flowith ($15/mo) to reduce friction for an unproven product. KAG API usage-based pricing ensures BendScript captures value from agent consumption without artificial caps.
 
 ---
 
@@ -456,6 +526,41 @@ npm run test:e2e      # Playwright
 npm run build
 npm run preview
 ```
+
+---
+
+## v1.0 Launch Scope
+
+BendScript v1.0 ships these features and nothing else. Everything not on this list is explicitly deferred to v1.1 or v2.0.
+
+**Ships in v1.0:**
+1. Working canvas (extracted from prototype) — physics, nodes, edges, planes, Stargates, inspectors
+2. Supabase persistence — graph load/save, workspace isolation, RLS
+3. Auth — email + Google OAuth, auto-created personal workspace
+4. AI Tier 1–2 — contextual response + graph-aware synthesis (the core differentiator)
+5. JSON export — full graph state, available from day one
+6. Public graph sharing — read-only `/share/[id]` URL (growth loop)
+7. MCP endpoint (read-only) — `search_nodes` + `get_subgraph` for agent queries
+8. AGENTS.md — agent discovery file in repository
+
+**Deferred to v1.1:** Markdown/Mermaid export, AI Tier 3 (topic-to-graph), prompt caching optimization, JSON import
+
+**Deferred to v2.0:** Real-time collaboration, KAG full API (write endpoints), pgvector semantic search, quadtree spatial index, mobile optimization, enterprise SSO
+
+> **Philosophy:** Ship the differentiator first. Validate that topology-aware AI synthesis is compelling. Then expand.
+
+---
+
+## Community
+
+BendScript's value is spatial — you have to *feel* it to understand it. That means community (users showing each other) is more important than marketing (us telling people).
+
+- **Discord** — launch before the product. Channels: `#show-your-graph`, `#prompt-craft`, `#feature-requests`, `#agent-builders`
+- **Graph Templates** — community-contributed starter graphs (like Obsidian's starter vaults). Curated templates for research, project planning, worldbuilding, etc.
+- **Graph of the Week** — featured shared graph on the landing page. Showcases what the tool can do better than any explainer
+- **Public graph sharing** — every `/share/[id]` URL is a community artifact and an acquisition surface
+
+> Heptabase grew to $7M ARR primarily through word-of-mouth. Its founder started with 10 users in Discord communities. Obsidian's 1,000+ community plugins drove explosive adoption. Community is the growth engine for spatial tools.
 
 ---
 

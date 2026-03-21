@@ -200,18 +200,68 @@ console.log('If yes → topology-aware synthesis is validated. Proceed with migr
 console.log('If no → revisit system prompts before building the full product.');
 ```
 
-### 0.2 Success Criteria
+### 0.2 T2 Validation Protocol
 
-- T2 response references existing nodes by name (demonstrates graph awareness)
-- T2 suggests edge kinds that semantically fit the existing topology (not just random "context")
-- T2 generates nodes that fill structural gaps (e.g., adds a node between two disconnected clusters)
-- T2 output is qualitatively richer than T1 for the same prompt
+**This is a gate, not a checklist.** If validation fails, the build plan halts. Prompt engineering iterates until it passes. No exceptions.
 
-**If this test fails**, iterate on the Tier 2 system prompt before proceeding. The prompt design is the product — everything else is infrastructure.
+Run the test script with **3 different prompts** to avoid single-prompt bias:
+
+| # | Test Prompt | Expected Structural Property |
+|---|---|---|
+| 1 | "How does the graph topology influence AI reasoning?" | T2 should connect to both "Graph Prompting" and "The Protocol" (bridging existing clusters) |
+| 2 | "What are the risks of this approach?" | T2 should generate nodes with `causal` edges (risks → consequences), not just `context` |
+| 3 | "Expand the Stargates concept" | T2 should reference the ⊛ Stargates node by name and suggest a `stargate` type node for deeper exploration |
+
+**Quantitative pass/fail criteria (ALL must pass):**
+
+1. **Node reference rate ≥ 75%** — At least 3 of 4 T2-generated nodes connect to an existing node by exact text match (not a hallucinated node name)
+2. **Edge kind diversity ≥ 2** — T2 uses at least 2 different edge kinds across its generated nodes (proves it's reading topology, not defaulting to "context")
+3. **Structural gap fill ≥ 1** — At least 1 T2 node connects two previously unconnected nodes or creates a bridge between clusters
+4. **Stargate awareness** — When the prompt relates to a stargate node, T2 references it and/or suggests a new stargate
+5. **Blind preference ≥ 70%** — Show T1 and T2 outputs (unlabeled) to 3 people. At least 2 of 3 must prefer the T2 output for each prompt
+
+**If any criterion fails:**
+- Log which criterion failed and the actual T2 output
+- Iterate on the Tier 2 system prompt (adjust graph context formatting, add few-shot examples, try different framing)
+- Re-run all 3 prompts
+- Maximum 5 iteration cycles before escalating to "pivot the differentiator" discussion
+
+**If this test fails after 5 iterations**, the topology-aware synthesis hypothesis is invalidated. The product needs a different thesis before proceeding. Do NOT proceed with the migration on hope.
+
+> **The prompt design is the product — everything else is infrastructure.**
 
 ---
 
 ## Phase 1 — Scaffold & Extract (Days 1–3)
+
+### 1.0 Immediate Tasks (before coding)
+
+**Create AGENTS.md** in the repository root. This is the open standard (AAIF / Linux Foundation, adopted by 60,000+ repos) that tells AI agents how to interact with BendScript. See `AGENTS.md` in the repo. Zero engineering effort, immediate ecosystem visibility.
+
+### 1.0.1 Engine as Portable Package
+
+The engine modules (physics, graph, planes, hittest, camera) must be extracted as **framework-agnostic pure JS with no DOM or framework dependencies**. This is already the case in `index.html` — preserve it during extraction.
+
+**Why this matters:** The engine is the portable core that enables future distribution surfaces without rewriting:
+- **Web app** — SvelteKit imports `@bendscript/engine` as a local package
+- **CLI agent tool** — Node.js process runs the engine with SQLite persistence + local MCP server
+- **Desktop app (Tauri)** — Rust shell wraps the SvelteKit frontend, engine runs in webview
+- **Third-party integrations** — npm package for anyone building on BendScript graphs
+
+Structure the engine extraction with this in mind: no `window`, no `document`, no `canvas` references in the core graph/physics/planes modules. The renderer and input modules are the only ones that touch the DOM.
+
+```
+src/lib/engine/          # Framework-agnostic — could be published as @bendscript/engine
+├── physics.js           # Pure math — no DOM
+├── graph.js             # Node + edge CRUD — no DOM
+├── planes.js            # Plane system — no DOM
+├── hittest.js           # Geometry — no DOM
+├── camera.js            # Coordinate transforms — no DOM
+├── renderer.js          # Canvas-specific — DOM required
+└── input.js             # Event handlers — DOM required
+```
+
+> **Future milestone (v1.1):** Extract `physics.js`, `graph.js`, `planes.js`, `hittest.js`, and `camera.js` into a standalone npm package `@bendscript/engine`. This unlocks the CLI tool and desktop app without any rewrite.
 
 ### 1.1 Init SvelteKit
 
@@ -1341,9 +1391,10 @@ These are intentional design decisions from the original — do not "fix" them:
 ## Suggested Commit Sequence
 
 ```
-feat: validate T2 topology-aware synthesis (Phase 0 — scripts/validate-t2.js)
+chore: create AGENTS.md — agent discovery and MCP interface specification
+feat: validate T2 topology-aware synthesis (Phase 0 — scripts/validate-t2.js with quantitative protocol)
 feat: scaffold SvelteKit project with Tailwind
-feat: extract engine modules from index.html (no logic changes)
+feat: extract engine modules from index.html (no logic changes, DOM-free core)
 feat: create Svelte stores mirroring existing state shape
 feat: rAF → store boundary guard (engineBridge assertions)
 feat: GraphCanvas component with rAF loop
@@ -1351,25 +1402,61 @@ feat: port all HUD, Inspector, Composer, ContextMenu components
 feat: Supabase schema migrations + RLS policies + composite indexes + cleanup triggers
 feat: graph load/save via Supabase queries
 feat: auth flow (email + Google OAuth) + workspace auto-creation
-feat: realtime collaboration via Supabase broadcast
 feat: Claude API Edge Function (ai-proxy) with prompt caching + tiered model routing (Haiku 4.5 / Sonnet 4.6)
 feat: SvelteKit /api/ai proxy route with plan-aware rate limiting (Pro: 80/15/5 daily caps)
 feat: AI generation logging to ai_generations table
 feat: robust AI JSON parser — fence stripping, mixed text extraction, per-node validation
 feat: wire AI synthesis into Composer — replace generateResponse() stub
 feat: Tier 2 graph-aware AI synthesis
-feat: Tier 3 topic-to-graph full subgraph generation (= KAG-Builder)
+feat: graph export (JSON full state — data freedom from day one)
 feat: public graph sharing via /share/[id] route (growth loop)
-feat: graph export (JSON full state + Markdown outline)
+feat: read-only MCP endpoint — search_nodes + get_subgraph (v1.0 agent surface)
+--- v1.0 LAUNCH LINE ---
+feat: Markdown outline + Mermaid export
+feat: Tier 3 topic-to-graph full subgraph generation (= KAG-Builder)
+feat: prompt caching optimization + generation cap monitoring dashboard
+feat: JSON import for backup/restore
+--- v1.1 LINE ---
+feat: realtime collaboration via Supabase broadcast
 feat: pgvector semantic search + mutual indexing (node ↔ chunk cross-references)
+feat: extract @bendscript/engine as standalone npm package (DOM-free core)
 feat: KAG REST API — /api/kag/query endpoint with logical-form decomposition
-feat: KAG MCP server — Streamable HTTP transport, 6 graph tools exposed
+feat: KAG MCP server — Streamable HTTP transport, 6 graph tools exposed (full write access)
 feat: KAG traverse_path — multi-hop reasoning with edge-type filtering
 feat: KAG build_from_text — document ingestion → entity/relation extraction → graph
-feat: KAG API key management + usage metering + rate limiting per plan
+feat: KAG API key management + usage metering + per-query billing
+feat: quadtree spatial index (unlocks 500+ node graphs)
+--- v2.0 LINE ---
+feat: bendscript-agent CLI tool — local MCP server + SQLite graph + @bendscript/engine
+feat: Tauri desktop app shell (if CLI validates local demand)
+feat: KAG LangChain/LlamaIndex retriever
+feat: mobile optimization — pinch zoom, two-finger pan, long-press menu
+feat: enterprise SSO + audit logging
 chore: Playwright e2e tests for core graph interactions (all 5 pointer modes)
 chore: deploy to Cloudflare Pages + Supabase cloud
 ```
+
+### Distribution Roadmap
+
+BendScript's distribution evolves in phases, validated at each step:
+
+```
+v1.0  Cloud web app (SvelteKit + Cloudflare) — zero-install canvas builder
+      └── Read-only MCP endpoint — agents can query graphs over HTTPS
+
+v1.1  Full KAG MCP server — agents can query, traverse, and build
+      └── @bendscript/engine npm package — portable graph core
+
+v2.0  bendscript-agent CLI — local MCP server + SQLite
+      └── Validates local demand before investing in desktop GUI
+
+v2.x  Tauri desktop app (IF CLI adoption warrants it)
+      └── SvelteKit frontend in Tauri shell + Rust graph backend
+      └── Local MCP server for subagent integration (Claude Code, Cursor, etc.)
+      └── Sync to cloud via Supabase for collaboration
+```
+
+> **Framework choice for desktop:** Tauri over Electron. Tauri apps are 3–5MB vs 150MB+, use 40% less RAM, and Rust backend is ideal for graph operations. SvelteKit frontend ports directly since Tauri accepts any web frontend. The architecture already supports this — the engine extraction in v1.1 is the prerequisite.
 
 ---
 
