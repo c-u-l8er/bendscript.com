@@ -199,6 +199,22 @@ export function drawNodes({ ctx, plane, W, H, t, state, deps = {} }) {
   const selectedId = state.ui.selectedNodeId;
   const connected = selectedId ? connectedNodes(plane, selectedId) : null;
 
+  const topology = state?.ui?.topology || null;
+  const sccByNode = new Map();
+
+  if (topology && Array.isArray(topology.sccs)) {
+    topology.sccs.forEach((scc) => {
+      const kappa = Number.isFinite(scc?.kappa) ? scc.kappa : 0;
+      const nodes = Array.isArray(scc?.nodes) ? scc.nodes : [];
+      nodes.forEach((nodeId) => {
+        sccByNode.set(nodeId, {
+          kappa,
+          approximate: !!scc?.approximate,
+        });
+      });
+    });
+  }
+
   for (const n of plane.nodes) {
     const P = projectToScreen(n.x, n.y, plane.camera, W, H);
     const size = nodeCardSize(n);
@@ -288,21 +304,22 @@ export function drawNodes({ ctx, plane, W, H, t, state, deps = {} }) {
     ctx.roundRect(x, y, w, h, r);
     ctx.stroke();
 
-    const modeTag = isEditMode() ? "EDIT" : "PREVIEW";
+    const sccMeta = sccByNode.get(n.id) || null;
+    const leftTag = sccMeta
+      ? `κ${sccMeta.kappa}${sccMeta.approximate ? "~" : ""}`
+      : "DAG";
     ctx.font = `${Math.max(10, h * 0.072)}px ui-monospace, monospace`;
-    const modeW = ctx.measureText(modeTag).width + 14;
-    const modeX = x + pad;
-    const modeY = y + headerH * 0.5 - 8;
-    ctx.fillStyle = isEditMode()
-      ? "rgba(255,109,90,0.15)"
-      : "rgba(224,228,232,0.5)";
+    const leftTagW = ctx.measureText(leftTag).width + 14;
+    const leftTagX = x + pad;
+    const leftTagY = y + headerH * 0.5 - 8;
+    ctx.fillStyle = sccMeta ? "rgba(255,109,90,0.15)" : "rgba(224,228,232,0.5)";
     ctx.beginPath();
-    ctx.roundRect(modeX, modeY, modeW, 16, 8);
+    ctx.roundRect(leftTagX, leftTagY, leftTagW, 16, 8);
     ctx.fill();
-    ctx.fillStyle = isEditMode() ? "#ff6d5a" : "#666666";
+    ctx.fillStyle = sccMeta ? "#ff6d5a" : "#666666";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(modeTag, modeX + modeW * 0.5, modeY + 8.4);
+    ctx.fillText(leftTag, leftTagX + leftTagW * 0.5, leftTagY + 8.4);
 
     const badge =
       n.type === "stargate" ? "STARGATE ⊛" : n.pinned ? "PINNED" : "NODE";

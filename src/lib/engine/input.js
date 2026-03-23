@@ -1,5 +1,5 @@
 export const DEFAULT_HINT_TEXT =
-  "<strong>Drag</strong> nodes to bend layout • <strong>Wheel/Pinch-ish</strong> to zoom • <strong>Right-click</strong> node for fork/merge/connect/pin/stargate/delete • <strong>Click edge</strong> to edit props • <strong>Click stargate</strong> to portal";
+  "<strong>Drag</strong> nodes to bend layout • <strong>Wheel/Pinch-ish</strong> to zoom • <strong>Right-click</strong> node for fork/merge/connect/pin/stargate/bend/unbend/delete • <strong>Right-click edge</strong> to select exact edge, then kind/reverse/delete • <strong>Click edge</strong> to select for inspector/Delete key • <strong>Click stargate</strong> to portal";
 
 function req(name, value) {
   if (value == null) {
@@ -63,6 +63,94 @@ export function setupInputHandlers(rawCtx = {}) {
   const nodeMdBackdrop = ctx.nodeMdBackdrop || null;
   const composerTargetEl = ctx.composerTargetEl || null;
 
+  // Optional topology hooks
+  const previewConnectImpact =
+    typeof ctx.previewConnectImpact === "function"
+      ? ctx.previewConnectImpact
+      : null;
+  const bendNodeTopology =
+    typeof ctx.bendNodeTopology === "function" ? ctx.bendNodeTopology : null;
+  const unbendNodeTopology =
+    typeof ctx.unbendNodeTopology === "function"
+      ? ctx.unbendNodeTopology
+      : null;
+
+  const CONNECT_CONFIRM_WINDOW_MS = 2500;
+  const EDGE_CYCLE_WINDOW_MS = 1200;
+  const EDGE_KIND_ORDER = [
+    "context",
+    "causal",
+    "temporal",
+    "associative",
+    "user",
+  ];
+
+  function riskLevelFromPreview(preview) {
+    if (!preview) return "low";
+    if (preview.createsNewScc || preview.kappaDelta >= 2) return "high";
+    if (preview.kappaDelta > 0) return "medium";
+    return "low";
+  }
+
+  function connectPreviewHint(preview) {
+    if (!preview) {
+      return "<strong>Connect preview:</strong> no topology impact";
+    }
+
+    const risk = riskLevelFromPreview(preview);
+    const sccNote = preview.createsNewScc ? " · creates new SCC" : "";
+    const kappaDelta = Number.isFinite(preview.kappaDelta)
+      ? preview.kappaDelta
+      : 0;
+    const deltaText = kappaDelta > 0 ? `+${kappaDelta}` : `${kappaDelta}`;
+
+    return `<strong>Connect preview (${risk.toUpperCase()}):</strong> κΔ ${deltaText}${sccNote} · ${preview.description}`;
+  }
+
+  function collectEdgeCandidatesAtPoint(plane, wx, wy) {
+    const zoom = Math.max(0.2, Number(plane?.camera?.zoom) || 1);
+    const step = 8 / zoom;
+
+    const probes = [
+      [0, 0],
+      [step, 0],
+      [-step, 0],
+      [0, step],
+      [0, -step],
+      [step, step],
+      [-step, step],
+      [step, -step],
+      [-step, -step],
+    ];
+
+    const seen = new Set();
+    const out = [];
+
+    for (const [dx, dy] of probes) {
+      const edge = edgeAtPoint(plane, wx + dx, wy + dy);
+      if (!edge || !edge.id || seen.has(edge.id)) continue;
+      seen.add(edge.id);
+      out.push(edge);
+    }
+
+    return out;
+  }
+
+  function isSameEdgePair(edgeA, edgeB) {
+    if (!edgeA || !edgeB) return false;
+    return (
+      (edgeA.a === edgeB.a && edgeA.b === edgeB.b) ||
+      (edgeA.a === edgeB.b && edgeA.b === edgeB.a)
+    );
+  }
+
+  function edgePairCandidates(plane, edge) {
+    if (!plane || !edge) return [];
+    return (plane.edges || []).filter((candidate) =>
+      isSameEdgePair(candidate, edge),
+    );
+  }
+
   // Constants with safe defaults
   const NODE_MIN_WIDTH = Number.isFinite(ctx.NODE_MIN_WIDTH)
     ? ctx.NODE_MIN_WIDTH
@@ -94,21 +182,113 @@ export function setupInputHandlers(rawCtx = {}) {
     unsubs.push(() => el.removeEventListener(evt, fn, opts));
   };
 
+  function clearEdgeSelectionOptions() {
+    const group = menu.querySelector("#edgeSelectionGroup");
+    if (!group) return;
+    group.innerHTML = '<div class="edge-selection-title">Select edge</div>';
+  }
+
   function closeContextMenu() {
     menu.style.display = "none";
     state.ui.contextNodeId = null;
+    state.ui.contextEdgeId = null;
+    state.ui.contextMenuX = null;
+    state.ui.contextMenuY = null;
+    clearEdgeSelectionOptions();
   }
 
-  function openContextMenu(x, y, nodeId) {
+  function clearConnectFlowState() {
+    state.ui.connectSourceNodeId = null;
+    state.ui.connectPreview = null;
+    state.ui.connectConfirmTargetId = null;
+    state.ui.connectConfirmAt = 0;
+  }
+
+  function setMenuScope(scope) {
+    const nodeActions = [
+      "fork",
+      "merge",
+      "connect",
+      "pin",
+      "stargate",
+      "bend",
+      "unbend",
+      "delete",
+    ];
+
+    const edgeActions = ["edge-kind-cycle", "edge-reverse", "edge-delete"];
+    const edgeSelectionGroup = menu.querySelector("#edgeSelectionGroup");
+
+    for (const action of nodeActions) {
+      const btn = menu.querySelector(`[data-action="${action}"]`);
+      if (btn) btn.style.display = scope === "node" ? "" : "none";
+    }
+
+    for (const action of edgeActions) {
+      const btn = menu.querySelector(`[data-action="${action}"]`);
+      if (btn) btn.style.display = scope === "edge" ? "" : "none";
+    }
+
+    if (edgeSelectionGroup) {
+      edgeSelectionGroup.style.display = scope === "edge-select" ? "" : "none";
+    }
+  }
+
+  function edgeSelectionLabel(plane, edge, idx) {
+    const aNode = findNode(plane, edge.a);
+    const bNode = findNode(plane, edge.b);
+    const aName = trimText(aNode?.text || edge.a || "?", 16);
+    const bName = trimText(bNode?.text || edge.b || "?", 16);
+    const kind = edge?.props?.kind || "context";
+    const label = String(edge?.props?.label || "").trim();
+    const labelPart = label ? ` · ${trimText(label, 18)}` : "";
+    return `${idx + 1}. ${aName} → ${bName} · ${kind}${labelPart}`;
+  }
+
+  function openContextMenuForEdgeSelection(x, y, plane, edges) {
+    if (!isEditMode()) return;
+
+    state.ui.contextNodeId = null;
+    state.ui.contextEdgeId = null;
+    state.ui.contextMenuX = x;
+    state.ui.contextMenuY = y;
+
+    const group = menu.querySelector("#edgeSelectionGroup");
+    clearEdgeSelectionOptions();
+
+    if (group) {
+      edges.forEach((edge, idx) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.setAttribute("data-action", "edge-select");
+        btn.setAttribute("data-edge-id", edge.id);
+        btn.textContent = edgeSelectionLabel(plane, edge, idx);
+        group.appendChild(btn);
+      });
+    }
+
+    setMenuScope("edge-select");
+    menu.style.display = "block";
+    menu.style.left = `${Math.round(x)}px`;
+    menu.style.top = `${Math.round(y)}px`;
+  }
+
+  function openContextMenuForNode(x, y, nodeId) {
     if (!isEditMode()) return;
 
     state.ui.contextNodeId = nodeId;
+    state.ui.contextEdgeId = null;
+    state.ui.contextMenuX = x;
+    state.ui.contextMenuY = y;
+
     const plane = activePlane();
     const node = findNode(plane, nodeId);
     if (!node) return;
 
     const pinBtn = menu.querySelector('[data-action="pin"]');
     const sgBtn = menu.querySelector('[data-action="stargate"]');
+    const bendBtn = menu.querySelector('[data-action="bend"]');
+    const unbendBtn = menu.querySelector('[data-action="unbend"]');
 
     if (pinBtn) pinBtn.textContent = node.pinned ? "Unpin node" : "Pin node";
     if (sgBtn) {
@@ -116,6 +296,24 @@ export function setupInputHandlers(rawCtx = {}) {
         node.type === "stargate" ? "Convert to Normal" : "Convert to Stargate";
     }
 
+    if (bendBtn) bendBtn.textContent = "Bend (increase κ)";
+    if (unbendBtn) unbendBtn.textContent = "Unbend (reduce κ)";
+
+    setMenuScope("node");
+    menu.style.display = "block";
+    menu.style.left = `${Math.round(x)}px`;
+    menu.style.top = `${Math.round(y)}px`;
+  }
+
+  function openContextMenuForEdge(x, y, edgeId) {
+    if (!isEditMode()) return;
+
+    state.ui.contextNodeId = null;
+    state.ui.contextEdgeId = edgeId;
+    state.ui.contextMenuX = x;
+    state.ui.contextMenuY = y;
+
+    setMenuScope("edge");
     menu.style.display = "block";
     menu.style.left = `${Math.round(x)}px`;
     menu.style.top = `${Math.round(y)}px`;
@@ -177,12 +375,100 @@ export function setupInputHandlers(rawCtx = {}) {
 
     const action = btn.getAttribute("data-action");
     const plane = activePlane();
+
+    if (action === "edge-select") {
+      const edgeId = btn.getAttribute("data-edge-id");
+      if (!edgeId) return;
+      setSelectedEdge(edgeId);
+      const mx = Number(state.ui.contextMenuX) || e.clientX || 0;
+      const my = Number(state.ui.contextMenuY) || e.clientY || 0;
+      openContextMenuForEdge(mx, my, edgeId);
+      return;
+    }
+
     const node = findNode(plane, state.ui.contextNodeId);
+    const edge =
+      plane?.edges?.find((item) => item.id === state.ui.contextEdgeId) || null;
 
     closeContextMenu();
+
+    if (action === "edge-delete") {
+      if (!edge) return;
+      const before = plane.edges.length;
+      plane.edges = plane.edges.filter((item) => item.id !== edge.id);
+      if (plane.edges.length !== before) {
+        if (state.ui.selectedEdgeId === edge.id) {
+          state.ui.selectedEdgeId = null;
+          syncEdgeInspector();
+        }
+        resetHint("<strong>Edge deleted.</strong>");
+        saveSoon();
+      }
+      return;
+    }
+
+    if (action === "edge-kind-cycle") {
+      if (!edge) return;
+      const current = edge?.props?.kind || "context";
+      const idx = EDGE_KIND_ORDER.indexOf(current);
+      const nextKind =
+        EDGE_KIND_ORDER[
+          (idx + 1 + EDGE_KIND_ORDER.length) % EDGE_KIND_ORDER.length
+        ];
+
+      edge.props = {
+        ...(edge.props || {}),
+        kind: nextKind,
+      };
+
+      setSelectedEdge(edge.id);
+      resetHint(`<strong>Edge kind:</strong> ${nextKind}`);
+      saveSoon();
+      return;
+    }
+
+    if (action === "edge-reverse") {
+      if (!edge) return;
+      const oldA = edge.a;
+      const oldB = edge.b;
+      edge.a = oldB;
+      edge.b = oldA;
+      setSelectedEdge(edge.id);
+      resetHint("<strong>Edge direction reversed.</strong>");
+      saveSoon();
+      return;
+    }
+
     if (!node) return;
 
+    if (action === "bend") {
+      clearConnectFlowState();
+      if (bendNodeTopology) {
+        bendNodeTopology(node.id);
+      } else {
+        resetHint(
+          "<strong>BEND unavailable:</strong> topology hook not configured.",
+        );
+      }
+      saveSoon();
+      return;
+    }
+
+    if (action === "unbend") {
+      clearConnectFlowState();
+      if (unbendNodeTopology) {
+        unbendNodeTopology(node.id);
+      } else {
+        resetHint(
+          "<strong>UNBEND unavailable:</strong> topology hook not configured.",
+        );
+      }
+      saveSoon();
+      return;
+    }
+
     if (action === "fork") {
+      clearConnectFlowState();
       const clone = addNode(plane, {
         text: `${trimText(node.text, 100)} (fork)`,
         x: node.x + rand(-110, 110),
@@ -196,8 +482,8 @@ export function setupInputHandlers(rawCtx = {}) {
     }
 
     if (action === "merge") {
+      clearConnectFlowState();
       state.ui.mergeSourceNodeId = node.id;
-      state.ui.connectSourceNodeId = null;
       resetHint(
         `<strong>Merge mode:</strong> click a second node to merge with <em>${trimText(node.text, 44)}</em>.`,
       );
@@ -207,14 +493,18 @@ export function setupInputHandlers(rawCtx = {}) {
     if (action === "connect") {
       state.ui.connectSourceNodeId = node.id;
       state.ui.mergeSourceNodeId = null;
+      state.ui.connectPreview = null;
+      state.ui.connectConfirmTargetId = null;
+      state.ui.connectConfirmAt = 0;
       setSelected(node.id);
       resetHint(
-        "<strong>Connect mode:</strong> Click a target node to create a directed edge",
+        "<strong>Connect mode:</strong> Click a target node to preview risk, then click again to confirm if risk is elevated.",
       );
       return;
     }
 
     if (action === "pin") {
+      clearConnectFlowState();
       node.pinned = !node.pinned;
       if (node.pinned) {
         node.vx = 0;
@@ -225,6 +515,7 @@ export function setupInputHandlers(rawCtx = {}) {
     }
 
     if (action === "stargate") {
+      clearConnectFlowState();
       node.type = node.type === "stargate" ? "normal" : "stargate";
       if (node.type === "stargate" && node.text && !/^⊛/.test(node.text)) {
         node.text = `⊛ ${node.text}`;
@@ -234,6 +525,7 @@ export function setupInputHandlers(rawCtx = {}) {
     }
 
     if (action === "delete") {
+      clearConnectFlowState();
       if (plane.nodes.length <= 1) return;
       removeNode(plane, node.id);
       saveSoon();
@@ -260,10 +552,32 @@ export function setupInputHandlers(rawCtx = {}) {
     if (n) {
       setSelected(n.id);
       updateComposerTarget();
-      openContextMenu(e.clientX + 4, e.clientY + 4, n.id);
-    } else {
-      closeContextMenu();
+      openContextMenuForNode(e.clientX + 4, e.clientY + 4, n.id);
+      return;
     }
+
+    const hitEdge = edgeAtPoint(plane, w.x, w.y);
+    if (hitEdge) {
+      const pairEdges = edgePairCandidates(plane, hitEdge);
+
+      if (pairEdges.length > 1) {
+        openContextMenuForEdgeSelection(
+          e.clientX + 4,
+          e.clientY + 4,
+          plane,
+          pairEdges,
+        );
+        resetHint(
+          `<strong>Select edge:</strong> ${pairEdges.length} edges between the same two nodes.`,
+        );
+      } else {
+        setSelectedEdge(hitEdge.id);
+        openContextMenuForEdge(e.clientX + 4, e.clientY + 4, hitEdge.id);
+      }
+      return;
+    }
+
+    closeContextMenu();
   });
 
   // Pointer down
@@ -279,7 +593,45 @@ export function setupInputHandlers(rawCtx = {}) {
     const w = screenToWorld(sx, sy, plane.camera, rect.width, rect.height);
 
     const n = nodeAtPoint(plane, w.x, w.y);
-    const hitEdge = n ? null : edgeAtPoint(plane, w.x, w.y);
+    let hitEdge = null;
+
+    if (!n) {
+      const candidates = collectEdgeCandidatesAtPoint(plane, w.x, w.y);
+
+      if (candidates.length > 0) {
+        const cycleKey = candidates
+          .map((edge) => edge.id)
+          .sort()
+          .join("|");
+
+        const ts = now();
+        const sameCycle =
+          state.ui.edgeCycleKey === cycleKey &&
+          Number.isFinite(state.ui.edgeCycleAt) &&
+          ts - state.ui.edgeCycleAt <= EDGE_CYCLE_WINDOW_MS;
+
+        const prevIndex = Number.isFinite(state.ui.edgeCycleIndex)
+          ? state.ui.edgeCycleIndex
+          : -1;
+
+        const nextIndex = sameCycle ? (prevIndex + 1) % candidates.length : 0;
+
+        hitEdge = candidates[nextIndex] || null;
+
+        state.ui.edgeCycleKey = cycleKey;
+        state.ui.edgeCycleIndex = nextIndex;
+        state.ui.edgeCycleAt = ts;
+      } else {
+        hitEdge = edgeAtPoint(plane, w.x, w.y);
+        state.ui.edgeCycleKey = null;
+        state.ui.edgeCycleIndex = 0;
+        state.ui.edgeCycleAt = 0;
+      }
+    } else {
+      state.ui.edgeCycleKey = null;
+      state.ui.edgeCycleIndex = 0;
+      state.ui.edgeCycleAt = 0;
+    }
 
     state.ui.pointerDownAt = {
       x: e.clientX,
@@ -328,13 +680,41 @@ export function setupInputHandlers(rawCtx = {}) {
 
   // Pointer move
   on(canvas, "pointermove", (e) => {
-    if (pointerId == null) return;
-
     const plane = activePlane();
     const rect = canvas.getBoundingClientRect();
     const sx = e.clientX - rect.left;
     const sy = e.clientY - rect.top;
     const w = screenToWorld(sx, sy, plane.camera, rect.width, rect.height);
+
+    if (pointerId == null) {
+      if (state.ui.connectSourceNodeId && previewConnectImpact) {
+        const sourceId = state.ui.connectSourceNodeId;
+        const targetNode = nodeAtPoint(plane, w.x, w.y);
+
+        if (targetNode && targetNode.id !== sourceId) {
+          if (
+            state.ui.connectConfirmTargetId &&
+            state.ui.connectConfirmTargetId !== targetNode.id
+          ) {
+            state.ui.connectConfirmTargetId = null;
+            state.ui.connectConfirmAt = 0;
+          }
+
+          const preview = previewConnectImpact(sourceId, targetNode.id);
+          state.ui.connectPreview = {
+            sourceId,
+            targetId: targetNode.id,
+            ...preview,
+          };
+          resetHint(connectPreviewHint(preview));
+        } else {
+          state.ui.connectPreview = null;
+          state.ui.connectConfirmTargetId = null;
+          state.ui.connectConfirmAt = 0;
+        }
+      }
+      return;
+    }
 
     if (state.ui.pointerDownAt) {
       const md = dist(
@@ -407,7 +787,7 @@ export function setupInputHandlers(rawCtx = {}) {
           const source = findNode(plane, state.ui.mergeSourceNodeId);
           if (source) mergeNodes(plane, source, node);
           state.ui.mergeSourceNodeId = null;
-          state.ui.connectSourceNodeId = null;
+          clearConnectFlowState();
           resetHint(DEFAULT_HINT_TEXT);
           saveSoon();
         } else if (
@@ -416,12 +796,48 @@ export function setupInputHandlers(rawCtx = {}) {
         ) {
           const source = findNode(plane, state.ui.connectSourceNodeId);
           if (source) {
+            let preview = state.ui.connectPreview;
+
+            if (previewConnectImpact) {
+              preview = previewConnectImpact(source.id, node.id);
+              state.ui.connectPreview = {
+                sourceId: source.id,
+                targetId: node.id,
+                ...preview,
+              };
+            }
+
+            const risk = riskLevelFromPreview(preview);
+            const requiresConfirm = risk !== "low";
+
+            if (requiresConfirm) {
+              const nowMs = Date.now();
+              const sameTarget = state.ui.connectConfirmTargetId === node.id;
+              const withinWindow =
+                Number.isFinite(state.ui.connectConfirmAt) &&
+                nowMs - state.ui.connectConfirmAt <= CONNECT_CONFIRM_WINDOW_MS;
+
+              if (!(sameTarget && withinWindow)) {
+                state.ui.connectConfirmTargetId = node.id;
+                state.ui.connectConfirmAt = nowMs;
+                resetHint(
+                  `<strong>Confirm connect (${risk.toUpperCase()} risk):</strong> click this target again to proceed.`,
+                );
+                state.ui.pointerDownAt = null;
+                return;
+              }
+            }
+
             const edge = addEdge(plane, source, node, { kind: "causal" });
             setSelected(source.id);
             setSelectedEdge(edge.id);
           }
+
           state.ui.connectSourceNodeId = null;
           state.ui.mergeSourceNodeId = null;
+          state.ui.connectPreview = null;
+          state.ui.connectConfirmTargetId = null;
+          state.ui.connectConfirmAt = 0;
           resetHint(DEFAULT_HINT_TEXT);
           saveSoon();
         } else if (
@@ -534,6 +950,9 @@ export function setupInputHandlers(rawCtx = {}) {
     if (e.key === "Escape") {
       state.ui.mergeSourceNodeId = null;
       state.ui.connectSourceNodeId = null;
+      state.ui.connectPreview = null;
+      state.ui.connectConfirmTargetId = null;
+      state.ui.connectConfirmAt = 0;
       closeContextMenu();
       resetHint(DEFAULT_HINT_TEXT);
 

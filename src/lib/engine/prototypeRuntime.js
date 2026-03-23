@@ -18,6 +18,7 @@ import {
   drawEdges as drawEdgesRenderer,
   drawNodes as drawNodesRenderer,
 } from "./renderer";
+import { analyzePlaneTopology, previewEdgeImpact } from "./topology";
 import { setupInputHandlers } from "./input";
 import { createInspectorController } from "./inspectors";
 import { createBreadcrumbController } from "./breadcrumbs";
@@ -40,6 +41,11 @@ export function initPrototypeRuntime(options = {}) {
     const statEdges = document.getElementById("statEdges");
     const statDepth = document.getElementById("statDepth");
     const statZoom = document.getElementById("statZoom");
+    const statRouting = document.getElementById("statRouting");
+    const statKappa = document.getElementById("statKappa");
+    const statScc = document.getElementById("statScc");
+    const statIsland = document.getElementById("statIsland");
+    const statRisk = document.getElementById("statRisk");
     const breadcrumbsEl = document.getElementById("breadcrumbs");
     const hintEl = document.getElementById("hint");
     const nodeModeToggle = document.getElementById("nodeModeToggle");
@@ -105,9 +111,18 @@ export function initPrototypeRuntime(options = {}) {
       pointerDownAt: null,
       pointerMoved: false,
       contextNodeId: null,
+      contextEdgeId: null,
       nodeMdOverlayOpen: state.ui?.nodeMdOverlayOpen === true,
       nodeMdOverlayView:
         state.ui?.nodeMdOverlayView === "preview" ? "preview" : "write",
+      topology: null,
+      connectPreview: null,
+      connectRisk: "low",
+      connectConfirmTargetId: null,
+      connectConfirmAt: 0,
+      edgeCycleKey: null,
+      edgeCycleIndex: 0,
+      edgeCycleAt: 0,
     };
 
     function seedState() {
@@ -753,6 +768,224 @@ export function initPrototypeRuntime(options = {}) {
     //   - Tier 4: Edge inference (connect to existing nodes)
     // The spawnPromptFlow() function below is also replaced by
     // src/lib/ai/graphSynthesis.js in the SvelteKit migration.
+    function edgeExists(plane, sourceId, targetId) {
+      return !!plane.edges.find((e) => e.a === sourceId && e.b === targetId);
+    }
+
+    function recomputeTopologyForActivePlane() {
+      const plane = activePlane();
+      const topology = analyzePlaneTopology(plane);
+      state.ui.topology = topology;
+      return topology;
+    }
+
+    function formatKappaDelta(delta) {
+      if (!Number.isFinite(delta) || delta === 0) return "κΔ 0";
+      return delta > 0 ? `κΔ +${delta}` : `κΔ ${delta}`;
+    }
+
+    function riskLevelFromPreview(preview) {
+      if (!preview) return "low";
+      if (preview.createsNewScc || preview.kappaDelta >= 2) return "high";
+      if (preview.kappaDelta > 0) return "medium";
+      return "low";
+    }
+
+    function riskPaletteFromPreview(preview) {
+      const risk = riskLevelFromPreview(preview);
+
+      if (risk === "high") {
+        return {
+          line: "rgba(255,109,90,0.95)",
+          border: "rgba(255,109,90,1)",
+          text: "#7f1d1d",
+        };
+      }
+
+      if (risk === "medium") {
+        return {
+          line: "rgba(245,158,11,0.95)",
+          border: "rgba(245,158,11,1)",
+          text: "#78350f",
+        };
+      }
+
+      return {
+        line: "rgba(16,185,129,0.95)",
+        border: "rgba(16,185,129,1)",
+        text: "#064e3b",
+      };
+    }
+
+    function previewConnectImpact(sourceId, targetId) {
+      const plane = activePlane();
+      const preview = previewEdgeImpact(plane, sourceId, targetId);
+
+      state.ui.connectPreview = {
+        sourceId,
+        targetId,
+        ...preview,
+      };
+
+      return preview;
+    }
+
+    function bendNodeTopology(nodeId) {
+      const plane = activePlane();
+      const node = findNode(plane, nodeId);
+      if (!node) return false;
+
+      let sourceId = null;
+      let targetId = null;
+
+      const outgoing = plane.edges.find(
+        (e) =>
+          e.a === nodeId && e.b !== nodeId && !edgeExists(plane, e.b, nodeId),
+      );
+
+      if (outgoing) {
+        sourceId = outgoing.b;
+        targetId = nodeId;
+      } else {
+        const incoming = plane.edges.find(
+          (e) =>
+            e.b === nodeId && e.a !== nodeId && !edgeExists(plane, nodeId, e.a),
+        );
+
+        if (incoming) {
+          sourceId = nodeId;
+          targetId = incoming.a;
+        } else {
+          const nearest = [...plane.nodes]
+            .filter((n) => n.id !== nodeId)
+            .sort(
+              (a, b) =>
+                dist(node.x, node.y, a.x, a.y) - dist(node.x, node.y, b.x, b.y),
+            )[0];
+
+          if (nearest) {
+            sourceId = nodeId;
+            targetId = nearest.id;
+          }
+        }
+      }
+
+      if (!sourceId || !targetId || edgeExists(plane, sourceId, targetId)) {
+        resetHint("<strong>No bend applied:</strong> no eligible edge to add.");
+        return false;
+      }
+
+      const edge = addEdge(plane, sourceId, targetId, {
+        label: "feedback",
+        kind: "causal",
+        strength: 2,
+      });
+
+      if (!edge) return false;
+
+      const topology = recomputeTopologyForActivePlane();
+      setSelected(nodeId);
+      setSelectedEdge(edge.id);
+      resetHint(
+        `<strong>BEND</strong> applied · routing <b>${topology.routing}</b> · κmax <b>${topology.maxKappa}</b>`,
+      );
+      saveSoon();
+      return true;
+    }
+
+    function unbendNodeTopology(nodeId) {
+      const plane = activePlane();
+      const node = findNode(plane, nodeId);
+      if (!node) return false;
+
+      const topology = recomputeTopologyForActivePlane();
+      const faultCandidates = topology.sccs
+        .flatMap((scc) => scc.faultLineEdges || [])
+        .filter((e) => e.source === nodeId || e.target === nodeId);
+
+      let edgeToRemove =
+        faultCandidates
+          .map((f) =>
+            plane.edges.find((e) => e.a === f.source && e.b === f.target),
+          )
+          .find(Boolean) || null;
+
+      if (!edgeToRemove) {
+        edgeToRemove =
+          plane.edges.find((e) => e.a === nodeId || e.b === nodeId) || null;
+      }
+
+      if (!edgeToRemove) {
+        resetHint("<strong>No unbend applied:</strong> no removable edge.");
+        return false;
+      }
+
+      const before = topology;
+      plane.edges = plane.edges.filter((e) => e.id !== edgeToRemove.id);
+
+      if (state.ui.selectedEdgeId === edgeToRemove.id) {
+        state.ui.selectedEdgeId = null;
+        syncEdgeInspector();
+      }
+
+      const after = recomputeTopologyForActivePlane();
+      resetHint(
+        `<strong>UNBEND</strong> applied · ${formatKappaDelta(after.maxKappa - before.maxKappa)} · routing <b>${after.routing}</b>`,
+      );
+      saveSoon();
+      return true;
+    }
+
+    function drawTopologyOverlay(plane, W, H, t) {
+      const topology = state.ui.topology;
+      if (!topology) return;
+
+      const preview = state.ui.connectPreview;
+      if (
+        preview &&
+        typeof preview.sourceId === "string" &&
+        typeof preview.targetId === "string"
+      ) {
+        const a = findNode(plane, preview.sourceId);
+        const b = findNode(plane, preview.targetId);
+        if (a && b) {
+          const A = projectToScreen(a.x, a.y, plane.camera, W, H);
+          const B = projectToScreen(b.x, b.y, plane.camera, W, H);
+          const risk = riskLevelFromPreview(preview);
+          const palette = riskPaletteFromPreview(preview);
+
+          ctx.save();
+          ctx.strokeStyle = palette.line;
+          ctx.lineWidth = 2;
+          ctx.setLineDash([8, 6]);
+          ctx.beginPath();
+          ctx.moveTo(A.x, A.y);
+          ctx.lineTo(B.x, B.y);
+          ctx.stroke();
+
+          const label = `${risk.toUpperCase()} · ${formatKappaDelta(preview.kappaDelta)} · ${preview.routingAfter}`;
+          ctx.font = "11px ui-monospace, monospace";
+          const tw = Math.ceil(ctx.measureText(label).width) + 12;
+          const tx = (A.x + B.x) * 0.5 - tw * 0.5;
+          const ty = (A.y + B.y) * 0.5 - 18;
+
+          ctx.fillStyle = "#ffffff";
+          ctx.strokeStyle = palette.border;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.roundRect(tx, ty, tw, 18, 8);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.fillStyle = palette.text;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(label, tx + tw * 0.5, ty + 9.5);
+          ctx.restore();
+        }
+      }
+    }
+
     // ============================================================
     function generateResponse(prompt) {
       const p = prompt.toLowerCase();
@@ -852,6 +1085,9 @@ export function initPrototypeRuntime(options = {}) {
       triggerWarp,
       nodeCardSize,
       wrapMarkdownLines,
+      previewConnectImpact,
+      bendNodeTopology,
+      unbendNodeTopology,
 
       nodeMdOverlay,
       nodeMdBackdrop,
@@ -907,6 +1143,8 @@ export function initPrototypeRuntime(options = {}) {
         H,
         t,
         state,
+        topology: state.ui.topology,
+        connectPreview: state.ui.connectPreview,
         deps: {
           connectedNodes,
           findNode,
@@ -1170,6 +1408,7 @@ export function initPrototypeRuntime(options = {}) {
         H,
         t,
         state,
+        topology: state.ui.topology,
         deps: {
           connectedNodes,
           projectToScreen,
@@ -1185,12 +1424,45 @@ export function initPrototypeRuntime(options = {}) {
       });
     }
 
-    function updateStats() {
+    function updateStats(topology) {
       const plane = activePlane();
-      statNodes.textContent = String(plane.nodes.length);
-      statEdges.textContent = String(plane.edges.length);
-      statDepth.textContent = String(depthOfPlane(plane.id));
-      statZoom.textContent = `${plane.camera.zoom.toFixed(2)}x`;
+
+      if (statNodes) statNodes.textContent = String(plane.nodes.length);
+      if (statEdges) statEdges.textContent = String(plane.edges.length);
+      if (statDepth) statDepth.textContent = String(depthOfPlane(plane.id));
+      if (statZoom) statZoom.textContent = `${plane.camera.zoom.toFixed(2)}x`;
+
+      if (topology) {
+        if (statRouting) statRouting.textContent = topology.routing;
+        if (statKappa) statKappa.textContent = String(topology.maxKappa);
+
+        const sccNodeCount = new Set(
+          topology.sccs.flatMap((scc) =>
+            Array.isArray(scc?.nodes) ? scc.nodes : [],
+          ),
+        ).size;
+
+        if (statScc)
+          statScc.textContent = `${topology.sccCount}g/${sccNodeCount}n`;
+        if (statIsland)
+          statIsland.textContent = String(topology.islandCount ?? 0);
+      }
+
+      const risk = riskLevelFromPreview(state.ui.connectPreview);
+      state.ui.connectRisk = risk;
+
+      if (statRisk) {
+        const riskColor =
+          risk === "high"
+            ? "#ff6d5a"
+            : risk === "medium"
+              ? "#f59e0b"
+              : "#10b981";
+
+        statRisk.textContent = risk;
+        statRisk.style.color = riskColor;
+        statRisk.style.fontWeight = "700";
+      }
     }
 
     function frame() {
@@ -1204,12 +1476,16 @@ export function initPrototypeRuntime(options = {}) {
 
       simulate(dt);
 
+      const topology = analyzePlaneTopology(plane);
+      state.ui.topology = topology;
+
       ctx.clearRect(0, 0, W, H);
       drawBackground(W, H, t);
       drawEdges(plane, W, H, t);
       drawNodes(plane, W, H, t);
+      drawTopologyOverlay(plane, W, H, t);
 
-      updateStats();
+      updateStats(topology);
       updateBreadcrumbs();
     }
 
@@ -1240,10 +1516,12 @@ export function initPrototypeRuntime(options = {}) {
         clearInterval(autosaveIntervalId);
         autosaveIntervalId = null;
       }
+
       cleanupInputHandlers();
       inspectorController.cleanup();
       breadcrumbController.cleanup();
       saveState();
+      window.removeEventListener("beforeunload", onBeforeUnload);
     }
 
     setSelected(state.ui.selectedNodeId || activePlane().nodes[0]?.id || null);
@@ -1259,7 +1537,8 @@ export function initPrototypeRuntime(options = {}) {
     promptInput.value = "";
     promptInput.focus({ preventScroll: true });
 
-    window.addEventListener("beforeunload", destroy);
+    const onBeforeUnload = () => destroy();
+    window.addEventListener("beforeunload", onBeforeUnload);
     autosaveIntervalId = setInterval(saveState, 6000);
 
     if (autoStartLoop) {
