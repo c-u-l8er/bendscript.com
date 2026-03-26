@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+build/
+dist/
+.svelte-kit/
+
+# Test artifacts
+tests/coverage/
+tests/e2e-report/
+tests/e2e-results/
+playwright-report/
+
+# Package manager artifacts
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Supabase local/generated artifacts
+supabase/.temp/
+supabase/.branches/

@@ -22,13 +22,21 @@ import { analyzePlaneTopology, previewEdgeImpact } from "./topology";
 import { setupInputHandlers } from "./input";
 import { createInspectorController } from "./inspectors";
 import { createBreadcrumbController } from "./breadcrumbs";
+import { applyRemoteGraphPatch } from "../supabase/realtime";
 
 export function initPrototypeRuntime(options = {}) {
   if (typeof window === "undefined") return null;
   window.marked = marked;
   window.DOMPurify = DOMPurify;
 
-  const { autoStartLoop = true } = options;
+  const {
+    autoStartLoop = true,
+    initialState = null,
+    readOnly = false,
+    aiSynthesis = null,
+    emitRealtimePatch = null,
+  } = options;
+  const runtimeReadOnly = readOnly === true;
   let runtimeControls = null;
 
   runtimeControls = (() => {
@@ -56,12 +64,12 @@ export function initPrototypeRuntime(options = {}) {
     const composerForm = document.getElementById("composerForm");
     const menu = document.getElementById("contextMenu");
     const warp = document.getElementById("warp");
-    const edgeInspector = document.getElementById("edgeInspector");
+    const _edgeInspector = document.getElementById("edgeInspector");
     const edgePropLabel = document.getElementById("edgePropLabel");
     const edgePropKind = document.getElementById("edgePropKind");
     const edgePropStrength = document.getElementById("edgePropStrength");
     const edgeInspectorEmpty = document.getElementById("edgeInspectorEmpty");
-    const nodeInspector = document.getElementById("nodeInspector");
+    const _nodeInspector = document.getElementById("nodeInspector");
     const nodeText = document.getElementById("nodeText");
     const nodeMdBackdrop = document.getElementById("nodeMdBackdrop");
     const nodeMdOverlay = document.getElementById("nodeMdOverlay");
@@ -88,11 +96,13 @@ export function initPrototypeRuntime(options = {}) {
     const NODE_BODY_TOP_PAD = 10;
     const NODE_BODY_BOTTOM_PAD = 12;
 
-    function uid(prefix) {
+    function _uid(prefix) {
       return `${prefix}_${Math.random().toString(36).slice(2, 8)}${Date.now().toString(36).slice(-4)}`;
     }
 
-    const state = loadState() || seedState();
+    const initialStateFromServer =
+      initialState && typeof initialState === "object" ? initialState : null;
+    const state = initialStateFromServer || loadState() || seedState();
     state.ui = {
       selectedNodeId: state.ui?.selectedNodeId || null,
       selectedEdgeId: state.ui?.selectedEdgeId || null,
@@ -124,6 +134,10 @@ export function initPrototypeRuntime(options = {}) {
       edgeCycleIndex: 0,
       edgeCycleAt: 0,
     };
+
+    if (runtimeReadOnly) {
+      state.ui.editMode = "preview";
+    }
 
     function seedState() {
       const root = newPlane({
@@ -412,7 +426,7 @@ export function initPrototypeRuntime(options = {}) {
       return { width, height, corner };
     }
 
-    function nodeRadius(n) {
+    function _nodeRadius(n) {
       const s = nodeCardSize(n);
       return Math.hypot(s.width * 0.5, s.height * 0.5) * 0.52;
     }
@@ -533,11 +547,13 @@ export function initPrototypeRuntime(options = {}) {
     let autosaveIntervalId = null;
     let saveTimer = null;
     function saveSoon() {
+      if (runtimeReadOnly) return;
       clearTimeout(saveTimer);
       saveTimer = setTimeout(saveState, 220);
     }
 
     function saveState() {
+      if (runtimeReadOnly) return;
       const serializable = {
         version: state.version || 1,
         rootPlaneId: state.rootPlaneId,
@@ -668,7 +684,7 @@ export function initPrototypeRuntime(options = {}) {
       inspectorController.syncNodeInspector();
     }
 
-    function applyNodeInspectorToSelection() {
+    function _applyNodeInspectorToSelection() {
       inspectorController.applyNodeInspectorToSelection();
     }
 
@@ -676,7 +692,7 @@ export function initPrototypeRuntime(options = {}) {
       return inspectorController.isEditMode();
     }
 
-    function updateNodeMarkdownPreview() {
+    function _updateNodeMarkdownPreview() {
       inspectorController.updateNodeMarkdownPreview();
     }
 
@@ -707,7 +723,7 @@ export function initPrototypeRuntime(options = {}) {
       }
     }
 
-    function installComposerDrag() {
+    function _installComposerDrag() {
       let drag = null;
 
       composerDragHandle.addEventListener("pointerdown", (e) => {
@@ -936,7 +952,7 @@ export function initPrototypeRuntime(options = {}) {
       return true;
     }
 
-    function drawTopologyOverlay(plane, W, H, t) {
+    function drawTopologyOverlay(plane, W, H, _t) {
       const topology = state.ui.topology;
       if (!topology) return;
 
@@ -1005,7 +1021,134 @@ export function initPrototypeRuntime(options = {}) {
       return `Bended: ${trimText(prompt, 120)} → linked as a new context node.`;
     }
 
-    function spawnPromptFlow(text) {
+    async function synthesizePromptFlow({
+      prompt,
+      activePlane: planeArg,
+      currentTargetNode: targetNodeArg,
+      setSelected: setSelectedArg,
+      saveSoon: saveSoonArg,
+      addNode: addNodeArg,
+      addEdge: addEdgeArg,
+      rand: randArg,
+    } = {}) {
+      if (
+        !aiSynthesis ||
+        aiSynthesis.enabled !== true ||
+        typeof aiSynthesis.synthesize !== "function"
+      ) {
+        return false;
+      }
+
+      const plane = planeArg || activePlane();
+      if (!plane) return false;
+
+      const parent =
+        targetNodeArg ||
+        currentTargetNode() ||
+        plane.nodes[0] ||
+        addNodeArg(plane, { text: "BendScript", pinned: true });
+
+      const result = await aiSynthesis.synthesize({
+        prompt,
+        state,
+        plane,
+        parentNode: parent,
+      });
+
+      if (
+        !result ||
+        (!Array.isArray(result.nodes) && !result.primary_response_text)
+      ) {
+        return false;
+      }
+
+      const created = [];
+      const baseAngle = randArg(-Math.PI * 0.45, Math.PI * 0.45);
+
+      const nodes = Array.isArray(result.nodes) ? result.nodes : [];
+      for (let i = 0; i < nodes.length; i += 1) {
+        const spec = nodes[i] || {};
+        const radius = randArg(120, 210) + i * 16;
+        const angle = baseAngle + i * 0.35;
+        const createdNode = addNodeArg(plane, {
+          text:
+            String(spec.text || "")
+              .trim()
+              .slice(0, 4000) || "New node",
+          x: Number.isFinite(spec.x)
+            ? spec.x
+            : parent.x + Math.cos(angle) * radius,
+          y: Number.isFinite(spec.y)
+            ? spec.y
+            : parent.y + Math.sin(angle) * radius,
+          type: spec.type === "stargate" ? "stargate" : "normal",
+        });
+        created.push(createdNode);
+      }
+
+      if (!created.length && result.primary_response_text) {
+        created.push(
+          addNodeArg(plane, {
+            text: String(result.primary_response_text).slice(0, 4000),
+            x: parent.x + Math.cos(baseAngle) * randArg(130, 190),
+            y: parent.y + Math.sin(baseAngle) * randArg(130, 190),
+            type: String(result.primary_response_text).startsWith("⊛")
+              ? "stargate"
+              : "normal",
+          }),
+        );
+      }
+
+      if (!created.length) return false;
+
+      addEdgeArg(plane, parent, created[0], {
+        label: "synthesizes",
+        kind: "context",
+        strength: 3,
+      });
+
+      for (let i = 1; i < created.length; i += 1) {
+        addEdgeArg(plane, created[i - 1], created[i], {
+          label: "continues",
+          kind: "associative",
+          strength: 2,
+        });
+      }
+
+      const edgeSpecs = Array.isArray(result.edges) ? result.edges : [];
+      for (const e of edgeSpecs) {
+        const fromIdx = Number.isFinite(e.fromIndex) ? e.fromIndex : -1;
+        const toIdx = Number.isFinite(e.toIndex) ? e.toIndex : -1;
+        if (fromIdx < 0 || toIdx < 0) continue;
+        const from = created[fromIdx];
+        const to = created[toIdx];
+        if (!from || !to || from.id === to.id) continue;
+
+        addEdgeArg(plane, from, to, {
+          label: String(e.label || "").slice(0, 80),
+          kind: e.kind,
+          strength: Number(e.strength) || 2,
+        });
+      }
+
+      setSelectedArg(created[created.length - 1].id);
+      saveSoonArg();
+      return true;
+    }
+
+    function onSynthesisError(err, meta = {}) {
+      const msg = trimText(err?.message || "AI synthesis failed.", 120);
+      resetHint(`<strong>AI synthesis:</strong> ${msg}`);
+      if (typeof aiSynthesis?.onError === "function") {
+        aiSynthesis.onError(err, {
+          ...meta,
+          state,
+          activePlaneId: state.activePlaneId,
+        });
+      }
+    }
+
+    function _spawnPromptFlow(text) {
       const clean = text.trim();
       if (!clean) return;
       const plane = activePlane();
@@ -1082,6 +1225,9 @@ export function initPrototypeRuntime(options = {}) {
       rand,
       currentTargetNode,
       generateResponse,
+      synthesizePromptFlow,
+      onSynthesisError,
+      emitRealtimePatch,
       triggerWarp,
       nodeCardSize,
       wrapMarkdownLines,
@@ -1465,6 +1611,65 @@ export function initPrototypeRuntime(options = {}) {
       }
     }
 
+    function applyRemotePatch(patch) {
+      try {
+        const next = applyRemoteGraphPatch(state, patch);
+        if (!next || typeof next !== "object") return false;
+        if (!next.planes || typeof next.planes !== "object") return false;
+
+        state.version = Number(next.version) || state.version || 1;
+        state.rootPlaneId = next.rootPlaneId ?? state.rootPlaneId;
+        state.activePlaneId = next.activePlaneId ?? state.activePlaneId;
+        state.planes = next.planes;
+
+        if (next.cameraDefaults && typeof next.cameraDefaults === "object") {
+          state.cameraDefaults = {
+            x: Number(next.cameraDefaults.x) || 0,
+            y: Number(next.cameraDefaults.y) || 0,
+            zoom: Number(next.cameraDefaults.zoom) || 1,
+          };
+        }
+
+        if (next.ui && typeof next.ui === "object") {
+          state.ui = {
+            ...state.ui,
+            ...next.ui,
+          };
+        }
+
+        const plane = activePlane();
+        if (plane) {
+          if (!findNode(plane, state.ui.selectedNodeId)) {
+            state.ui.selectedNodeId = plane.nodes[0]?.id || null;
+          }
+
+          if (
+            state.ui.selectedEdgeId &&
+            !findEdge(plane, state.ui.selectedEdgeId)
+          ) {
+            state.ui.selectedEdgeId = null;
+          }
+
+          state.ui.topology = analyzePlaneTopology(plane);
+        }
+
+        syncNodeInspector();
+        syncEdgeInspector();
+        syncNodeMdOverlayForSelection();
+        updateStats(state.ui.topology || null);
+        updateBreadcrumbs();
+
+        if (!runtimeReadOnly) {
+          saveSoon();
+        }
+
+        return true;
+      } catch (err) {
+        console.warn("applyRemotePatch failed:", err);
+        return false;
+      }
+    }
+
     function frame() {
       const t = now();
       const dt = Math.min(33, t - lastT);
@@ -1539,7 +1744,9 @@ export function initPrototypeRuntime(options = {}) {
 
     const onBeforeUnload = () => destroy();
     window.addEventListener("beforeunload", onBeforeUnload);
-    autosaveIntervalId = setInterval(saveState, 6000);
+    if (!runtimeReadOnly) {
+      autosaveIntervalId = setInterval(saveState, 6000);
+    }
 
     if (autoStartLoop) {
       startLoop();
@@ -1550,6 +1757,7 @@ export function initPrototypeRuntime(options = {}) {
       startLoop,
       stopLoop,
       destroy,
+      applyRemotePatch,
       getState: () => state,
     };
   })();

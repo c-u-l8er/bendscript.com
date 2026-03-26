@@ -46,6 +46,14 @@ export function setupInputHandlers(rawCtx = {}) {
   const rand = req("rand", ctx.rand);
   const currentTargetNode = req("currentTargetNode", ctx.currentTargetNode);
   const generateResponse = req("generateResponse", ctx.generateResponse);
+  const synthesizePromptFlow =
+    typeof ctx.synthesizePromptFlow === "function"
+      ? ctx.synthesizePromptFlow
+      : null;
+  const onSynthesisError =
+    typeof ctx.onSynthesisError === "function" ? ctx.onSynthesisError : noop;
+  const emitRealtimePatch =
+    typeof ctx.emitRealtimePatch === "function" ? ctx.emitRealtimePatch : null;
   const triggerWarp = req("triggerWarp", ctx.triggerWarp);
   const nodeCardSize = req("nodeCardSize", ctx.nodeCardSize);
   const wrapMarkdownLines = req("wrapMarkdownLines", ctx.wrapMarkdownLines);
@@ -174,6 +182,8 @@ export function setupInputHandlers(rawCtx = {}) {
   // Mutable local runtime
   let pointerId = null;
   let composerDrag = null;
+  let lastNodeMovePatchAt = 0;
+  let lastCameraPatchAt = 0;
 
   const unsubs = [];
   const on = (el, evt, fn, opts) => {
@@ -181,6 +191,47 @@ export function setupInputHandlers(rawCtx = {}) {
     el.addEventListener(evt, fn, opts);
     unsubs.push(() => el.removeEventListener(evt, fn, opts));
   };
+
+  function emitPatch(patch) {
+    if (!emitRealtimePatch || !patch) return;
+    try {
+      emitRealtimePatch(patch);
+    } catch {
+      // non-fatal realtime emission path
+    }
+  }
+
+  function emitStateSnapshot() {
+    emitPatch({ type: "state_snapshot", state });
+  }
+
+  function emitNodeMoveThrottled(plane, node) {
+    if (!plane || !node?.id) return;
+    const t = now();
+    if (t - lastNodeMovePatchAt < 50) return;
+    lastNodeMovePatchAt = t;
+    emitPatch({
+      type: "node_move",
+      planeId: plane.id,
+      nodeId: node.id,
+      x: node.x,
+      y: node.y,
+      vx: node.vx,
+      vy: node.vy,
+    });
+  }
+
+  function emitCameraThrottled(plane) {
+    if (!plane?.id || !plane?.camera) return;
+    const t = now();
+    if (t - lastCameraPatchAt < 60) return;
+    lastCameraPatchAt = t;
+    emitPatch({
+      type: "camera_update",
+      planeId: plane.id,
+      camera: plane.camera,
+    });
+  }
 
   function clearEdgeSelectionOptions() {
     const group = menu.querySelector("#edgeSelectionGroup");
@@ -319,9 +370,37 @@ export function setupInputHandlers(rawCtx = {}) {
     menu.style.top = `${Math.round(y)}px`;
   }
 
-  function spawnPromptFlow(text) {
+  async function spawnPromptFlow(text) {
     const clean = String(text || "").trim();
     if (!clean) return;
+
+    if (synthesizePromptFlow) {
+      try {
+        const handled = await synthesizePromptFlow({
+          prompt: clean,
+          state,
+          activePlane: activePlane(),
+          currentTargetNode: currentTargetNode(),
+          setSelected,
+          saveSoon,
+          addNode,
+          addEdge,
+          rand,
+        });
+
+        if (handled) {
+          promptInput.value = "";
+          emitStateSnapshot();
+          saveSoon();
+          return;
+        }
+      } catch (err) {
+        onSynthesisError(err, { prompt: clean });
+        resetHint(
+          `<strong>AI synthesis failed:</strong> ${trimText(err?.message || "unknown error", 120)}`,
+        );
+      }
+    }
 
     const plane = activePlane();
     const parent =
@@ -338,7 +417,7 @@ export function setupInputHandlers(rawCtx = {}) {
       x: parent.x + Math.cos(angle) * d1,
       y: parent.y + Math.sin(angle) * d1,
     });
-    addEdge(plane, parent, userNode);
+    const parentEdge = addEdge(plane, parent, userNode);
 
     const response = generateResponse(clean);
     const responseNode = addNode(plane, {
@@ -348,8 +427,17 @@ export function setupInputHandlers(rawCtx = {}) {
       type: response.startsWith("⊛") ? "stargate" : "normal",
     });
 
-    addEdge(plane, userNode, responseNode);
+    const responseEdge = addEdge(plane, userNode, responseNode);
     setSelected(responseNode.id);
+
+    emitPatch({ type: "node_upsert", planeId: plane.id, node: userNode });
+    emitPatch({ type: "node_upsert", planeId: plane.id, node: responseNode });
+    if (parentEdge) {
+      emitPatch({ type: "edge_upsert", planeId: plane.id, edge: parentEdge });
+    }
+    if (responseEdge) {
+      emitPatch({ type: "edge_upsert", planeId: plane.id, edge: responseEdge });
+    }
 
     promptInput.value = "";
     saveSoon();
@@ -362,10 +450,18 @@ export function setupInputHandlers(rawCtx = {}) {
   }
 
   // Composer submit
-  on(composerForm, "submit", (e) => {
+  on(composerForm, "submit", async (e) => {
     e.preventDefault();
     if (!isEditMode()) return;
-    spawnPromptFlow(promptInput.value);
+
+    const wasDisabled = promptInput.disabled;
+    promptInput.disabled = true;
+
+    try {
+      await spawnPromptFlow(promptInput.value);
+    } finally {
+      promptInput.disabled = wasDisabled;
+    }
   });
 
   // Context menu actions
@@ -402,6 +498,7 @@ export function setupInputHandlers(rawCtx = {}) {
           syncEdgeInspector();
         }
         resetHint("<strong>Edge deleted.</strong>");
+        emitPatch({ type: "edge_remove", planeId: plane.id, edgeId: edge.id });
         saveSoon();
       }
       return;
@@ -423,6 +520,8 @@ export function setupInputHandlers(rawCtx = {}) {
 
       setSelectedEdge(edge.id);
       resetHint(`<strong>Edge kind:</strong> ${nextKind}`);
+      emitPatch({ type: "edge_upsert", planeId: plane.id, edge });
+      emitStateSnapshot();
       saveSoon();
       return;
     }
@@ -435,6 +534,7 @@ export function setupInputHandlers(rawCtx = {}) {
       edge.b = oldA;
       setSelectedEdge(edge.id);
       resetHint("<strong>Edge direction reversed.</strong>");
+      emitPatch({ type: "edge_upsert", planeId: plane.id, edge });
       saveSoon();
       return;
     }
@@ -450,6 +550,7 @@ export function setupInputHandlers(rawCtx = {}) {
           "<strong>BEND unavailable:</strong> topology hook not configured.",
         );
       }
+      emitPatch({ type: "node_upsert", planeId: plane.id, node });
       saveSoon();
       return;
     }
@@ -475,8 +576,12 @@ export function setupInputHandlers(rawCtx = {}) {
         y: node.y + rand(-90, 90),
         type: node.type,
       });
-      addEdge(plane, node, clone);
+      const forkEdge = addEdge(plane, node, clone);
       setSelected(clone.id);
+      emitPatch({ type: "node_upsert", planeId: plane.id, node: clone });
+      if (forkEdge) {
+        emitPatch({ type: "edge_upsert", planeId: plane.id, edge: forkEdge });
+      }
       saveSoon();
       return;
     }
@@ -520,6 +625,7 @@ export function setupInputHandlers(rawCtx = {}) {
       if (node.type === "stargate" && node.text && !/^⊛/.test(node.text)) {
         node.text = `⊛ ${node.text}`;
       }
+      emitPatch({ type: "node_upsert", planeId: plane.id, node });
       saveSoon();
       return;
     }
@@ -528,6 +634,7 @@ export function setupInputHandlers(rawCtx = {}) {
       clearConnectFlowState();
       if (plane.nodes.length <= 1) return;
       removeNode(plane, node.id);
+      emitPatch({ type: "node_remove", planeId: plane.id, nodeId: node.id });
       saveSoon();
     }
   });
@@ -732,6 +839,7 @@ export function setupInputHandlers(rawCtx = {}) {
       n.width = clamp((w.x - n.x) * 2, NODE_MIN_WIDTH, NODE_MAX_WIDTH);
       n.height = clamp((w.y - n.y) * 2, NODE_MIN_HEIGHT, NODE_MAX_HEIGHT);
       state.ui.pointerMoved = true;
+      emitNodeMoveThrottled(plane, n);
       return;
     }
 
@@ -742,6 +850,7 @@ export function setupInputHandlers(rawCtx = {}) {
       n.y = w.y - state.ui.dragOffsetY;
       n.vx *= 0.7;
       n.vy *= 0.7;
+      emitNodeMoveThrottled(plane, n);
       return;
     }
 
@@ -750,6 +859,7 @@ export function setupInputHandlers(rawCtx = {}) {
       const dy = (e.movementY || 0) / plane.camera.zoom;
       plane.camera.x -= dx;
       plane.camera.y -= dy;
+      emitCameraThrottled(plane);
     }
   });
 
@@ -765,13 +875,18 @@ export function setupInputHandlers(rawCtx = {}) {
     const clickWasNode = state.ui.pointerDownAt?.nodeId;
     const wasMoved = state.ui.pointerMoved;
     const draggedNodeId = state.ui.dragNodeId;
-    const wasResizing = !!state.ui.resizeNodeId;
+    const resizeNodeId = state.ui.resizeNodeId;
+    const wasResizing = !!resizeNodeId;
 
     state.ui.panMode = false;
     state.ui.dragNodeId = null;
     state.ui.resizeNodeId = null;
 
     if (wasResizing) {
+      const resized = findNode(plane, resizeNodeId);
+      if (resized) {
+        emitPatch({ type: "node_upsert", planeId: plane.id, node: resized });
+      }
       saveSoon();
       state.ui.pointerDownAt = null;
       return;
@@ -789,6 +904,7 @@ export function setupInputHandlers(rawCtx = {}) {
           state.ui.mergeSourceNodeId = null;
           clearConnectFlowState();
           resetHint(DEFAULT_HINT_TEXT);
+          emitStateSnapshot();
           saveSoon();
         } else if (
           state.ui.connectSourceNodeId &&
@@ -831,6 +947,9 @@ export function setupInputHandlers(rawCtx = {}) {
             const edge = addEdge(plane, source, node, { kind: "causal" });
             setSelected(source.id);
             setSelectedEdge(edge.id);
+            if (edge) {
+              emitPatch({ type: "edge_upsert", planeId: plane.id, edge });
+            }
           }
 
           state.ui.connectSourceNodeId = null;
@@ -853,9 +972,26 @@ export function setupInputHandlers(rawCtx = {}) {
             targetPlane.camera.x = 0;
             targetPlane.camera.y = 0;
             updateComposerTarget();
+            emitPatch({
+              type: "camera_update",
+              planeId: targetPlane.id,
+              camera: targetPlane.camera,
+            });
+            emitStateSnapshot();
             saveSoon();
           });
         }
+      }
+    }
+
+    if (draggedNodeId) {
+      const draggedNode = findNode(plane, draggedNodeId);
+      if (draggedNode) {
+        emitPatch({
+          type: "node_upsert",
+          planeId: plane.id,
+          node: draggedNode,
+        });
       }
     }
 
@@ -917,6 +1053,7 @@ export function setupInputHandlers(rawCtx = {}) {
             0,
             maxScroll,
           );
+          emitPatch({ type: "node_upsert", planeId: plane.id, node: overNode });
           saveSoon();
           return;
         }
@@ -941,6 +1078,11 @@ export function setupInputHandlers(rawCtx = {}) {
       );
       plane.camera.x += before.x - after.x;
       plane.camera.y += before.y - after.y;
+      emitPatch({
+        type: "camera_update",
+        planeId: plane.id,
+        camera: plane.camera,
+      });
     },
     { passive: false },
   );
@@ -974,8 +1116,16 @@ export function setupInputHandlers(rawCtx = {}) {
           (edge) => edge.id !== state.ui.selectedEdgeId,
         );
         if (plane.edges.length !== before) {
+          const removedEdgeId = state.ui.selectedEdgeId;
           state.ui.selectedEdgeId = null;
           syncEdgeInspector();
+          if (removedEdgeId) {
+            emitPatch({
+              type: "edge_remove",
+              planeId: plane.id,
+              edgeId: removedEdgeId,
+            });
+          }
           saveSoon();
         }
         return;
@@ -985,6 +1135,11 @@ export function setupInputHandlers(rawCtx = {}) {
       if (!selected) return;
       if (plane.nodes.length > 1) {
         removeNode(plane, selected.id);
+        emitPatch({
+          type: "node_remove",
+          planeId: plane.id,
+          nodeId: selected.id,
+        });
         saveSoon();
       }
     }
@@ -1036,6 +1191,7 @@ export function setupInputHandlers(rawCtx = {}) {
 
     state.ui.composerPos = { free: true, x: rect.left, y: rect.top };
     composerDrag = null;
+    emitStateSnapshot();
     saveSoon();
   });
 
@@ -1044,6 +1200,7 @@ export function setupInputHandlers(rawCtx = {}) {
     if (typeof ctx.applyComposerPosition === "function") {
       ctx.applyComposerPosition();
     }
+    emitStateSnapshot();
     saveSoon();
   });
 
