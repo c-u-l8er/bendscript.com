@@ -84,7 +84,9 @@
       <a class="btn btn-secondary" href="/dashboard">Dashboard</a>
       <a class="btn btn-secondary" href="/workspaces">Workspaces</a>
       {#if activeGraph}
-        <a class="btn" href={graphHref(activeGraph.id, activeWorkspaceId)}>Open selected graph</a>
+        <a class="btn" href={graphHref(activeGraph.id, activeWorkspaceId)}
+          >Open selected graph</a
+        >
       {/if}
     </div>
   </header>
@@ -110,11 +112,17 @@
           {#each workspaces as workspace}
             {@const isActive = workspace.id === activeWorkspaceId}
             <li class:active={isActive}>
-              <a href={workspaceHref(workspace.id)} aria-current={isActive ? "page" : undefined}>
+              <a
+                href={workspaceHref(workspace.id)}
+                aria-current={isActive ? "page" : undefined}
+              >
                 <span class="avatar">{initials(workspace.name)}</span>
                 <span class="meta">
                   <strong>{workspace.name}</strong>
-                  <small>{roleLabel(workspace.role)} • {workspace.plan ?? "free"}</small>
+                  <small
+                    >{roleLabel(workspace.role)} • {workspace.plan ??
+                      "free"}</small
+                  >
                 </span>
               </a>
             </li>
@@ -134,21 +142,28 @@
           <p class="muted">No active workspace selected.</p>
         {:else if graphs.length === 0}
           <p class="muted">
-            No graphs in <strong>{activeWorkspace.name}</strong> yet. Use the create form below.
+            No graphs in <strong>{activeWorkspace.name}</strong> yet. Use the create
+            form below.
           </p>
         {:else}
           <ul class="graph-list">
             {#each graphs as graph}
               {@const isSelected = graph.id === activeGraphId}
               <li class:selected={isSelected}>
-                <a class="graph-meta" href={graphManageHref(graph.id, activeWorkspaceId)}>
+                <a
+                  class="graph-meta"
+                  href={graphManageHref(graph.id, activeWorkspaceId)}
+                >
                   <div>
                     <strong>{graph.name || "Untitled Graph"}</strong>
                     <small>{graph.description || "No description"}</small>
                   </div>
                   <span>{formatDate(graph.updated_at)}</span>
                 </a>
-                <a class="open-link" href={graphHref(graph.id, activeWorkspaceId)}>Open</a>
+                <a
+                  class="open-link"
+                  href={graphHref(graph.id, activeWorkspaceId)}>Open</a
+                >
               </li>
             {/each}
           </ul>
@@ -160,10 +175,19 @@
           <h2>Create graph</h2>
         </div>
         <form method="POST" action="?/createGraph" class="crud-form">
-          <input type="hidden" name="workspaceId" value={activeWorkspace?.id ?? ""} />
+          <input
+            type="hidden"
+            name="workspaceId"
+            value={activeWorkspace?.id ?? ""}
+          />
           <label>
             Name
-            <input name="name" type="text" maxlength="180" placeholder="Untitled Graph" />
+            <input
+              name="name"
+              type="text"
+              maxlength="180"
+              placeholder="Untitled Graph"
+            />
           </label>
           <label>
             Description
@@ -189,7 +213,11 @@
           <h2>Update selected graph</h2>
         </div>
         <form method="POST" action="?/updateGraph" class="crud-form">
-          <input type="hidden" name="workspaceId" value={activeWorkspace?.id ?? ""} />
+          <input
+            type="hidden"
+            name="workspaceId"
+            value={activeWorkspace?.id ?? ""}
+          />
           <input type="hidden" name="graphId" value={activeGraph?.id ?? ""} />
 
           <label>
@@ -219,8 +247,8 @@
               name="description"
               rows="3"
               maxlength="280"
-              disabled={!activeGraph}
-            >{activeGraph?.description ?? ""}</textarea>
+              disabled={!activeGraph}>{activeGraph?.description ?? ""}</textarea
+            >
           </label>
           <label class="checkbox-row">
             <input
@@ -231,7 +259,11 @@
             />
             Public graph
           </label>
-          <button class="btn btn-secondary" type="submit" disabled={!activeGraph}>
+          <button
+            class="btn btn-secondary"
+            type="submit"
+            disabled={!activeGraph}
+          >
             Save graph
           </button>
         </form>
@@ -242,12 +274,17 @@
           <h2>Delete selected graph</h2>
         </div>
         <form method="POST" action="?/deleteGraph" class="crud-form">
-          <input type="hidden" name="workspaceId" value={activeWorkspace?.id ?? ""} />
+          <input
+            type="hidden"
+            name="workspaceId"
+            value={activeWorkspace?.id ?? ""}
+          />
           <input type="hidden" name="graphId" value={activeGraph?.id ?? ""} />
 
           <p class="muted">
-            This permanently deletes <strong>{activeGraph?.name ?? "the selected graph"}</strong>.
-            Type its exact name to confirm.
+            This permanently deletes <strong
+              >{activeGraph?.name ?? "the selected graph"}</strong
+            >. Type its exact name to confirm.
           </p>
           <label>
             Confirm name
@@ -301,6 +338,11 @@
     margin: 0 0 0.4rem;
     font-size: clamp(1.6rem, 2.6vw, 2.3rem);
     line-height: 1.15;
+  }
+
+  h2 {
+    margin: 0;
+    font-size: 1.05rem;
   }
 
   .muted {

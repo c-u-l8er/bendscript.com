@@ -94,13 +94,7 @@ export async function load(event) {
       workspace_id,
       user_id,
       role,
-      created_at,
-      profile:profiles (
-        id,
-        email,
-        full_name,
-        avatar_url
-      )
+      created_at
     `,
     )
     .eq("workspace_id", graph.workspace_id);
@@ -109,6 +103,29 @@ export async function load(event) {
     throw error(
       500,
       `Failed to load workspace members: ${membersError.message}`,
+    );
+  }
+
+  const memberUserIds = Array.from(
+    new Set((memberRows || []).map((m) => m.user_id).filter(Boolean)),
+  );
+
+  let profilesById = {};
+  if (memberUserIds.length > 0) {
+    const { data: profileRows, error: profilesError } = await supabase
+      .from("profiles")
+      .select("id, email, full_name, avatar_url")
+      .in("id", memberUserIds);
+
+    if (profilesError) {
+      throw error(
+        500,
+        `Failed to load member profiles: ${profilesError.message}`,
+      );
+    }
+
+    profilesById = Object.fromEntries(
+      (profileRows || []).map((p) => [p.id, p]),
     );
   }
 
@@ -134,7 +151,7 @@ export async function load(event) {
       userId: m.user_id,
       role: m.role,
       joinedAt: m.created_at,
-      profile: m.profile ?? null,
+      profile: profilesById[m.user_id] ?? null,
     })),
     graph: {
       id: graph.id,

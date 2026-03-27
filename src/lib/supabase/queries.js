@@ -236,30 +236,40 @@ export async function listWorkspaceMembers(workspaceId, { client } = {}) {
 
   const { data, error } = await c
     .from("workspace_members")
-    .select(
-      `
-      workspace_id,
-      user_id,
-      role,
-      created_at,
-      profile:profiles (
-        id,
-        email,
-        full_name,
-        avatar_url
-      )
-    `,
-    )
+    .select("workspace_id, user_id, role, created_at")
     .eq("workspace_id", workspaceId);
 
   if (error) throw toError("Failed to load workspace members", error);
 
-  return (data || []).map((row) => ({
+  const rows = data || [];
+  const userIds = Array.from(
+    new Set(rows.map((row) => row?.user_id).filter(Boolean)),
+  );
+
+  const profilesById = new Map();
+
+  if (userIds.length > 0) {
+    const { data: profiles, error: profilesError } = await c
+      .from("profiles")
+      .select("id, email, full_name, avatar_url")
+      .in("id", userIds);
+
+    if (profilesError) {
+      throw toError("Failed to load workspace member profiles", profilesError);
+    }
+
+    for (const profile of profiles || []) {
+      if (!profile?.id) continue;
+      profilesById.set(profile.id, profile);
+    }
+  }
+
+  return rows.map((row) => ({
     workspaceId: row.workspace_id,
     userId: row.user_id,
     role: row.role,
     createdAt: row.created_at,
-    profile: row.profile || null,
+    profile: profilesById.get(row.user_id) || null,
   }));
 }
 
