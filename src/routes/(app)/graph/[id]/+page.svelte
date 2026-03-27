@@ -122,14 +122,34 @@
 {/if}
 
 <style>
+  :global(html) {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+
   :global(body) {
     margin: 0;
+    width: 100%;
+    height: 100vh;
+    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: hidden;
+    scroll-snap-type: none;
+    overscroll-behavior: none;
   }
 
   .app-shell {
     position: relative;
     width: 100%;
+    height: 100vh;
     min-height: 100vh;
+    overflow: hidden;
+  }
+
+  .app-section {
+    height: 100vh;
+    overflow: hidden;
   }
 
   .app-topbar {
