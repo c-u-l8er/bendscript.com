@@ -1107,6 +1107,27 @@ export function setupInputHandlers(rawCtx = {}) {
     }
 
     if (e.key === "Delete" || e.key === "Backspace") {
+      const target = e.target;
+      const isEditableTarget =
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          (target.tagName === "INPUT" &&
+            ![
+              "button",
+              "checkbox",
+              "color",
+              "file",
+              "hidden",
+              "image",
+              "radio",
+              "range",
+              "reset",
+              "submit",
+            ].includes((target.type || "").toLowerCase())));
+
+      if (isEditableTarget) return;
       if (!isEditMode()) return;
       const plane = activePlane();
 
