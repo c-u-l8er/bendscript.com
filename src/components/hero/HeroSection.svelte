@@ -43,6 +43,7 @@
       <a class="hero-cta hero-cta-secondary" href="/workspaces">
         Manage workspaces
       </a>
+      <a class="hero-cta hero-cta-secondary" href="/graphs"> Manage graphs </a>
       <a
         class="hero-cta hero-cta-secondary"
         href="https://ampersandboxdesign.com"

@@ -100,6 +100,7 @@
       <nav class="shell-nav" aria-label="App navigation">
         <a href="/dashboard">Dashboard</a>
         <a href="/workspaces">Workspaces</a>
+        <a href="/graphs">Graphs</a>
       </nav>
 
       <section class="panel">
@@ -142,6 +143,7 @@
           <div class="quick-links">
             <a href="/dashboard">Dashboard</a>
             <a href="/workspaces">Manage workspaces</a>
+            <a href="/graphs">Manage graphs</a>
           </div>
         </div>
 

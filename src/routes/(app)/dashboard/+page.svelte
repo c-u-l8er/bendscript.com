@@ -1,5 +1,5 @@
 <script>
-  let { data, form } = $props();
+  let { data } = $props();
 
   const appName = "BendScript";
 
@@ -21,10 +21,6 @@
   const recentGraphs = $derived(
     Array.isArray(data?.recentGraphs) ? data.recentGraphs : [],
   );
-
-  const workspacePlans = ["free", "kag_api", "kag_teams", "enterprise"];
-  const actionMessage = $derived(form?.message ?? "");
-  const actionType = $derived(form?.action ?? "");
 
   function roleLabel(role) {
     if (!role) return "member";
@@ -62,9 +58,25 @@
     return `/graph/${graphId}${workspaceQuery}`;
   }
 
-  function workspaceOpenHref(workspace) {
+  function workspaceSelectHref(workspaceId = activeWorkspaceId) {
+    return dashboardWorkspaceHref(workspaceId);
+  }
+
+  function graphsWorkspaceHref(workspaceId = activeWorkspaceId) {
+    if (!workspaceId) return "/graphs";
+    return `/graphs?ws=${encodeURIComponent(workspaceId)}`;
+  }
+
+  function workspacesWorkspaceHref(workspaceId = activeWorkspaceId) {
+    if (!workspaceId) return "/workspaces";
+    return `/workspaces?ws=${encodeURIComponent(workspaceId)}`;
+  }
+
+  function openGraphHref(workspace = activeWorkspace) {
     const workspaceId = workspace?.id ?? null;
     const graphId = workspace?.defaultGraphId ?? null;
+    if (!workspaceId) return "/graphs";
+    if (!graphId) return graphsWorkspaceHref(workspaceId);
     return graphHref(graphId, workspaceId);
   }
 </script>
@@ -79,19 +91,19 @@
       <p class="eyebrow">workspace dashboard</p>
       <h1>Welcome back</h1>
       <p class="muted">
-        Manage your workspaces, members, and graph projects from one place.
+        Overview of your workspaces, members, and graph projects.
       </p>
     </div>
 
     <div class="actions">
+      <a class="btn btn-secondary" href={openGraphHref(activeWorkspace)}>
+        Open graph
+      </a>
       <a
         class="btn btn-secondary"
-        href={graphHref(
-          activeWorkspace?.defaultGraphId ?? null,
-          activeWorkspace?.id ?? null,
-        )}
+        href={graphsWorkspaceHref(activeWorkspace?.id ?? null)}
       >
-        Open graph
+        Manage graphs
       </a>
       <a class="btn" href="/workspaces">Manage workspaces</a>
     </div>
@@ -115,7 +127,7 @@
             {@const isActive = workspace.id === activeWorkspaceId}
             <li class:active={isActive}>
               <a
-                href={workspaceOpenHref(workspace)}
+                href={workspaceSelectHref(workspace?.id ?? null)}
                 aria-current={isActive ? "page" : undefined}
               >
                 <span class="avatar">{initials(workspace.name)}</span>
@@ -141,6 +153,23 @@
           <span class="plan">{activeWorkspace?.plan ?? "free"}</span>
         </div>
 
+        {#if activeWorkspace}
+          <div class="overview-links">
+            <a
+              class="overview-link"
+              href={workspacesWorkspaceHref(activeWorkspace?.id ?? null)}
+            >
+              Manage this workspace
+            </a>
+            <a
+              class="overview-link"
+              href={graphsWorkspaceHref(activeWorkspace?.id ?? null)}
+            >
+              Manage graphs in this workspace
+            </a>
+          </div>
+        {/if}
+
         <div class="stats">
           <article>
             <p>Members</p>
@@ -159,137 +188,20 @@
         </div>
       </section>
 
-      <section class="card" id="workspace-crud">
-        <div class="card-head">
-          <h2>Workspace management</h2>
-          <span class="plan">CRUD</span>
-        </div>
-
-        {#if actionMessage}
-          <p class="notice">{actionType}: {actionMessage}</p>
-        {/if}
-
-        <div class="workspace-crud-grid">
-          <form method="POST" action="?/createWorkspace" class="workspace-form">
-            <h3>Create workspace</h3>
-            <label>
-              Name
-              <input name="name" type="text" required maxlength="80" />
-            </label>
-            <label>
-              Slug (optional)
-              <input name="slug" type="text" maxlength="120" />
-            </label>
-            <label>
-              Plan
-              <select name="plan">
-                {#each workspacePlans as plan}
-                  <option value={plan}>{plan}</option>
-                {/each}
-              </select>
-            </label>
-            <button class="btn" type="submit">Create</button>
-          </form>
-
-          <form method="POST" action="?/updateWorkspace" class="workspace-form">
-            <h3>Update workspace</h3>
-            <input
-              type="hidden"
-              name="workspaceId"
-              value={activeWorkspace?.id ?? ""}
-            />
-            <label>
-              Name
-              <input
-                name="name"
-                type="text"
-                required
-                maxlength="80"
-                value={activeWorkspace?.name ?? ""}
-                disabled={!activeWorkspace}
-              />
-            </label>
-            <label>
-              Slug
-              <input
-                name="slug"
-                type="text"
-                maxlength="120"
-                value={activeWorkspace?.slug ?? ""}
-                disabled={!activeWorkspace}
-              />
-            </label>
-            <label>
-              Plan
-              <select name="plan" disabled={!activeWorkspace}>
-                {#each workspacePlans as plan}
-                  <option
-                    value={plan}
-                    selected={(activeWorkspace?.plan ?? "free") === plan}
-                  >
-                    {plan}
-                  </option>
-                {/each}
-              </select>
-            </label>
-            <button
-              class="btn btn-secondary"
-              type="submit"
-              disabled={!activeWorkspace}
-            >
-              Save changes
-            </button>
-          </form>
-
-          <form
-            method="POST"
-            action="?/deleteWorkspace"
-            class="workspace-form danger"
-          >
-            <h3>Delete workspace</h3>
-            <input
-              type="hidden"
-              name="workspaceId"
-              value={activeWorkspace?.id ?? ""}
-            />
-            <p class="muted">
-              This permanently deletes the selected workspace. Type its exact
-              name to confirm.
-            </p>
-            <label>
-              Confirm name
-              <input
-                name="confirmName"
-                type="text"
-                placeholder={activeWorkspace?.name ?? "Workspace name"}
-                disabled={!activeWorkspace}
-              />
-            </label>
-            <button
-              class="btn btn-danger"
-              type="submit"
-              disabled={!activeWorkspace}
-            >
-              Delete workspace
-            </button>
-          </form>
-        </div>
-      </section>
-
       <section class="card">
         <div class="card-head">
           <h2>Recent graphs</h2>
           <a
             class="link"
-            href={dashboardWorkspaceHref(activeWorkspace?.id ?? null)}
-            >View all</a
+            href={graphsWorkspaceHref(activeWorkspace?.id ?? null)}
+            >Manage graphs</a
           >
         </div>
 
         {#if recentGraphs.length === 0}
           <p class="muted">
-            No graphs yet. Start by opening the canvas and creating your first
-            nodes.
+            No graphs yet. Use graph management to create or edit graphs for
+            this workspace.
           </p>
         {:else}
           <ul class="graphs">
@@ -311,7 +223,6 @@
       <section class="card">
         <div class="card-head">
           <h2>Team members</h2>
-          <a class="link" href="/settings/members">Manage</a>
         </div>
 
         {#if !activeWorkspace}
@@ -421,12 +332,6 @@
     background: white;
     border-color: #cbd5e1;
     color: #0f172a;
-  }
-
-  .btn-danger {
-    background: linear-gradient(135deg, #dc2626, #b91c1c);
-    border-color: #991b1b;
-    color: #fff;
   }
 
   .layout {
@@ -574,6 +479,31 @@
     font-size: 1rem;
   }
 
+  .overview-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0 0 0.7rem;
+  }
+
+  .overview-link {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid #cbd5e1;
+    background: #f8fafc;
+    color: #1d4ed8;
+    text-decoration: none;
+    border-radius: 999px;
+    padding: 0.35rem 0.65rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+  }
+
+  .overview-link:hover {
+    text-decoration: underline;
+    background: #eff6ff;
+  }
+
   .graphs li + li {
     border-top: 1px dashed #e2e8f0;
   }
@@ -606,66 +536,6 @@
     color: #475569;
   }
 
-  .notice {
-    margin: 0 0 0.85rem;
-    border: 1px solid #fde68a;
-    background: #fffbeb;
-    color: #92400e;
-    border-radius: 0.7rem;
-    padding: 0.65rem 0.75rem;
-    font-size: 0.9rem;
-  }
-
-  .workspace-crud-grid {
-    display: grid;
-    gap: 0.8rem;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .workspace-form {
-    border: 1px solid #e2e8f0;
-    border-radius: 0.75rem;
-    padding: 0.75rem;
-    background: #f8fafc;
-    display: grid;
-    gap: 0.55rem;
-    align-content: start;
-  }
-
-  .workspace-form h3 {
-    margin: 0;
-    font-size: 0.95rem;
-  }
-
-  .workspace-form label {
-    display: grid;
-    gap: 0.3rem;
-    font-size: 0.84rem;
-    color: #334155;
-  }
-
-  .workspace-form input,
-  .workspace-form select {
-    border: 1px solid #cbd5e1;
-    border-radius: 0.6rem;
-    padding: 0.5rem 0.6rem;
-    font: inherit;
-    color: #0f172a;
-    background: #fff;
-  }
-
-  .workspace-form input:disabled,
-  .workspace-form select:disabled,
-  .workspace-form button:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-
-  .workspace-form.danger {
-    border-color: #fecaca;
-    background: #fff7f7;
-  }
-
   @media (max-width: 900px) {
     .layout {
       grid-template-columns: 1fr;
@@ -676,10 +546,6 @@
     }
 
     .stats {
-      grid-template-columns: 1fr;
-    }
-
-    .workspace-crud-grid {
       grid-template-columns: 1fr;
     }
   }

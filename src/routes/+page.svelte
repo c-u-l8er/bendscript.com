@@ -51,6 +51,7 @@
         <div class="pill">risk <b id="statRisk">low</b></div>
         <a class="pill" href="/dashboard">dashboard</a>
         <a class="pill" href="/workspaces">workspaces</a>
+        <a class="pill" href="/graphs">graphs</a>
         <button class="pill pill-btn" id="nodeModeToggle" type="button">
           mode: EDIT
         </button>
