@@ -1,12 +1,9 @@
 import { fail, redirect } from "@sveltejs/kit";
-import { createSupabaseServerClient } from "$lib/supabase/server";
 import {
-  createWorkspace,
-  deleteWorkspace,
-  listMyWorkspaces,
-  listWorkspaceGraphs,
-  updateWorkspace,
-} from "$lib/supabase/queries";
+  createSupabaseAdminClient,
+  createSupabaseServerClient,
+} from "$lib/supabase/server";
+import { listMyWorkspaces, listWorkspaceGraphs } from "$lib/supabase/queries";
 
 function getSupabase(event) {
   return event.locals?.supabase ?? createSupabaseServerClient(event);
@@ -63,6 +60,123 @@ async function requireUser(supabase) {
   return user;
 }
 
+async function getWorkspaceMembershipRole({ client, workspaceId, userId }) {
+  const { data, error } = await client
+    .from("workspace_members")
+    .select("role")
+    .eq("workspace_id", workspaceId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `Failed to validate workspace membership: ${error.message || "unknown error"}`,
+    );
+  }
+
+  return data?.role || null;
+}
+
+async function requireWorkspaceOwner({ client, workspaceId, userId }) {
+  const role = await getWorkspaceMembershipRole({
+    client,
+    workspaceId,
+    userId,
+  });
+  if (role !== "owner") {
+    throw new Error("Only workspace owners can perform this action.");
+  }
+}
+
+async function createWorkspaceAsAdmin({
+  adminClient,
+  userId,
+  name,
+  slug,
+  plan,
+}) {
+  const { data: workspace, error: createError } = await adminClient
+    .from("workspaces")
+    .insert({
+      name,
+      slug,
+      plan,
+      created_by: userId,
+      metadata: {},
+    })
+    .select("id, name, slug, plan, metadata, created_at, updated_at")
+    .single();
+
+  if (createError) {
+    throw new Error(
+      `Failed to create workspace: ${createError.message || "unknown error"}`,
+    );
+  }
+
+  const { error: memberError } = await adminClient
+    .from("workspace_members")
+    .upsert(
+      {
+        workspace_id: workspace.id,
+        user_id: userId,
+        role: "owner",
+        invited_by: userId,
+      },
+      { onConflict: "workspace_id,user_id" },
+    );
+
+  if (memberError) {
+    await adminClient.from("workspaces").delete().eq("id", workspace.id);
+    throw new Error(
+      `Failed to create workspace membership: ${memberError.message || "unknown error"}`,
+    );
+  }
+
+  return workspace;
+}
+
+async function updateWorkspaceAsAdmin({
+  adminClient,
+  workspaceId,
+  name,
+  slug,
+  plan,
+}) {
+  const patch = {
+    name,
+    slug,
+    plan,
+  };
+
+  const { data, error } = await adminClient
+    .from("workspaces")
+    .update(patch)
+    .eq("id", workspaceId)
+    .select("id, name, slug, plan, metadata, created_at, updated_at")
+    .single();
+
+  if (error) {
+    throw new Error(
+      `Failed to update workspace: ${error.message || "unknown error"}`,
+    );
+  }
+
+  return data;
+}
+
+async function deleteWorkspaceAsAdmin({ adminClient, workspaceId }) {
+  const { error } = await adminClient
+    .from("workspaces")
+    .delete()
+    .eq("id", workspaceId);
+
+  if (error) {
+    throw new Error(
+      `Failed to delete workspace: ${error.message || "unknown error"}`,
+    );
+  }
+}
+
 /** @type {import('./$types').PageServerLoad} */
 export async function load(event) {
   const supabase = getSupabase(event);
@@ -108,7 +222,8 @@ export async function load(event) {
 export const actions = {
   createWorkspace: async (event) => {
     const supabase = getSupabase(event);
-    await requireUser(supabase);
+    const adminClient = createSupabaseAdminClient();
+    const user = await requireUser(supabase);
 
     const form = await event.request.formData();
     const name = String(form.get("name") || "").trim();
@@ -131,14 +246,13 @@ export const actions = {
     const plan = allowedPlans.has(planInput) ? planInput : "free";
 
     try {
-      const workspace = await createWorkspace(
-        {
-          name,
-          slug: uniqueSlug(slugify(slugInput || name, "workspace")),
-          plan,
-        },
-        { client: supabase },
-      );
+      const workspace = await createWorkspaceAsAdmin({
+        adminClient,
+        userId: user.id,
+        name,
+        slug: uniqueSlug(slugify(slugInput || name, "workspace")),
+        plan,
+      });
 
       throw redirect(303, `/workspaces?ws=${workspace.id}`);
     } catch (error) {
@@ -155,7 +269,8 @@ export const actions = {
 
   updateWorkspace: async (event) => {
     const supabase = getSupabase(event);
-    await requireUser(supabase);
+    const adminClient = createSupabaseAdminClient();
+    const user = await requireUser(supabase);
 
     const form = await event.request.formData();
     const workspaceId = String(form.get("workspaceId") || "").trim();
@@ -186,15 +301,19 @@ export const actions = {
     const plan = allowedPlans.has(planInput) ? planInput : "free";
 
     try {
-      const workspace = await updateWorkspace(
+      await requireWorkspaceOwner({
+        client: supabase,
         workspaceId,
-        {
-          name,
-          slug: slugInput || slugify(name, "workspace"),
-          plan,
-        },
-        { client: supabase },
-      );
+        userId: user.id,
+      });
+
+      const workspace = await updateWorkspaceAsAdmin({
+        adminClient,
+        workspaceId,
+        name,
+        slug: slugInput || slugify(name, "workspace"),
+        plan,
+      });
 
       throw redirect(303, `/workspaces?ws=${workspace.id}`);
     } catch (error) {
@@ -211,7 +330,8 @@ export const actions = {
 
   deleteWorkspace: async (event) => {
     const supabase = getSupabase(event);
-    await requireUser(supabase);
+    const adminClient = createSupabaseAdminClient();
+    const user = await requireUser(supabase);
 
     const form = await event.request.formData();
     const workspaceId = String(form.get("workspaceId") || "").trim();
@@ -243,7 +363,13 @@ export const actions = {
         });
       }
 
-      await deleteWorkspace(workspaceId, { client: supabase });
+      await requireWorkspaceOwner({
+        client: supabase,
+        workspaceId,
+        userId: user.id,
+      });
+
+      await deleteWorkspaceAsAdmin({ adminClient, workspaceId });
       throw redirect(303, "/workspaces");
     } catch (error) {
       if (error?.status && error.status >= 300 && error.status < 400) {
