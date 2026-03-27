@@ -9,6 +9,26 @@ BendScript has two surfaces: a **visual canvas** where humans build knowledge in
 
 ---
 
+## Local Development Quickstart (Recommended)
+
+For full local/cloud parity, run **local Supabase in development** and hosted Supabase in production.
+
+1. Install Docker + Supabase CLI.
+2. From `bendscript.com`, start local Supabase:
+   - `npm run supabase:start`
+3. Reset/apply local migrations:
+   - `npm run supabase:db:reset`
+4. Create `.env.local` with local Supabase values:
+   - `PUBLIC_SUPABASE_URL=http://127.0.0.1:54321`
+   - `PUBLIC_SUPABASE_ANON_KEY=<from supabase status>`
+   - `SUPABASE_SERVICE_ROLE_KEY=<from supabase status>`
+5. Run the app:
+   - `npm run dev`
+
+See full guide: `docs/local-supabase.md`.
+
+---
+
 ## Core Concept: Script Bending
 
 "Script bending" is the manipulation of conversational and computational flows through graph topology. Instead of linear chat, users interact with a living graph where:

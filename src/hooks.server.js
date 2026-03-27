@@ -28,6 +28,9 @@ export async function handle({ event, resolve }) {
       return { session: null, user: null };
     }
 
+    event.locals.session = session;
+    event.locals.user = user;
+
     return { session, user };
   };
 

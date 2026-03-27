@@ -1,3 +1,4 @@
+// ProjectAmp2/bendscript.com/src/routes/(app)/graph/[id]/+page.server.js
 import { error, redirect } from "@sveltejs/kit";
 import { createSupabaseServerClient } from "$lib/supabase/server";
 import { loadGraphState } from "$lib/supabase/queries";

@@ -1,3 +1,4 @@
+// ProjectAmp2/bendscript.com/src/routes/(app)/workspaces/+page.server.js
 import { fail, redirect } from "@sveltejs/kit";
 import {
   createSupabaseAdminClient,
@@ -7,6 +8,14 @@ import { listMyWorkspaces, listWorkspaceGraphs } from "$lib/supabase/queries";
 
 function getSupabase(event) {
   return event.locals?.supabase ?? createSupabaseServerClient(event);
+}
+
+function getAdminClientOrNull() {
+  try {
+    return createSupabaseAdminClient();
+  } catch {
+    return null;
+  }
 }
 
 function toMessage(error, fallback = "Unexpected error") {
@@ -222,8 +231,16 @@ export async function load(event) {
 export const actions = {
   createWorkspace: async (event) => {
     const supabase = getSupabase(event);
-    const adminClient = createSupabaseAdminClient();
+    const adminClient = getAdminClientOrNull();
     const user = await requireUser(supabase);
+
+    if (!adminClient) {
+      return fail(503, {
+        action: "createWorkspace",
+        message:
+          "Workspace write actions are disabled in this environment. Configure SUPABASE_SERVICE_ROLE_KEY to enable create/update/delete.",
+      });
+    }
 
     const form = await event.request.formData();
     const name = String(form.get("name") || "").trim();
@@ -269,8 +286,16 @@ export const actions = {
 
   updateWorkspace: async (event) => {
     const supabase = getSupabase(event);
-    const adminClient = createSupabaseAdminClient();
+    const adminClient = getAdminClientOrNull();
     const user = await requireUser(supabase);
+
+    if (!adminClient) {
+      return fail(503, {
+        action: "updateWorkspace",
+        message:
+          "Workspace write actions are disabled in this environment. Configure SUPABASE_SERVICE_ROLE_KEY to enable create/update/delete.",
+      });
+    }
 
     const form = await event.request.formData();
     const workspaceId = String(form.get("workspaceId") || "").trim();
@@ -330,8 +355,16 @@ export const actions = {
 
   deleteWorkspace: async (event) => {
     const supabase = getSupabase(event);
-    const adminClient = createSupabaseAdminClient();
+    const adminClient = getAdminClientOrNull();
     const user = await requireUser(supabase);
+
+    if (!adminClient) {
+      return fail(503, {
+        action: "deleteWorkspace",
+        message:
+          "Workspace write actions are disabled in this environment. Configure SUPABASE_SERVICE_ROLE_KEY to enable create/update/delete.",
+      });
+    }
 
     const form = await event.request.formData();
     const workspaceId = String(form.get("workspaceId") || "").trim();

@@ -21,14 +21,50 @@
   const missingEnvVars = $derived(
     ["PUBLIC_SUPABASE_URL", "PUBLIC_SUPABASE_ANON_KEY"].join(" and "),
   );
+  const callbackOriginOverride = $derived(
+    String(
+      import.meta.env.PUBLIC_AUTH_REDIRECT_ORIGIN ||
+        import.meta.env.PUBLIC_SITE_URL ||
+        "",
+    ).trim(),
+  );
+
+  function isEnabledFlag(value) {
+    const normalized = String(value || "")
+      .trim()
+      .toLowerCase();
+    return normalized === "1" || normalized === "true" || normalized === "yes";
+  }
+
+  const googleSignInEnabled = $derived(
+    isEnabledFlag(import.meta.env.PUBLIC_BENDSCRIPT_GOOGLE_AUTH_ENABLED) ||
+      isEnabledFlag(import.meta.env.PUBLIC_GOOGLE_AUTH_ENABLED),
+  );
+
+  const supabaseUrl = $derived(
+    String(import.meta.env.PUBLIC_SUPABASE_URL || "").trim(),
+  );
+  const isLocalSupabase = $derived(
+    supabaseUrl.startsWith("http://127.0.0.1:54321") ||
+      supabaseUrl.startsWith("http://localhost:54321"),
+  );
+  const mailpitUrl = "http://127.0.0.1:54324/";
 
   function getEnvSetupMessage() {
     return `Supabase is not configured. Set ${missingEnvVars} in your local environment, restart the dev server, and reload this page.`;
   }
 
   function getCallbackUrl() {
-    if (typeof window === "undefined") return "";
-    const callback = new URL("/auth/callback", window.location.origin);
+    const defaultLocalOrigin = "http://localhost:5173";
+    const baseOrigin =
+      callbackOriginOverride ||
+      (import.meta.env.DEV
+        ? defaultLocalOrigin
+        : typeof window !== "undefined"
+          ? window.location.origin
+          : defaultLocalOrigin);
+
+    const callback = new URL("/auth/callback", baseOrigin);
     callback.searchParams.set("redirectTo", redirectTo);
     return callback.toString();
   }
@@ -139,6 +175,12 @@
     <p class="eyebrow">BENDSCRIPT</p>
     <h1>Sign in to your workspace</h1>
     <p class="subtext">Continue with Google or get a magic link by email.</p>
+    {#if isLocalSupabase}
+      <p class="subtext">
+        In local development, magic-link emails are delivered to
+        <a href={mailpitUrl} target="_blank" rel="noreferrer">Mailpit</a>.
+      </p>
+    {/if}
 
     {#if !supabaseConfigured}
       <p class="status warning" role="alert">
@@ -148,22 +190,24 @@
       </p>
     {/if}
 
-    <button
-      class="btn btn-google"
-      type="button"
-      onclick={handleGoogleSignIn}
-      disabled={isGoogleLoading || isEmailLoading || !supabaseConfigured}
-    >
-      {#if isGoogleLoading}
-        Connecting to Google…
-      {:else}
-        Continue with Google
-      {/if}
-    </button>
+    {#if googleSignInEnabled}
+      <button
+        class="btn btn-google"
+        type="button"
+        onclick={handleGoogleSignIn}
+        disabled={isGoogleLoading || isEmailLoading || !supabaseConfigured}
+      >
+        {#if isGoogleLoading}
+          Connecting to Google…
+        {:else}
+          Continue with Google
+        {/if}
+      </button>
 
-    <div class="divider" aria-hidden="true">
-      <span>or</span>
-    </div>
+      <div class="divider" aria-hidden="true">
+        <span>or</span>
+      </div>
+    {/if}
 
     <form onsubmit={handleEmailSignIn}>
       <label for="email">Email</label>

@@ -197,8 +197,10 @@ export const actions = {
 
       throw redirect(303, `/graphs?workspace=${workspaceId}&graph=${graph.id}`);
     } catch (error) {
-      if (error?.status && error.status >= 300 && error.status < 400)
+      if (error?.status && error.status >= 300 && error.status < 400) {
         throw error;
+      }
+
       return fail(500, {
         action: "createGraph",
         message: toMessage(error, "Failed to create graph."),
@@ -261,8 +263,10 @@ export const actions = {
 
       throw redirect(303, `/graphs?workspace=${workspaceId}&graph=${graph.id}`);
     } catch (error) {
-      if (error?.status && error.status >= 300 && error.status < 400)
+      if (error?.status && error.status >= 300 && error.status < 400) {
         throw error;
+      }
+
       return fail(500, {
         action: "updateGraph",
         message: toMessage(error, "Failed to update graph."),
@@ -340,8 +344,10 @@ export const actions = {
 
       throw redirect(303, `/graphs?workspace=${workspaceId}`);
     } catch (error) {
-      if (error?.status && error.status >= 300 && error.status < 400)
+      if (error?.status && error.status >= 300 && error.status < 400) {
         throw error;
+      }
+
       return fail(500, {
         action: "deleteGraph",
         message: toMessage(error, "Failed to delete graph."),
