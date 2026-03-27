@@ -38,6 +38,9 @@
   );
 
   const inPrototypeMode = $derived(integration.mode !== "cloud");
+  const isFullscreenGraphRoute = $derived(
+    $page.url.pathname.startsWith("/graph/"),
+  );
 
   const integrationItems = $derived([
     { label: "Supabase", ok: !!integration?.supabase?.configured },
@@ -92,91 +95,95 @@
 </svelte:head>
 
 {#if session && user}
-  <div class="app-shell">
-    <aside class="sidebar">
-      <a class="logo" href="/dashboard">
-        <span class="logo-mark">⊛</span>
-        <span class="logo-text">{appName}</span>
-      </a>
+  {#if isFullscreenGraphRoute}
+    {@render children?.()}
+  {:else}
+    <div class="app-shell">
+      <aside class="sidebar">
+        <a class="logo" href="/dashboard">
+          <span class="logo-mark">⊛</span>
+          <span class="logo-text">{appName}</span>
+        </a>
 
-      <nav class="shell-nav" aria-label="App navigation">
-        <a href="/dashboard">Dashboard</a>
-        <a href="/workspaces">Workspaces</a>
-        <a href="/graphs">Graphs</a>
-      </nav>
+        <nav class="shell-nav" aria-label="App navigation">
+          <a href="/dashboard">Dashboard</a>
+          <a href="/workspaces">Workspaces</a>
+          <a href="/graphs">Graphs</a>
+        </nav>
 
-      <section class="panel">
-        <header class="panel-header">
-          <h2>Workspaces</h2>
-        </header>
+        <section class="panel">
+          <header class="panel-header">
+            <h2>Workspaces</h2>
+          </header>
 
-        {#if workspaces.length === 0}
-          <p class="empty">No workspaces yet.</p>
-        {:else}
-          <ul class="workspace-list">
-            {#each workspaces as ws (ws.id)}
-              <li>
-                <a
-                  class:active={isActiveWorkspace(ws.id)}
-                  href={workspaceHref(ws.id)}
-                  title={ws.name}
-                >
-                  <span class="name">{ws.name}</span>
-                  {#if ws.role}
-                    <span class="role">{ws.role}</span>
-                  {/if}
-                </a>
-              </li>
-            {/each}
-          </ul>
-        {/if}
-      </section>
-
-      <form class="logout" method="post" action="/auth/logout">
-        <button type="submit">Sign out</button>
-      </form>
-    </aside>
-
-    <main class="content">
-      <header class="topbar">
-        <div class="topbar-meta">
-          <h1>{currentWorkspace?.name ?? "Workspace"}</h1>
-          <p>{user.email}</p>
-          <div class="quick-links">
-            <a href="/dashboard">Dashboard</a>
-            <a href="/workspaces">Manage workspaces</a>
-            <a href="/graphs">Manage graphs</a>
-          </div>
-        </div>
-
-        <div class="status-pills" aria-label="Integration status">
-          {#each integrationItems as item (item.label)}
-            <span class={badgeClass(item.ok)}>
-              <span class="dot" aria-hidden="true"></span>
-              {item.label}
-            </span>
-          {/each}
-        </div>
-      </header>
-
-      {#if inPrototypeMode}
-        <section class="integration-banner" role="status" aria-live="polite">
-          <strong>Cloud integrations are not fully configured.</strong>
-          <span>
-            Running in prototype/local mode. Some functionality (persistent
-            cloud tables, API routes, realtime, AI proxy) may be unavailable.
-          </span>
-          {#if missingIntegrationVars.length > 0}
-            <small>Missing: {missingIntegrationVars.join(", ")}</small>
+          {#if workspaces.length === 0}
+            <p class="empty">No workspaces yet.</p>
+          {:else}
+            <ul class="workspace-list">
+              {#each workspaces as ws (ws.id)}
+                <li>
+                  <a
+                    class:active={isActiveWorkspace(ws.id)}
+                    href={workspaceHref(ws.id)}
+                    title={ws.name}
+                  >
+                    <span class="name">{ws.name}</span>
+                    {#if ws.role}
+                      <span class="role">{ws.role}</span>
+                    {/if}
+                  </a>
+                </li>
+              {/each}
+            </ul>
           {/if}
         </section>
-      {/if}
 
-      <section class="page-body">
-        {@render children?.()}
-      </section>
-    </main>
-  </div>
+        <form class="logout" method="post" action="/auth/logout">
+          <button type="submit">Sign out</button>
+        </form>
+      </aside>
+
+      <main class="content">
+        <header class="topbar">
+          <div class="topbar-meta">
+            <h1>{currentWorkspace?.name ?? "Workspace"}</h1>
+            <p>{user.email}</p>
+            <div class="quick-links">
+              <a href="/dashboard">Dashboard</a>
+              <a href="/workspaces">Manage workspaces</a>
+              <a href="/graphs">Manage graphs</a>
+            </div>
+          </div>
+
+          <div class="status-pills" aria-label="Integration status">
+            {#each integrationItems as item (item.label)}
+              <span class={badgeClass(item.ok)}>
+                <span class="dot" aria-hidden="true"></span>
+                {item.label}
+              </span>
+            {/each}
+          </div>
+        </header>
+
+        {#if inPrototypeMode}
+          <section class="integration-banner" role="status" aria-live="polite">
+            <strong>Cloud integrations are not fully configured.</strong>
+            <span>
+              Running in prototype/local mode. Some functionality (persistent
+              cloud tables, API routes, realtime, AI proxy) may be unavailable.
+            </span>
+            {#if missingIntegrationVars.length > 0}
+              <small>Missing: {missingIntegrationVars.join(", ")}</small>
+            {/if}
+          </section>
+        {/if}
+
+        <section class="page-body">
+          {@render children?.()}
+        </section>
+      </main>
+    </div>
+  {/if}
 {/if}
 
 <style>
