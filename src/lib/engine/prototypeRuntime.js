@@ -35,12 +35,17 @@ export function initPrototypeRuntime(options = {}) {
     readOnly = false,
     aiSynthesis = null,
     emitRealtimePatch = null,
+    runtimeKey = null,
   } = options;
   const runtimeReadOnly = readOnly === true;
   let runtimeControls = null;
 
   runtimeControls = (() => {
-    const STORAGE_KEY = "bendscript-state-v1";
+    const STORAGE_KEY_BASE = "bendscript-state-v1";
+    const STORAGE_KEY_LEGACY = STORAGE_KEY_BASE;
+    const STORAGE_KEY = `${STORAGE_KEY_BASE}:${String(
+      runtimeKey || window.location.pathname || "default",
+    )}`;
     const canvas = document.getElementById("graph");
     const ctx = canvas.getContext("2d");
     const dpr = () => Math.min(window.devicePixelRatio || 1, 2);
@@ -579,9 +584,14 @@ export function initPrototypeRuntime(options = {}) {
 
     function loadState() {
       try {
-        const raw = localStorage.getItem(STORAGE_KEY);
+        const scopedRaw = localStorage.getItem(STORAGE_KEY);
+        const legacyRaw = localStorage.getItem(STORAGE_KEY_LEGACY);
+        const raw = scopedRaw || legacyRaw;
         if (!raw) return null;
         const parsed = JSON.parse(raw);
+        if (!scopedRaw && legacyRaw) {
+          localStorage.setItem(STORAGE_KEY, legacyRaw);
+        }
         if (!parsed || !parsed.planes || !parsed.activePlaneId) return null;
         for (const p of Object.values(parsed.planes)) {
           p.nodes = Array.isArray(p.nodes) ? p.nodes : [];

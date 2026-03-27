@@ -82,6 +82,7 @@
         readOnly={!canEdit}
         aiSynthesis={graphCanvasAi}
         realtime={graphCanvasRealtime}
+        runtimeKey={graphId}
       />
 
       <div class="hud">
@@ -214,6 +215,10 @@
     padding: 1rem;
   }
 
+  :global(.hud) {
+    top: 4.75rem;
+  }
+
   @media (max-width: 900px) {
     .app-topbar {
       top: 0.5rem;
@@ -224,6 +229,10 @@
 
     .graph-id {
       display: none;
+    }
+
+    :global(.hud) {
+      top: 4.75rem;
     }
 
     .graph-meta strong {

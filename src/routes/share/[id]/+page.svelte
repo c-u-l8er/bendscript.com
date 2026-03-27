@@ -75,7 +75,11 @@
   {/if}
 
   <section class="app-section share-app" id="appSection">
-    <GraphCanvas initialState={data?.initialState ?? null} readOnly={true} />
+    <GraphCanvas
+      initialState={data?.initialState ?? null}
+      readOnly={true}
+      runtimeKey={data?.graph?.id ?? shareId}
+    />
 
     <div class="hud">
       <div class="hud-row">

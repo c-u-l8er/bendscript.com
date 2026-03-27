@@ -17,6 +17,7 @@
     readOnly = false,
     aiSynthesis = null,
     realtime = null,
+    runtimeKey = null,
   } = $props();
 
   let canvas;
@@ -122,11 +123,14 @@
 
   function runtimeConfigSignature(options) {
     return JSON.stringify({
+      runtimeKey: options.runtimeKey ?? null,
+      routeKey: options.routeKey ?? null,
       hasInitialState: !!options.initialState,
       rootPlaneId: options.initialState?.rootPlaneId ?? null,
       activePlaneId: options.initialState?.activePlaneId ?? null,
       readOnly: !!options.readOnly,
       aiEnabled: options.aiSynthesis?.enabled === true,
+      aiGraphId: options.aiGraphId ?? null,
       realtimeEnabled: !!options.realtimeEnabled,
       realtimeWorkspaceId: options.realtimeWorkspaceId ?? null,
       realtimeGraphId: options.realtimeGraphId ?? null,
@@ -276,6 +280,11 @@
       const runtimeOptions = {
         autoStartLoop: false,
         initialState,
+        runtimeKey,
+        routeKey:
+          typeof window !== "undefined"
+            ? `${window.location.pathname}${window.location.search}`
+            : null,
         readOnly: !!readOnly,
         aiSynthesis: buildRuntimeAiSynthesis(),
         emitRealtimePatch: emitRealtimePatchFromRuntime,
@@ -292,22 +301,22 @@
           realtime && typeof realtime === "object"
             ? (realtime.graphId ?? null)
             : null,
+        aiGraphId:
+          aiSynthesis && typeof aiSynthesis === "object"
+            ? (aiSynthesis.graphId ?? null)
+            : null,
       };
 
       const nextSignature = runtimeConfigSignature(runtimeOptions);
 
-      if (
-        !window.__BENDSCRIPT_RUNTIME_INSTANCE__ ||
-        window.__BENDSCRIPT_RUNTIME_CONFIG_SIGNATURE__ !== nextSignature
-      ) {
-        window.__BENDSCRIPT_RUNTIME_INSTANCE__?.destroy?.();
-        window.__BENDSCRIPT_RUNTIME_INSTANCE__ =
-          initPrototypeRuntime(runtimeOptions);
-        window.__BENDSCRIPT_RUNTIME_CONFIG_SIGNATURE__ = nextSignature;
-      }
+      // Runtime captures direct DOM references; always create a fresh instance
+      // for each mount so returning to the graph page rebinds correctly.
+      window.__BENDSCRIPT_RUNTIME_INSTANCE__?.destroy?.();
+      window.__BENDSCRIPT_RUNTIME_INSTANCE__ =
+        initPrototypeRuntime(runtimeOptions);
+      window.__BENDSCRIPT_RUNTIME_CONFIG_SIGNATURE__ = nextSignature;
 
       runtime = window.__BENDSCRIPT_RUNTIME_INSTANCE__;
-      runtime?.stopLoop?.();
       startLoop();
 
       realtimeSession = buildRuntimeRealtime();
@@ -342,6 +351,15 @@
       const activeRealtime = realtimeSession;
       realtimeSession = null;
       activeRealtime?.stop?.();
+
+      const activeRuntime = runtime;
+      runtime = null;
+      activeRuntime?.destroy?.();
+
+      if (window.__BENDSCRIPT_RUNTIME_INSTANCE__ === activeRuntime) {
+        window.__BENDSCRIPT_RUNTIME_INSTANCE__ = null;
+        window.__BENDSCRIPT_RUNTIME_CONFIG_SIGNATURE__ = null;
+      }
     };
   });
 </script>
