@@ -69,7 +69,9 @@
   });
 
   function isActiveWorkspace(workspaceId) {
-    const q = $page.url.searchParams.get("workspace");
+    const qWorkspace = $page.url.searchParams.get("workspace");
+    const qWs = $page.url.searchParams.get("ws");
+    const q = qWorkspace || qWs;
     if (q) return q === workspaceId;
     return workspaceId === activeWorkspaceId;
   }

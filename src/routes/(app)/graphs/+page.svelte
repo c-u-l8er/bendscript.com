@@ -23,7 +23,8 @@
   const actionType = $derived(form?.action ?? "");
 
   function graphHref(graphId, workspaceId = activeWorkspaceId) {
-    if (!graphId) return `/graphs?ws=${encodeURIComponent(workspaceId || "")}`;
+    if (!graphId)
+      return `/graphs?workspace=${encodeURIComponent(workspaceId || "")}`;
     const p = new URLSearchParams();
     if (workspaceId) p.set("workspace", workspaceId);
     return `/graph/${graphId}?${p.toString()}`;
@@ -31,7 +32,7 @@
 
   function graphManageHref(graphId, workspaceId = activeWorkspaceId) {
     const p = new URLSearchParams();
-    if (workspaceId) p.set("ws", workspaceId);
+    if (workspaceId) p.set("workspace", workspaceId);
     if (graphId) p.set("graph", graphId);
     return `/graphs?${p.toString()}`;
   }

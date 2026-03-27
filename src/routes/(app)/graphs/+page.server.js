@@ -40,11 +40,11 @@ function uniqueSlug(base) {
 }
 
 function normalizeWorkspaceIdParam(url) {
-  const ws = String(url.searchParams.get("ws") || "").trim();
-  if (ws) return ws;
-
   const workspace = String(url.searchParams.get("workspace") || "").trim();
   if (workspace) return workspace;
+
+  const ws = String(url.searchParams.get("ws") || "").trim();
+  if (ws) return ws;
 
   return null;
 }
@@ -106,7 +106,9 @@ async function deleteGraphAsAdmin({ adminClient, graphId, workspaceId }) {
     .eq("workspace_id", workspaceId);
 
   if (error) {
-    throw new Error(`Failed to delete graph: ${error.message || "unknown error"}`);
+    throw new Error(
+      `Failed to delete graph: ${error.message || "unknown error"}`,
+    );
   }
 }
 
@@ -128,7 +130,9 @@ export async function load(event) {
   let graphs = [];
   if (activeWorkspace?.id) {
     try {
-      graphs = await listWorkspaceGraphs(activeWorkspace.id, { client: supabase });
+      graphs = await listWorkspaceGraphs(activeWorkspace.id, {
+        client: supabase,
+      });
     } catch {
       graphs = [];
     }
@@ -157,7 +161,9 @@ export const actions = {
     const workspaceId = String(form.get("workspaceId") || "").trim();
     const name = String(form.get("name") || "").trim() || "Untitled Graph";
     const description = String(form.get("description") || "").trim() || null;
-    const isPublicInput = String(form.get("isPublic") || "").trim().toLowerCase();
+    const isPublicInput = String(form.get("isPublic") || "")
+      .trim()
+      .toLowerCase();
     const isPublic = isPublicInput === "true" || isPublicInput === "on";
 
     if (!workspaceId) {
@@ -189,9 +195,10 @@ export const actions = {
         { client: supabase },
       );
 
-      throw redirect(303, `/graphs?ws=${workspaceId}&graph=${graph.id}`);
+      throw redirect(303, `/graphs?workspace=${workspaceId}&graph=${graph.id}`);
     } catch (error) {
-      if (error?.status && error.status >= 300 && error.status < 400) throw error;
+      if (error?.status && error.status >= 300 && error.status < 400)
+        throw error;
       return fail(500, {
         action: "createGraph",
         message: toMessage(error, "Failed to create graph."),
@@ -209,7 +216,9 @@ export const actions = {
     const name = String(form.get("name") || "").trim();
     const slugInput = String(form.get("slug") || "").trim();
     const description = String(form.get("description") || "").trim() || null;
-    const isPublicInput = String(form.get("isPublic") || "").trim().toLowerCase();
+    const isPublicInput = String(form.get("isPublic") || "")
+      .trim()
+      .toLowerCase();
     const isPublic = isPublicInput === "true" || isPublicInput === "on";
 
     if (!workspaceId || !graphId) {
@@ -250,9 +259,10 @@ export const actions = {
         { client: supabase },
       );
 
-      throw redirect(303, `/graphs?ws=${workspaceId}&graph=${graph.id}`);
+      throw redirect(303, `/graphs?workspace=${workspaceId}&graph=${graph.id}`);
     } catch (error) {
-      if (error?.status && error.status >= 300 && error.status < 400) throw error;
+      if (error?.status && error.status >= 300 && error.status < 400)
+        throw error;
       return fail(500, {
         action: "updateGraph",
         message: toMessage(error, "Failed to update graph."),
@@ -295,7 +305,9 @@ export const actions = {
         });
       }
 
-      const graphs = await listWorkspaceGraphs(workspaceId, { client: supabase });
+      const graphs = await listWorkspaceGraphs(workspaceId, {
+        client: supabase,
+      });
       const graph = graphs.find((g) => g.id === graphId);
 
       if (!graph) {
@@ -326,9 +338,10 @@ export const actions = {
         await deleteGraphAsAdmin({ adminClient, graphId, workspaceId });
       }
 
-      throw redirect(303, `/graphs?ws=${workspaceId}`);
+      throw redirect(303, `/graphs?workspace=${workspaceId}`);
     } catch (error) {
-      if (error?.status && error.status >= 300 && error.status < 400) throw error;
+      if (error?.status && error.status >= 300 && error.status < 400)
+        throw error;
       return fail(500, {
         action: "deleteGraph",
         message: toMessage(error, "Failed to delete graph."),

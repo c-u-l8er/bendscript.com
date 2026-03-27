@@ -29,11 +29,11 @@ function uniqueSlug(base) {
 }
 
 function normalizeWorkspaceIdParam(url) {
-  const ws = String(url.searchParams.get("ws") || "").trim();
-  if (ws) return ws;
-
   const workspace = String(url.searchParams.get("workspace") || "").trim();
   if (workspace) return workspace;
+
+  const ws = String(url.searchParams.get("ws") || "").trim();
+  if (ws) return ws;
 
   return null;
 }
@@ -254,7 +254,7 @@ export const actions = {
         plan,
       });
 
-      throw redirect(303, `/workspaces?ws=${workspace.id}`);
+      throw redirect(303, `/workspaces?workspace=${workspace.id}`);
     } catch (error) {
       if (error?.status && error.status >= 300 && error.status < 400) {
         throw error;
@@ -315,7 +315,7 @@ export const actions = {
         plan,
       });
 
-      throw redirect(303, `/workspaces?ws=${workspace.id}`);
+      throw redirect(303, `/workspaces?workspace=${workspace.id}`);
     } catch (error) {
       if (error?.status && error.status >= 300 && error.status < 400) {
         throw error;

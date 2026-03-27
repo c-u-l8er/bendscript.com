@@ -193,7 +193,8 @@ export async function load(event) {
   }
 
   const cookieWorkspaceId = cookies.get(WORKSPACE_COOKIE) || null;
-  const queryWorkspaceId = url.searchParams.get("workspace") || null;
+  const queryWorkspaceId =
+    url.searchParams.get("workspace") || url.searchParams.get("ws") || null;
 
   const { currentWorkspace, currentRole, currentWorkspaceId } =
     pickActiveWorkspace({

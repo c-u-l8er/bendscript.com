@@ -12,11 +12,11 @@ function getSupabase(event) {
 }
 
 function normalizeWorkspaceIdParam(url) {
-  const ws = String(url.searchParams.get("ws") || "").trim();
-  if (ws) return ws;
-
   const workspace = String(url.searchParams.get("workspace") || "").trim();
   if (workspace) return workspace;
+
+  const ws = String(url.searchParams.get("ws") || "").trim();
+  if (ws) return ws;
 
   return null;
 }

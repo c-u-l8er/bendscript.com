@@ -47,7 +47,7 @@
 
   function dashboardWorkspaceHref(workspaceId = activeWorkspaceId) {
     if (!workspaceId) return "/dashboard";
-    return `/dashboard?ws=${encodeURIComponent(workspaceId)}`;
+    return `/dashboard?workspace=${encodeURIComponent(workspaceId)}`;
   }
 
   function graphHref(graphId, workspaceId = activeWorkspaceId) {
@@ -60,12 +60,12 @@
 
   function graphsWorkspaceHref(workspaceId = activeWorkspaceId) {
     if (!workspaceId) return "/graphs";
-    return `/graphs?ws=${encodeURIComponent(workspaceId)}`;
+    return `/graphs?workspace=${encodeURIComponent(workspaceId)}`;
   }
 
   function workspacesWorkspaceHref(workspaceId = activeWorkspaceId) {
     if (!workspaceId) return "/workspaces";
-    return `/workspaces?ws=${encodeURIComponent(workspaceId)}`;
+    return `/workspaces?workspace=${encodeURIComponent(workspaceId)}`;
   }
 
   function openGraphHref(workspace = activeWorkspace) {
