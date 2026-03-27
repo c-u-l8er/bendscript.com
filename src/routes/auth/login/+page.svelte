@@ -2,7 +2,10 @@
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
   import { page } from "$app/stores";
-  import { getSupabaseClient } from "$lib/supabase/client";
+  import {
+    getSupabaseClient,
+    isSupabaseConfigured,
+  } from "$lib/supabase/client";
 
   let email = $state("");
   let isEmailLoading = $state(false);
@@ -14,6 +17,15 @@
     $page.url.searchParams.get("redirectTo") || "/dashboard",
   );
 
+  const supabaseConfigured = $derived(isSupabaseConfigured());
+  const missingEnvVars = $derived(
+    ["PUBLIC_SUPABASE_URL", "PUBLIC_SUPABASE_ANON_KEY"].join(" and "),
+  );
+
+  function getEnvSetupMessage() {
+    return `Supabase is not configured. Set ${missingEnvVars} in your local environment, restart the dev server, and reload this page.`;
+  }
+
   function getCallbackUrl() {
     if (typeof window === "undefined") return "";
     const callback = new URL("/auth/callback", window.location.origin);
@@ -23,6 +35,7 @@
 
   async function ensureSignedOutState() {
     try {
+      if (!supabaseConfigured) return;
       const supabase = getSupabaseClient();
       if (!supabase) return;
 
@@ -60,7 +73,7 @@
     try {
       const supabase = getSupabaseClient();
       if (!supabase) {
-        throw new Error("Supabase client is not available.");
+        throw new Error(getEnvSetupMessage());
       }
 
       const { error } = await supabase.auth.signInWithOtp({
@@ -90,7 +103,7 @@
     try {
       const supabase = getSupabaseClient();
       if (!supabase) {
-        throw new Error("Supabase client is not available.");
+        throw new Error(getEnvSetupMessage());
       }
 
       const { error } = await supabase.auth.signInWithOAuth({
@@ -127,11 +140,19 @@
     <h1>Sign in to your workspace</h1>
     <p class="subtext">Continue with Google or get a magic link by email.</p>
 
+    {#if !supabaseConfigured}
+      <p class="status warning" role="alert">
+        Supabase is not configured for this environment. Set
+        <code>PUBLIC_SUPABASE_URL</code> and
+        <code>PUBLIC_SUPABASE_ANON_KEY</code>, then restart the dev server.
+      </p>
+    {/if}
+
     <button
       class="btn btn-google"
       type="button"
       onclick={handleGoogleSignIn}
-      disabled={isGoogleLoading || isEmailLoading}
+      disabled={isGoogleLoading || isEmailLoading || !supabaseConfigured}
     >
       {#if isGoogleLoading}
         Connecting to Google…
@@ -154,13 +175,13 @@
         bind:value={email}
         placeholder="you@company.com"
         required
-        disabled={isEmailLoading || isGoogleLoading}
+        disabled={isEmailLoading || isGoogleLoading || !supabaseConfigured}
       />
 
       <button
         class="btn btn-primary"
         type="submit"
-        disabled={isEmailLoading || isGoogleLoading}
+        disabled={isEmailLoading || isGoogleLoading || !supabaseConfigured}
       >
         {#if isEmailLoading}
           Sending magic link…
@@ -314,6 +335,12 @@
     border: 1px solid #bbf7d0;
     background: #f0fdf4;
     color: #14532d;
+  }
+
+  .status.warning {
+    border: 1px solid #fed7aa;
+    background: #fff7ed;
+    color: #9a3412;
   }
 
   .helper {

@@ -44,6 +44,25 @@
       day: "numeric",
     });
   }
+
+  function dashboardWorkspaceHref(workspaceId = activeWorkspaceId) {
+    if (!workspaceId) return "/dashboard";
+    return `/dashboard?ws=${encodeURIComponent(workspaceId)}`;
+  }
+
+  function graphHref(graphId, workspaceId = activeWorkspaceId) {
+    if (!graphId) return dashboardWorkspaceHref(workspaceId);
+    const workspaceQuery = workspaceId
+      ? `?workspace=${encodeURIComponent(workspaceId)}`
+      : "";
+    return `/graph/${graphId}${workspaceQuery}`;
+  }
+
+  function workspaceOpenHref(workspace) {
+    const workspaceId = workspace?.id ?? null;
+    const graphId = workspace?.defaultGraphId ?? null;
+    return graphHref(graphId, workspaceId);
+  }
 </script>
 
 <svelte:head>
@@ -63,7 +82,10 @@
     <div class="actions">
       <a
         class="btn btn-secondary"
-        href="/graph/{activeWorkspace?.defaultGraphId ?? ''}"
+        href={graphHref(
+          activeWorkspace?.defaultGraphId ?? null,
+          activeWorkspace?.id ?? null,
+        )}
       >
         Open graph
       </a>
@@ -91,7 +113,7 @@
             {@const isActive = workspace.id === activeWorkspaceId}
             <li class:active={isActive}>
               <a
-                href={`/graph/${workspace.defaultGraphId ?? ""}`}
+                href={workspaceOpenHref(workspace)}
                 aria-current={isActive ? "page" : undefined}
               >
                 <span class="avatar">{initials(workspace.name)}</span>
@@ -140,9 +162,8 @@
           <h2>Recent graphs</h2>
           <a
             class="link"
-            href={activeWorkspace
-              ? `/graph/${activeWorkspace.defaultGraphId ?? ""}`
-              : "/"}>View all</a
+            href={dashboardWorkspaceHref(activeWorkspace?.id ?? null)}
+            >View all</a
           >
         </div>
 
@@ -155,7 +176,7 @@
           <ul class="graphs">
             {#each recentGraphs as graph}
               <li>
-                <a href={`/graph/${graph.id}`}>
+                <a href={graphHref(graph.id, activeWorkspace?.id ?? null)}>
                   <div>
                     <strong>{graph.name || "Untitled Graph"}</strong>
                     <small>{graph.description || "No description"}</small>

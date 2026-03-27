@@ -11,31 +11,77 @@
   const workspaces = $derived(
     Array.isArray(data?.workspaces) ? data.workspaces : [],
   );
-  const currentWorkspaceId = $derived(
-    data?.currentWorkspaceId ?? workspaces[0]?.id ?? null,
+
+  const activeWorkspaceId = $derived(
+    data?.currentWorkspaceId ??
+      data?.currentWorkspace?.id ??
+      workspaces[0]?.id ??
+      null,
   );
 
   const currentWorkspace = $derived(
-    workspaces.find((w) => w.id === currentWorkspaceId) ??
+    workspaces.find((w) => w.id === activeWorkspaceId) ??
+      data?.currentWorkspace ??
       workspaces[0] ??
       null,
   );
 
+  const integration = $derived(
+    data?.integration ?? {
+      mode: "prototype_local",
+      supabase: { configured: false, missing: [] },
+      api: { configured: false, missing: [] },
+      aiProxy: { configured: false, missing: [] },
+      realtime: { configured: false },
+      graphPersistence: { configured: false },
+    },
+  );
+
+  const inPrototypeMode = $derived(integration.mode !== "cloud");
+
+  const integrationItems = $derived([
+    { label: "Supabase", ok: !!integration?.supabase?.configured },
+    { label: "API", ok: !!integration?.api?.configured },
+    { label: "AI Proxy", ok: !!integration?.aiProxy?.configured },
+    { label: "Realtime", ok: !!integration?.realtime?.configured },
+    {
+      label: "Graph Sync",
+      ok: !!integration?.graphPersistence?.configured,
+    },
+  ]);
+
+  const missingIntegrationVars = $derived([
+    ...(Array.isArray(integration?.supabase?.missing)
+      ? integration.supabase.missing
+      : []),
+    ...(Array.isArray(integration?.api?.missing)
+      ? integration.api.missing
+      : []),
+    ...(Array.isArray(integration?.aiProxy?.missing)
+      ? integration.aiProxy.missing
+      : []),
+  ]);
+
   $effect(() => {
     if (!session || !user) {
-      // Guard for any client-side transitions where server redirect wasn't applied.
       goto("/auth/login");
     }
   });
 
   function isActiveWorkspace(workspaceId) {
-    return $page.url.searchParams.get("workspace") === workspaceId;
+    const q = $page.url.searchParams.get("workspace");
+    if (q) return q === workspaceId;
+    return workspaceId === activeWorkspaceId;
   }
 
   function workspaceHref(workspaceId) {
     const q = new URLSearchParams($page.url.searchParams);
     q.set("workspace", workspaceId);
     return `${$page.url.pathname}?${q.toString()}`;
+  }
+
+  function badgeClass(ok) {
+    return ok ? "badge badge-ok" : "badge badge-off";
   }
 </script>
 
@@ -89,7 +135,29 @@
           <h1>{currentWorkspace?.name ?? "Workspace"}</h1>
           <p>{user.email}</p>
         </div>
+
+        <div class="status-pills" aria-label="Integration status">
+          {#each integrationItems as item (item.label)}
+            <span class={badgeClass(item.ok)}>
+              <span class="dot" aria-hidden="true"></span>
+              {item.label}
+            </span>
+          {/each}
+        </div>
       </header>
+
+      {#if inPrototypeMode}
+        <section class="integration-banner" role="status" aria-live="polite">
+          <strong>Cloud integrations are not fully configured.</strong>
+          <span>
+            Running in prototype/local mode. Some functionality (persistent
+            cloud tables, API routes, realtime, AI proxy) may be unavailable.
+          </span>
+          {#if missingIntegrationVars.length > 0}
+            <small>Missing: {missingIntegrationVars.join(", ")}</small>
+          {/if}
+        </section>
+      {/if}
 
       <section class="page-body">
         {@render children?.()}
@@ -235,7 +303,7 @@
 
   .content {
     display: grid;
-    grid-template-rows: auto 1fr;
+    grid-template-rows: auto auto 1fr;
     min-width: 0;
   }
 
@@ -244,6 +312,10 @@
     background: rgba(255, 255, 255, 0.92);
     backdrop-filter: blur(8px);
     padding: 16px 22px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
   }
 
   .topbar h1 {
@@ -258,9 +330,76 @@
     font-size: 13px;
   }
 
+  .status-pills {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 999px;
+    padding: 5px 9px;
+    font-size: 11px;
+    font-weight: 600;
+    border: 1px solid transparent;
+    white-space: nowrap;
+  }
+
+  .badge .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    display: inline-block;
+    flex-shrink: 0;
+  }
+
+  .badge-ok {
+    background: #ecfdf3;
+    color: #166534;
+    border-color: #bbf7d0;
+  }
+
+  .badge-ok .dot {
+    background: #16a34a;
+  }
+
+  .badge-off {
+    background: #fff1f2;
+    color: #9f1239;
+    border-color: #fecdd3;
+  }
+
+  .badge-off .dot {
+    background: #e11d48;
+  }
+
+  .integration-banner {
+    margin: 10px 18px 0;
+    border: 1px solid #fed7aa;
+    background: #fff7ed;
+    color: #9a3412;
+    border-radius: 10px;
+    padding: 10px 12px;
+    display: grid;
+    gap: 4px;
+  }
+
+  .integration-banner strong {
+    font-size: 13px;
+  }
+
+  .integration-banner span,
+  .integration-banner small {
+    font-size: 12px;
+  }
+
   .page-body {
-    padding: 20px 22px 24px;
     min-width: 0;
+    padding: 16px 18px 18px;
   }
 
   @media (max-width: 980px) {
@@ -271,6 +410,23 @@
     .sidebar {
       border-right: 0;
       border-bottom: 1px solid #dbe3ea;
+    }
+
+    .topbar {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .status-pills {
+      justify-content: flex-start;
+    }
+
+    .page-body {
+      padding: 12px;
+    }
+
+    .integration-banner {
+      margin: 8px 12px 0;
     }
   }
 </style>

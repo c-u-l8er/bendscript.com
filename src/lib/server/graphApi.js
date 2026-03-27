@@ -1,6 +1,13 @@
 // ProjectAmp2/bendscript.com/src/lib/server/graphApi.js
+import { hashApiKey } from "$lib/server/apiAuth";
 
-const EDGE_KINDS = new Set(["context", "causal", "temporal", "associative", "user"]);
+const EDGE_KINDS = new Set([
+  "context",
+  "causal",
+  "temporal",
+  "associative",
+  "user",
+]);
 const DEFAULT_SEARCH_LIMIT = 20;
 const DEFAULT_SUBGRAPH_DEPTH = 2;
 const DEFAULT_MAX_HOPS = 4;
@@ -23,13 +30,19 @@ function clamp(n, min, max) {
 function normalizeEdgeKinds(edgeKinds) {
   if (!Array.isArray(edgeKinds) || edgeKinds.length === 0) return null;
   const kinds = edgeKinds
-    .map((k) => String(k || "").trim().toLowerCase())
+    .map((k) =>
+      String(k || "")
+        .trim()
+        .toLowerCase(),
+    )
     .filter((k) => EDGE_KINDS.has(k));
   return kinds.length ? Array.from(new Set(kinds)) : null;
 }
 
 function safeText(input, max = 4000) {
-  return String(input ?? "").trim().slice(0, max);
+  return String(input ?? "")
+    .trim()
+    .slice(0, max);
 }
 
 function tokenizeQuestion(question) {
@@ -38,13 +51,6 @@ function tokenizeQuestion(question) {
     .split(/[^a-z0-9_]+/g)
     .filter((w) => w.length >= 3);
   return Array.from(new Set(words));
-}
-
-async function hashApiKey(apiKey) {
-  const data = new TextEncoder().encode(apiKey);
-  const digest = await crypto.subtle.digest("SHA-256", data);
-  const bytes = Array.from(new Uint8Array(digest));
-  return bytes.map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 function dedupeById(rows = []) {
@@ -138,9 +144,14 @@ export async function authenticateApiKey({ client, apiKey }) {
     .eq("is_active", true)
     .maybeSingle();
 
-  if (error) return { ok: false, error: error.message || "API key lookup failed." };
+  if (error)
+    return { ok: false, error: error.message || "API key lookup failed." };
   if (!data) return { ok: false, error: "Invalid API key." };
-  if (data.key_prefix && prefix && !String(raw).startsWith(String(data.key_prefix))) {
+  if (
+    data.key_prefix &&
+    prefix &&
+    !String(raw).startsWith(String(data.key_prefix))
+  ) {
     return { ok: false, error: "Invalid API key prefix." };
   }
   if (data.expires_at && new Date(data.expires_at).getTime() < Date.now()) {
@@ -223,7 +234,9 @@ export async function searchNodes({
   const { data, error } = await dbQuery;
   if (error) throw new Error(`searchNodes failed: ${error.message}`);
 
-  const nodes = dedupeById(data || []).map(shapeNode).filter(Boolean);
+  const nodes = dedupeById(data || [])
+    .map(shapeNode)
+    .filter(Boolean);
 
   return {
     nodes,
@@ -305,22 +318,26 @@ export async function getSubgraph({
 
   if (allowedKinds) edgeQuery = edgeQuery.in("kind", allowedKinds);
 
-  const [{ data: edges, error: edgeError }, { data: seedRows, error: seedError }] =
-    await Promise.all([
-      edgeQuery,
-      c
-        .from("nodes")
-        .select(
-          "id, workspace_id, graph_id, plane_id, text, markdown, type, x, y, pinned, portal_plane_id, metadata, created_at, updated_at",
-        )
-        .eq("workspace_id", workspaceId)
-        .eq("graph_id", graphId)
-        .eq("id", nodeId)
-        .limit(1),
-    ]);
+  const [
+    { data: edges, error: edgeError },
+    { data: seedRows, error: seedError },
+  ] = await Promise.all([
+    edgeQuery,
+    c
+      .from("nodes")
+      .select(
+        "id, workspace_id, graph_id, plane_id, text, markdown, type, x, y, pinned, portal_plane_id, metadata, created_at, updated_at",
+      )
+      .eq("workspace_id", workspaceId)
+      .eq("graph_id", graphId)
+      .eq("id", nodeId)
+      .limit(1),
+  ]);
 
-  if (edgeError) throw new Error(`getSubgraph edges failed: ${edgeError.message}`);
-  if (seedError) throw new Error(`getSubgraph seed node failed: ${seedError.message}`);
+  if (edgeError)
+    throw new Error(`getSubgraph edges failed: ${edgeError.message}`);
+  if (seedError)
+    throw new Error(`getSubgraph seed node failed: ${seedError.message}`);
   if (!seedRows?.length) {
     return { nodes: [], edges: [], root_node_id: nodeId, depth: hops };
   }
@@ -354,7 +371,8 @@ export async function getSubgraph({
     .eq("graph_id", graphId)
     .in("id", nodeIds);
 
-  if (nodeError) throw new Error(`getSubgraph nodes failed: ${nodeError.message}`);
+  if (nodeError)
+    throw new Error(`getSubgraph nodes failed: ${nodeError.message}`);
 
   return {
     root_node_id: nodeId,
@@ -520,10 +538,13 @@ export async function traversePath({
     .eq("graph_id", graphId)
     .in("id", pathNodeIds);
 
-  if (pathNodeError) throw new Error(`traversePath node fetch failed: ${pathNodeError.message}`);
+  if (pathNodeError)
+    throw new Error(`traversePath node fetch failed: ${pathNodeError.message}`);
 
   const nodeById = new Map((pathNodes || []).map((n) => [n.id, shapeNode(n)]));
-  const orderedNodes = pathNodeIds.map((id) => nodeById.get(id)).filter(Boolean);
+  const orderedNodes = pathNodeIds
+    .map((id) => nodeById.get(id))
+    .filter(Boolean);
 
   return {
     found: true,
@@ -589,12 +610,11 @@ export async function queryGraph({
     terms,
     candidates: nodes,
     reasoning_path: path,
-    answer_hint:
-      path?.found
-        ? `Found a ${path.hops}-hop path between "${source.text}" and "${target.text}".`
-        : nodes.length
-          ? `Found ${nodes.length} candidate nodes, but no strong path yet.`
-          : "No matching nodes found.",
+    answer_hint: path?.found
+      ? `Found a ${path.hops}-hop path between "${source.text}" and "${target.text}".`
+      : nodes.length
+        ? `Found ${nodes.length} candidate nodes, but no strong path yet.`
+        : "No matching nodes found.",
   };
 }
 

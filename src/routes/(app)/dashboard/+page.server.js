@@ -4,6 +4,7 @@ import {
   createWorkspace,
   listMyWorkspaces,
   listWorkspaceGraphs,
+  listWorkspaceMembers,
   upsertGraphRecord,
 } from "$lib/supabase/queries";
 
@@ -30,6 +31,25 @@ function uniqueSlug(base) {
   return `${base}-${suffix}`;
 }
 
+function normalizeWorkspaceIdParam(url) {
+  const ws = String(url.searchParams.get("ws") || "").trim();
+  if (ws) return ws;
+
+  const workspace = String(url.searchParams.get("workspace") || "").trim();
+  if (workspace) return workspace;
+
+  return null;
+}
+
+function pickActiveWorkspace(workspaces, requestedId) {
+  if (!Array.isArray(workspaces) || workspaces.length === 0) return null;
+  if (requestedId) {
+    const match = workspaces.find((w) => w.id === requestedId);
+    if (match) return match;
+  }
+  return workspaces[0];
+}
+
 export async function load(event) {
   const supabase = getSupabase(event);
 
@@ -49,30 +69,72 @@ export async function load(event) {
     workspaces = [];
   }
 
-  const wsParam = event.url.searchParams.get("ws");
-  const selectedWorkspace =
-    workspaces.find((w) => w.id === wsParam) ?? workspaces[0] ?? null;
+  const membersByWorkspace = {};
+  const graphCountsByWorkspace = {};
+  const graphsByWorkspace = {};
 
-  let graphs = [];
-  if (selectedWorkspace) {
-    try {
-      graphs = await listWorkspaceGraphs(selectedWorkspace.id, {
-        client: supabase,
-      });
-    } catch {
-      graphs = [];
-    }
+  if (workspaces.length > 0) {
+    await Promise.all(
+      workspaces.map(async (workspace) => {
+        const [graphsResult, membersResult] = await Promise.allSettled([
+          listWorkspaceGraphs(workspace.id, { client: supabase }),
+          listWorkspaceMembers(workspace.id, { client: supabase }),
+        ]);
+
+        const graphs =
+          graphsResult.status === "fulfilled" &&
+          Array.isArray(graphsResult.value)
+            ? graphsResult.value
+            : [];
+
+        const members =
+          membersResult.status === "fulfilled" &&
+          Array.isArray(membersResult.value)
+            ? membersResult.value
+            : [];
+
+        graphsByWorkspace[workspace.id] = graphs;
+        graphCountsByWorkspace[workspace.id] = graphs.length;
+        membersByWorkspace[workspace.id] = members;
+      }),
+    );
   }
+
+  const requestedWorkspaceId = normalizeWorkspaceIdParam(event.url);
+  const activeWorkspace = pickActiveWorkspace(workspaces, requestedWorkspaceId);
+  const activeWorkspaceId = activeWorkspace?.id ?? null;
+
+  const decoratedWorkspaces = workspaces.map((workspace) => {
+    const graphs = graphsByWorkspace[workspace.id] || [];
+    return {
+      ...workspace,
+      defaultGraphId: graphs[0]?.id ?? null,
+      graphCount: graphCountsByWorkspace[workspace.id] ?? 0,
+    };
+  });
+
+  const recentGraphs = activeWorkspaceId
+    ? (graphsByWorkspace[activeWorkspaceId] || []).slice(0, 12)
+    : [];
 
   return {
     user: {
       id: user.id,
       email: user.email ?? null,
     },
-    workspaces,
-    selectedWorkspaceId: selectedWorkspace?.id ?? null,
-    selectedWorkspace,
-    graphs,
+
+    // Canonical dashboard payload
+    workspaces: decoratedWorkspaces,
+    activeWorkspaceId,
+    selectedWorkspaceId: activeWorkspaceId,
+    selectedWorkspace:
+      decoratedWorkspaces.find((w) => w.id === activeWorkspaceId) ?? null,
+    membersByWorkspace,
+    graphCountsByWorkspace,
+    recentGraphs,
+
+    // Backwards-compatible fields
+    graphs: recentGraphs,
   };
 }
 
@@ -101,7 +163,12 @@ export const actions = {
       });
     }
 
-    const allowedPlans = new Set(["free", "kag_api", "kag_teams", "enterprise"]);
+    const allowedPlans = new Set([
+      "free",
+      "kag_api",
+      "kag_teams",
+      "enterprise",
+    ]);
     const plan = allowedPlans.has(planInput) ? planInput : "free";
 
     try {
