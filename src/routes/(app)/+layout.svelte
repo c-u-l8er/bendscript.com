@@ -187,6 +187,30 @@
 {/if}
 
 <style>
+  :global(html) {
+    width: 100%;
+    min-height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    scroll-behavior: auto;
+  }
+
+  :global(body) {
+    margin: 0;
+    width: 100%;
+    height: auto;
+    min-height: 100vh;
+    overflow-x: hidden;
+    overflow-y: auto;
+    scroll-snap-type: none;
+    background: #f4f6f8;
+    color: #111827;
+    font-family:
+      "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    user-select: text;
+    -webkit-user-select: text;
+  }
+
   .app-shell {
     min-height: 100vh;
     display: grid;
