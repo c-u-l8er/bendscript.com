@@ -92,10 +92,15 @@
 {#if session && user}
   <div class="app-shell">
     <aside class="sidebar">
-      <a class="logo" href="/">
+      <a class="logo" href="/dashboard">
         <span class="logo-mark">⊛</span>
         <span class="logo-text">{appName}</span>
       </a>
+
+      <nav class="shell-nav" aria-label="App navigation">
+        <a href="/dashboard">Dashboard</a>
+        <a href="/dashboard#workspace-crud">Workspaces</a>
+      </nav>
 
       <section class="panel">
         <header class="panel-header">
@@ -131,9 +136,13 @@
 
     <main class="content">
       <header class="topbar">
-        <div>
+        <div class="topbar-meta">
           <h1>{currentWorkspace?.name ?? "Workspace"}</h1>
           <p>{user.email}</p>
+          <div class="quick-links">
+            <a href="/dashboard">Dashboard</a>
+            <a href="/dashboard#workspace-crud">Manage workspaces</a>
+          </div>
         </div>
 
         <div class="status-pills" aria-label="Integration status">
@@ -207,6 +216,26 @@
 
   .logo-text {
     font-size: 14px;
+  }
+
+  .shell-nav {
+    display: grid;
+    gap: 6px;
+  }
+
+  .shell-nav a {
+    text-decoration: none;
+    color: #334155;
+    font-size: 13px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 8px 10px;
+    background: #f8fafc;
+  }
+
+  .shell-nav a:hover {
+    background: #eef2f6;
+    color: #111827;
   }
 
   .panel {
@@ -328,6 +357,29 @@
     margin: 4px 0 0;
     color: #64748b;
     font-size: 13px;
+  }
+
+  .topbar-meta {
+    display: grid;
+    gap: 6px;
+  }
+
+  .quick-links {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 2px;
+  }
+
+  .quick-links a {
+    text-decoration: none;
+    color: #1d4ed8;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .quick-links a:hover {
+    text-decoration: underline;
   }
 
   .status-pills {

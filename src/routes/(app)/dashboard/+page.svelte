@@ -1,5 +1,5 @@
 <script>
-  let { data } = $props();
+  let { data, form } = $props();
 
   const appName = "BendScript";
 
@@ -21,6 +21,10 @@
   const recentGraphs = $derived(
     Array.isArray(data?.recentGraphs) ? data.recentGraphs : [],
   );
+
+  const workspacePlans = ["free", "kag_api", "kag_teams", "enterprise"];
+  const actionMessage = $derived(form?.message ?? "");
+  const actionType = $derived(form?.action ?? "");
 
   function roleLabel(role) {
     if (!role) return "member";
@@ -89,7 +93,7 @@
       >
         Open graph
       </a>
-      <a class="btn" href="/api/v1/workspaces">+ New workspace</a>
+      <a class="btn" href="#workspace-crud">Manage workspaces</a>
     </div>
   </header>
 
@@ -103,9 +107,7 @@
       {#if workspaces.length === 0}
         <div class="empty">
           <p>No workspaces yet.</p>
-          <a class="link" href="/api/v1/workspaces"
-            >Create your first workspace</a
-          >
+          <a class="link" href="#workspace-crud">Create your first workspace</a>
         </div>
       {:else}
         <ul class="workspace-list">
@@ -154,6 +156,123 @@
             <p>Last updated</p>
             <strong>{formatDate(activeWorkspace?.updated_at)}</strong>
           </article>
+        </div>
+      </section>
+
+      <section class="card" id="workspace-crud">
+        <div class="card-head">
+          <h2>Workspace management</h2>
+          <span class="plan">CRUD</span>
+        </div>
+
+        {#if actionMessage}
+          <p class="notice">{actionType}: {actionMessage}</p>
+        {/if}
+
+        <div class="workspace-crud-grid">
+          <form method="POST" action="?/createWorkspace" class="workspace-form">
+            <h3>Create workspace</h3>
+            <label>
+              Name
+              <input name="name" type="text" required maxlength="80" />
+            </label>
+            <label>
+              Slug (optional)
+              <input name="slug" type="text" maxlength="120" />
+            </label>
+            <label>
+              Plan
+              <select name="plan">
+                {#each workspacePlans as plan}
+                  <option value={plan}>{plan}</option>
+                {/each}
+              </select>
+            </label>
+            <button class="btn" type="submit">Create</button>
+          </form>
+
+          <form method="POST" action="?/updateWorkspace" class="workspace-form">
+            <h3>Update workspace</h3>
+            <input
+              type="hidden"
+              name="workspaceId"
+              value={activeWorkspace?.id ?? ""}
+            />
+            <label>
+              Name
+              <input
+                name="name"
+                type="text"
+                required
+                maxlength="80"
+                value={activeWorkspace?.name ?? ""}
+                disabled={!activeWorkspace}
+              />
+            </label>
+            <label>
+              Slug
+              <input
+                name="slug"
+                type="text"
+                maxlength="120"
+                value={activeWorkspace?.slug ?? ""}
+                disabled={!activeWorkspace}
+              />
+            </label>
+            <label>
+              Plan
+              <select name="plan" disabled={!activeWorkspace}>
+                {#each workspacePlans as plan}
+                  <option
+                    value={plan}
+                    selected={(activeWorkspace?.plan ?? "free") === plan}
+                  >
+                    {plan}
+                  </option>
+                {/each}
+              </select>
+            </label>
+            <button
+              class="btn btn-secondary"
+              type="submit"
+              disabled={!activeWorkspace}
+            >
+              Save changes
+            </button>
+          </form>
+
+          <form
+            method="POST"
+            action="?/deleteWorkspace"
+            class="workspace-form danger"
+          >
+            <h3>Delete workspace</h3>
+            <input
+              type="hidden"
+              name="workspaceId"
+              value={activeWorkspace?.id ?? ""}
+            />
+            <p class="muted">
+              This permanently deletes the selected workspace. Type its exact
+              name to confirm.
+            </p>
+            <label>
+              Confirm name
+              <input
+                name="confirmName"
+                type="text"
+                placeholder={activeWorkspace?.name ?? "Workspace name"}
+                disabled={!activeWorkspace}
+              />
+            </label>
+            <button
+              class="btn btn-danger"
+              type="submit"
+              disabled={!activeWorkspace}
+            >
+              Delete workspace
+            </button>
+          </form>
         </div>
       </section>
 
@@ -295,12 +414,19 @@
     padding: 0.6rem 0.9rem;
     font-weight: 600;
     border: 1px solid transparent;
+    cursor: pointer;
   }
 
   .btn-secondary {
     background: white;
     border-color: #cbd5e1;
     color: #0f172a;
+  }
+
+  .btn-danger {
+    background: linear-gradient(135deg, #dc2626, #b91c1c);
+    border-color: #991b1b;
+    color: #fff;
   }
 
   .layout {
@@ -480,6 +606,66 @@
     color: #475569;
   }
 
+  .notice {
+    margin: 0 0 0.85rem;
+    border: 1px solid #fde68a;
+    background: #fffbeb;
+    color: #92400e;
+    border-radius: 0.7rem;
+    padding: 0.65rem 0.75rem;
+    font-size: 0.9rem;
+  }
+
+  .workspace-crud-grid {
+    display: grid;
+    gap: 0.8rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .workspace-form {
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+    padding: 0.75rem;
+    background: #f8fafc;
+    display: grid;
+    gap: 0.55rem;
+    align-content: start;
+  }
+
+  .workspace-form h3 {
+    margin: 0;
+    font-size: 0.95rem;
+  }
+
+  .workspace-form label {
+    display: grid;
+    gap: 0.3rem;
+    font-size: 0.84rem;
+    color: #334155;
+  }
+
+  .workspace-form input,
+  .workspace-form select {
+    border: 1px solid #cbd5e1;
+    border-radius: 0.6rem;
+    padding: 0.5rem 0.6rem;
+    font: inherit;
+    color: #0f172a;
+    background: #fff;
+  }
+
+  .workspace-form input:disabled,
+  .workspace-form select:disabled,
+  .workspace-form button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .workspace-form.danger {
+    border-color: #fecaca;
+    background: #fff7f7;
+  }
+
   @media (max-width: 900px) {
     .layout {
       grid-template-columns: 1fr;
@@ -490,6 +676,10 @@
     }
 
     .stats {
+      grid-template-columns: 1fr;
+    }
+
+    .workspace-crud-grid {
       grid-template-columns: 1fr;
     }
   }

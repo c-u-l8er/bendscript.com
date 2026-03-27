@@ -2,9 +2,11 @@ import { fail, redirect } from "@sveltejs/kit";
 import { createSupabaseServerClient } from "$lib/supabase/server";
 import {
   createWorkspace,
+  deleteWorkspace,
   listMyWorkspaces,
   listWorkspaceGraphs,
   listWorkspaceMembers,
+  updateWorkspace,
   upsertGraphRecord,
 } from "$lib/supabase/queries";
 
@@ -183,9 +185,127 @@ export const actions = {
 
       throw redirect(303, `/dashboard?ws=${workspace.id}`);
     } catch (error) {
+      if (error?.status && error.status >= 300 && error.status < 400)
+        throw error;
       return fail(500, {
         action: "createWorkspace",
         message: toMessage(error, "Failed to create workspace."),
+      });
+    }
+  },
+
+  updateWorkspace: async (event) => {
+    const supabase = getSupabase(event);
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      throw redirect(303, "/auth/login");
+    }
+
+    const form = await event.request.formData();
+    const workspaceId = String(form.get("workspaceId") || "").trim();
+    const name = String(form.get("name") || "").trim();
+    const slugInput = String(form.get("slug") || "").trim();
+    const planInput = String(form.get("plan") || "free").trim();
+
+    if (!workspaceId) {
+      return fail(400, {
+        action: "updateWorkspace",
+        message: "Workspace is required.",
+      });
+    }
+
+    if (!name) {
+      return fail(400, {
+        action: "updateWorkspace",
+        message: "Workspace name is required.",
+      });
+    }
+
+    const allowedPlans = new Set([
+      "free",
+      "kag_api",
+      "kag_teams",
+      "enterprise",
+    ]);
+    const plan = allowedPlans.has(planInput) ? planInput : "free";
+
+    try {
+      const workspace = await updateWorkspace(
+        workspaceId,
+        {
+          name,
+          slug: slugInput || slugify(name, "workspace"),
+          plan,
+        },
+        { client: supabase },
+      );
+
+      throw redirect(303, `/dashboard?ws=${workspace.id}`);
+    } catch (error) {
+      if (error?.status && error.status >= 300 && error.status < 400)
+        throw error;
+      return fail(500, {
+        action: "updateWorkspace",
+        message: toMessage(error, "Failed to update workspace."),
+      });
+    }
+  },
+
+  deleteWorkspace: async (event) => {
+    const supabase = getSupabase(event);
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      throw redirect(303, "/auth/login");
+    }
+
+    const form = await event.request.formData();
+    const workspaceId = String(form.get("workspaceId") || "").trim();
+    const confirmName = String(form.get("confirmName") || "").trim();
+
+    if (!workspaceId) {
+      return fail(400, {
+        action: "deleteWorkspace",
+        message: "Workspace is required.",
+      });
+    }
+
+    try {
+      const workspaces = await listMyWorkspaces({ client: supabase });
+      const workspace = workspaces.find((w) => w.id === workspaceId);
+
+      if (!workspace) {
+        return fail(404, {
+          action: "deleteWorkspace",
+          message: "Workspace not found.",
+        });
+      }
+
+      if (!confirmName || confirmName !== workspace.name) {
+        return fail(400, {
+          action: "deleteWorkspace",
+          message:
+            "Confirmation name does not match. Type the exact workspace name to delete.",
+        });
+      }
+
+      await deleteWorkspace(workspaceId, { client: supabase });
+      throw redirect(303, "/dashboard");
+    } catch (error) {
+      if (error?.status && error.status >= 300 && error.status < 400)
+        throw error;
+      return fail(500, {
+        action: "deleteWorkspace",
+        message: toMessage(error, "Failed to delete workspace."),
       });
     }
   },
@@ -229,6 +349,8 @@ export const actions = {
 
       throw redirect(303, `/graph/${graph.id}`);
     } catch (error) {
+      if (error?.status && error.status >= 300 && error.status < 400)
+        throw error;
       return fail(500, {
         action: "createGraph",
         message: toMessage(error, "Failed to create graph."),

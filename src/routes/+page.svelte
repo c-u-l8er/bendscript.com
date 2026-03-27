@@ -49,6 +49,8 @@
         <div class="pill">scc <b id="statScc">0</b></div>
         <div class="pill">islands <b id="statIsland">0</b></div>
         <div class="pill">risk <b id="statRisk">low</b></div>
+        <a class="pill" href="/dashboard">dashboard</a>
+        <a class="pill" href="/dashboard#workspace-crud">workspaces</a>
         <button class="pill pill-btn" id="nodeModeToggle" type="button">
           mode: EDIT
         </button>

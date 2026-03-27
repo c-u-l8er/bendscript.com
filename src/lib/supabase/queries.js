@@ -153,9 +153,81 @@ export async function createWorkspace(
     { onConflict: "workspace_id,user_id" },
   );
 
-  if (memberError) throw toError("Failed to create workspace membership", memberError);
+  if (memberError)
+    throw toError("Failed to create workspace membership", memberError);
 
   return workspace;
+}
+
+export async function updateWorkspace(
+  workspaceId,
+  { name, slug, plan, metadata },
+  { client } = {},
+) {
+  if (!workspaceId) throw new Error("workspaceId is required");
+  const c = getClient(client);
+
+  const patch = {};
+
+  if (typeof name === "string" && name.trim()) {
+    patch.name = name.trim();
+  }
+
+  if (typeof slug === "string" && slug.trim()) {
+    patch.slug = slugify(slug, "workspace");
+  }
+
+  if (typeof plan === "string" && plan.trim()) {
+    patch.plan = plan.trim();
+  }
+
+  if (metadata && typeof metadata === "object" && !Array.isArray(metadata)) {
+    patch.metadata = metadata;
+  }
+
+  if (Object.keys(patch).length === 0) {
+    return getWorkspaceById(workspaceId, { client: c });
+  }
+
+  const { data, error } = await c
+    .from("workspaces")
+    .update(patch)
+    .eq("id", workspaceId)
+    .select("id, name, slug, plan, metadata, created_at, updated_at")
+    .single();
+
+  if (error) throw toError("Failed to update workspace", error);
+  return data;
+}
+
+export async function deleteWorkspace(workspaceId, { client } = {}) {
+  if (!workspaceId) throw new Error("workspaceId is required");
+  const c = getClient(client);
+  const user = await requireAuthedUser(c);
+
+  const { data: membership, error: membershipError } = await c
+    .from("workspace_members")
+    .select("workspace_id, role")
+    .eq("workspace_id", workspaceId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (membershipError) {
+    throw toError("Failed to validate workspace membership", membershipError);
+  }
+
+  if (!membership) {
+    throw new Error("You are not a member of this workspace");
+  }
+
+  if (membership.role !== "owner") {
+    throw new Error("Only workspace owners can delete workspaces");
+  }
+
+  const { error } = await c.from("workspaces").delete().eq("id", workspaceId);
+  if (error) throw toError("Failed to delete workspace", error);
+
+  return { id: workspaceId, deleted: true };
 }
 
 export async function listWorkspaceMembers(workspaceId, { client } = {}) {
@@ -331,7 +403,9 @@ export async function saveGraphState(
   const c = getClient(client);
   const normalized = normalizeStateShape(state);
 
-  const existingGraph = graphId ? await getGraphById(graphId, { client: c }) : null;
+  const existingGraph = graphId
+    ? await getGraphById(graphId, { client: c })
+    : null;
   const mergedMetadata = {
     ...(existingGraph?.metadata || {}),
     ...(extraMetadata || {}),
@@ -347,7 +421,8 @@ export async function saveGraphState(
       name: graphName || existingGraph?.name || DEFAULT_GRAPH_NAME,
       slug: graphSlug || existingGraph?.slug || null,
       description: graphDescription ?? existingGraph?.description ?? null,
-      isPublic: typeof isPublic === "boolean" ? isPublic : !!existingGraph?.is_public,
+      isPublic:
+        typeof isPublic === "boolean" ? isPublic : !!existingGraph?.is_public,
       metadata: mergedMetadata,
     },
     { client: c },
@@ -363,6 +438,8 @@ export default {
   listMyWorkspaces,
   getWorkspaceById,
   createWorkspace,
+  updateWorkspace,
+  deleteWorkspace,
   listWorkspaceMembers,
   listWorkspaceGraphs,
   getGraphById,
