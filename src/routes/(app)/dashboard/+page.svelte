@@ -93,7 +93,12 @@
     </div>
 
     <div class="actions">
-      <a class="btn btn-secondary" href={openGraphHref(activeWorkspace)}>
+      <a
+        class="btn btn-secondary"
+        href={openGraphHref(activeWorkspace)}
+        data-sveltekit-preload-data="off"
+        data-sveltekit-preload-code="off"
+      >
         Open graph
       </a>
       <a
@@ -166,7 +171,11 @@
         <ul class="graphs">
           {#each recentGraphs as graph}
             <li>
-              <a href={graphHref(graph.id, activeWorkspace?.id ?? null)}>
+              <a
+                href={graphHref(graph.id, activeWorkspace?.id ?? null)}
+                data-sveltekit-preload-data="off"
+                data-sveltekit-preload-code="off"
+              >
                 <div>
                   <strong>{graph.name || "Untitled Graph"}</strong>
                   <small>{graph.description || "No description"}</small>

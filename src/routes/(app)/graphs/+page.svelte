@@ -66,8 +66,11 @@
       <a class="btn btn-secondary" href="/dashboard">Dashboard</a>
       <a class="btn btn-secondary" href="/workspaces">Workspaces</a>
       {#if activeGraph}
-        <a class="btn" href={graphHref(activeGraph.id, activeWorkspaceId)}
-          >Open selected graph</a
+        <a
+          class="btn"
+          href={graphHref(activeGraph.id, activeWorkspaceId)}
+          data-sveltekit-preload-data="off"
+          data-sveltekit-preload-code="off">Open selected graph</a
         >
       {/if}
     </div>
@@ -108,8 +111,11 @@
                 </div>
                 <span>{formatDate(graph.updated_at)}</span>
               </a>
-              <a class="open-link" href={graphHref(graph.id, activeWorkspaceId)}
-                >Open</a
+              <a
+                class="open-link"
+                href={graphHref(graph.id, activeWorkspaceId)}
+                data-sveltekit-preload-data="off"
+                data-sveltekit-preload-code="off">Open</a
               >
             </li>
           {/each}
