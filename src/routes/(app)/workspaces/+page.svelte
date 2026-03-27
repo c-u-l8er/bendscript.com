@@ -201,6 +201,7 @@
 
 <style>
   :global(body) {
+    margin: 0;
     background: #f4f6f8;
     color: #0f172a;
   }

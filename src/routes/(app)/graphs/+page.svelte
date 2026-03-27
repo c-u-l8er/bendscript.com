@@ -259,6 +259,7 @@
   }
 
   :global(body) {
+    margin: 0;
     user-select: text;
     -webkit-user-select: text;
     background: #f4f6f8;

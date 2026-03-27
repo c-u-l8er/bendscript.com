@@ -122,6 +122,10 @@
 {/if}
 
 <style>
+  :global(body) {
+    margin: 0;
+  }
+
   .app-shell {
     position: relative;
     width: 100%;
