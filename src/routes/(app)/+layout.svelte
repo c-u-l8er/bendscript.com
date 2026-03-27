@@ -99,7 +99,7 @@
 
       <nav class="shell-nav" aria-label="App navigation">
         <a href="/dashboard">Dashboard</a>
-        <a href="/dashboard#workspace-crud">Workspaces</a>
+        <a href="/workspaces">Workspaces</a>
       </nav>
 
       <section class="panel">
@@ -141,7 +141,7 @@
           <p>{user.email}</p>
           <div class="quick-links">
             <a href="/dashboard">Dashboard</a>
-            <a href="/dashboard#workspace-crud">Manage workspaces</a>
+            <a href="/workspaces">Manage workspaces</a>
           </div>
         </div>
 

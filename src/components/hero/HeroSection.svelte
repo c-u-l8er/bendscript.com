@@ -40,7 +40,7 @@
       <a class="hero-cta hero-cta-secondary" href="/dashboard">
         Open dashboard
       </a>
-      <a class="hero-cta hero-cta-secondary" href="/dashboard#workspace-crud">
+      <a class="hero-cta hero-cta-secondary" href="/workspaces">
         Manage workspaces
       </a>
       <a

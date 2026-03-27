@@ -93,7 +93,7 @@
       >
         Open graph
       </a>
-      <a class="btn" href="#workspace-crud">Manage workspaces</a>
+      <a class="btn" href="/workspaces">Manage workspaces</a>
     </div>
   </header>
 
@@ -107,7 +107,7 @@
       {#if workspaces.length === 0}
         <div class="empty">
           <p>No workspaces yet.</p>
-          <a class="link" href="#workspace-crud">Create your first workspace</a>
+          <a class="link" href="/workspaces">Create your first workspace</a>
         </div>
       {:else}
         <ul class="workspace-list">
