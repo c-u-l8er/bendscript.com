@@ -9,20 +9,14 @@
       Where prompts become<br /><em>topology</em>
     </h1>
     <p class="hero-sub">
-      A knowledge graph that thinks about its own shape. Every node is a
-      context, every edge is a relationship, every Stargate is a portal into a
-      deeper plane. AI doesn't just answer — it builds the graph alongside you.
+      A knowledge graph that thinks about its own shape. Every node is a context, every edge is a
+      relationship, every Stargate is a portal into a deeper plane. AI doesn't just answer — it
+      builds the graph alongside you.
     </p>
     <div class="hero-pills">
-      <span class="hero-pill"
-        ><b class="accent">⊛</b> Fractal depth via Stargates</span
-      >
-      <span class="hero-pill"
-        ><b class="violet">◆</b> Topology-aware AI synthesis</span
-      >
-      <span class="hero-pill"
-        ><b class="green">●</b> Zero-friction — no signup</span
-      >
+      <span class="hero-pill"><b class="accent">⊛</b> Fractal depth via Stargates</span>
+      <span class="hero-pill"><b class="violet">◆</b> Topology-aware AI synthesis</span>
+      <span class="hero-pill"><b class="green">●</b> Zero-friction — no signup</span>
     </div>
     <div class="hero-cta-group">
       <button class="hero-cta hero-cta-primary" id="heroCta" type="button">
@@ -37,13 +31,8 @@
           />
         </svg>
       </button>
-      <a class="hero-cta hero-cta-secondary" href="/dashboard">
-        Open dashboard
-      </a>
-      <a class="hero-cta hero-cta-secondary" href="/workspaces">
-        Manage workspaces
-      </a>
-      <a class="hero-cta hero-cta-secondary" href="/graphs"> Manage graphs </a>
+      <a class="hero-cta hero-cta-secondary" href="/dashboard"> Dashboard </a>
+      <a class="hero-cta hero-cta-secondary" href="https://docs.bendscript.com"> Documentation </a>
       <a
         class="hero-cta hero-cta-secondary"
         href="https://ampersandboxdesign.com"
@@ -57,15 +46,13 @@
       <div class="hero-feat">
         <span class="hero-feat-icon">🌀</span>
         <span class="hero-feat-label"
-          ><b>Script Bending</b>Reshape conversational flow through graph
-          topology</span
+          ><b>Script Bending</b>Reshape conversational flow through graph topology</span
         >
       </div>
       <div class="hero-feat">
         <span class="hero-feat-icon">⊛</span>
         <span class="hero-feat-label"
-          ><b>Stargates</b>Portal into nested sub-graph planes with fractal
-          depth</span
+          ><b>Stargates</b>Portal into nested sub-graph planes with fractal depth</span
         >
       </div>
       <div class="hero-feat">
