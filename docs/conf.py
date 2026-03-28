@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 project = "BendScript"
-author = "BendScript"
+author = "Travis Burandt"
 copyright = "2026, BendScript"
 release = "latest"
 version = release
@@ -29,4 +29,4 @@ myst_enable_extensions = [
 ]
 
 html_theme = "alabaster"
-html_title = "[&] Protocol"
+html_title = "BendScript Documentation"
