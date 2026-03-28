@@ -19,22 +19,49 @@ entirely on SvelteKit + TypeScript + Supabase.
 
 ## Documentation Map
 
+
+```{toctree}
+:maxdepth: 1
+:caption: Homepages
+
+[&] Ampersand Box <https://ampersandboxdesign.com>
+Graphonomous <https://graphonomous.com>
+BendScript <https://bendscript.com>
+WebHost.Systems <https://webhost.systems>
 ```
-docs/
-├── index.md                          ← you are here
-├── architecture.md                   — system architecture and data flow
-├── quickstart.md                     — zero to working graph in minutes
-├── faq.md                            — common questions answered
-├── local-supabase.md                 — local Supabase development workflow
-└── skills/
-    ├── SKILLS.md                     — skills registry and tool inventory
-    ├── 01_CANVAS_ENGINE.md           — force-directed canvas manipulation
-    ├── 02_GRAPH_SYNTHESIS.md         — AI-powered graph building (4 tiers)
-    ├── 03_STARGATES_AND_PLANES.md    — fractal depth navigation
-    ├── 04_KAG_SERVER.md              — Knowledge Augmented Generation for agents
-    ├── 05_COLLABORATION.md           — multi-tenant real-time collaboration
-    ├── 06_EXPORT_AND_INTEGRATION.md  — data freedom and interoperability
-    └── 07_ANTI_PATTERNS.md           — common mistakes and how to avoid them
+
+```{toctree}
+:maxdepth: 1
+:caption: Root Docs
+
+[&] Protocol Docs <https://docs.ampersandboxdesign.com>
+Graphonomous Docs <https://docs.graphonomous.com>
+BendScript Docs <https://docs.bendscript.com>
+WebHost.Systems Docs <https://docs.webhost.systems>
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: BendScript Docs
+
+quickstart
+architecture
+local-supabase
+faq
+```
+
+```{toctree}
+:maxdepth: 1
+:caption: Skills
+
+skills/SKILLS
+skills/01_CANVAS_ENGINE
+skills/02_GRAPH_SYNTHESIS
+skills/03_STARGATES_AND_PLANES
+skills/04_KAG_SERVER
+skills/05_COLLABORATION
+skills/06_EXPORT_AND_INTEGRATION
+skills/07_ANTI_PATTERNS
 ```
 
 ---
@@ -45,7 +72,7 @@ If you are new to BendScript, follow this path:
 
 1. **quickstart** — clone, install, create your first graph
 2. **architecture** — understand how the pieces fit together
-3. **skills/SKILLS.md** — learn the core loop and tool inventory
+3. **skills/SKILLS** — learn the core loop and tool inventory
 4. **skills/01_CANVAS_ENGINE** — master the visual canvas
 5. **skills/02_GRAPH_SYNTHESIS** — use AI to build graphs
 6. **skills/03_STARGATES_AND_PLANES** — navigate fractal depth
@@ -53,7 +80,7 @@ If you are new to BendScript, follow this path:
 8. **faq** — fill in remaining gaps
 
 For agent developers integrating with BendScript, start at **skills/04_KAG_SERVER**
-and **skills/SKILLS.md**.
+and **skills/SKILLS**.
 
 ---
 
