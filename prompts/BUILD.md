@@ -1,11 +1,11 @@
 # BendScript — Coding Agent Build Prompt
 **Version:** 1.0 | **Date:** March 2026 | **Type:** Full Migration + Feature Build
 
-> **NOTE (2026-03-28):** BendScript's Supabase config, migrations, and edge functions have moved to the **shared ecosystem Supabase** at the repo root (`ProjectAmp2/supabase/`). BendScript tables now live in the `kag.*` PostgreSQL schema. The `supabase/` paths referenced below are historical — the canonical locations are now:
-> - Schema: `/supabase/migrations/010_kag_schema.sql`
-> - RLS: `/supabase/migrations/011_kag_rls.sql`
-> - Edge Function: `/supabase/functions/kag-ai-proxy/`
-> - Architecture: `/supabase/ARCHITECTURE.md`
+> **NOTE (2026-03-28):** BendScript's Supabase config, migrations, and edge functions have moved to the **shared ecosystem Supabase** at the repo root (`ProjectAmp2/ampersand-supabase/`). BendScript tables now live in the `kag.*` PostgreSQL schema. The `supabase/` paths referenced below are historical — the canonical locations are now:
+> - Schema: `/ampersand-supabase/migrations/010_kag_schema.sql`
+> - RLS: `/ampersand-supabase/migrations/011_kag_rls.sql`
+> - Edge Function: `/ampersand-supabase/functions/kag-ai-proxy/`
+> - Architecture: `/ampersand-supabase/ARCHITECTURE.md`
 > - Use `.schema('kag')` in the Supabase JS client to target BendScript tables.
 
 ---
@@ -123,7 +123,7 @@ bendscript/
 │           ├── WorkspaceNav.svelte
 │           ├── GraphCard.svelte
 │           └── MemberList.svelte
-├── supabase/
+├── ampersand-supabase/
 │   ├── migrations/
 │   │   ├── 001_schema.sql          # Full schema (see below)
 │   │   └── 002_rls.sql             # RLS policies (see below)
@@ -782,7 +782,7 @@ function dbEdgeToEngine(row) {
 
 ### 3.1 Edge Function — Claude API Proxy
 
-Create `supabase/functions/ai-proxy/index.ts`:
+Create `ampersand-supabase/functions/ai-proxy/index.ts`:
 
 ```typescript
 import Anthropic from 'npm:@anthropic-ai/sdk';

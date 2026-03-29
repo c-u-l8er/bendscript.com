@@ -529,7 +529,7 @@ bendscript/
 │       ├── canvas/              # GraphCanvas, HUD, Composer, Inspectors, ContextMenu
 │       ├── ui/                  # Pill, Button, Modal
 │       └── workspace/           # Nav, GraphCard, MemberList
-├── supabase/
+├── ampersand-supabase/
 │   ├── migrations/              # SQL schema + RLS policies
 │   └── functions/ai-proxy/      # Anthropic Edge Function
 ├── tests/

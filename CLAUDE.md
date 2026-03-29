@@ -30,12 +30,12 @@ npm run dev
 
 ## Shared Supabase data layer
 
-BendScript uses the **shared ecosystem Supabase** at the repo root (`/supabase/`), not a local supabase directory. Its tables live in the `kag.*` PostgreSQL schema.
+BendScript uses the **shared ecosystem Supabase** at the repo root (`/ampersand-supabase/`), not a local supabase directory. Its tables live in the `kag.*` PostgreSQL schema.
 
-- Schema: `/supabase/migrations/010_kag_schema.sql`
-- RLS: `/supabase/migrations/011_kag_rls.sql`
-- Edge Function: `/supabase/functions/kag-ai-proxy/`
-- Architecture: `/supabase/ARCHITECTURE.md`
+- Schema: `/ampersand-supabase/migrations/010_kag_schema.sql`
+- RLS: `/ampersand-supabase/migrations/011_kag_rls.sql`
+- Edge Function: `/ampersand-supabase/functions/kag-ai-proxy/`
+- Architecture: `/ampersand-supabase/ARCHITECTURE.md`
 
 Run `supabase start` from the repo root to start the full ecosystem DB. Use `.schema('kag')` in the Supabase JS client to target BendScript tables.
 

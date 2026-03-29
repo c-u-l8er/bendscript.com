@@ -3,7 +3,7 @@
 **Version:** 1.1 | **Date:** March 23, 2026 | **Target:** ChatGPT-5.3 Codex
 **Objective:** Complete the BendScript SvelteKit + Supabase application from its current state (frontend prototype with extracted engine) to a fully functional, deployable multi-tenant product with real AI graph synthesis.
 
-> **NOTE (2026-03-28):** Supabase config, migrations, and edge functions have moved to the shared ecosystem at `ProjectAmp2/supabase/`. BendScript tables are in the `kag.*` schema. See `/supabase/ARCHITECTURE.md` for the full shared data layer spec. Use `.schema('kag')` in the Supabase JS client.
+> **NOTE (2026-03-28):** Supabase config, migrations, and edge functions have moved to the shared ecosystem at `ProjectAmp2/ampersand-supabase/`. BendScript tables are in the `kag.*` schema. See `/ampersand-supabase/ARCHITECTURE.md` for the full shared data layer spec. Use `.schema('kag')` in the Supabase JS client.
 
 ---
 
@@ -113,7 +113,7 @@ These directories/files are referenced in BUILD.md but have NOT been created:
 
 | Missing | Status |
 |---|---|
-| `supabase/` directory | ❌ Does not exist — no migrations, no Edge Functions |
+| `ampersand-supabase/` directory | ❌ Does not exist — no migrations, no Edge Functions |
 | `tests/` directory | ❌ Does not exist — zero tests |
 | `.env` or `.env.example` | ❌ Does not exist |
 | `src/hooks.server.js` | ❌ Does not exist |
@@ -260,7 +260,7 @@ Execute these phases in order. Each phase builds on the previous. Do not skip ah
 
 **Create the Supabase migration and wire the client.**
 
-#### 1A. Create `supabase/migrations/001_schema.sql`
+#### 1A. Create `ampersand-supabase/migrations/001_schema.sql`
 
 ```sql
 -- Workspaces (tenants)
@@ -401,7 +401,7 @@ create trigger nodes_delete_cleanup before delete on nodes
   for each row execute function cleanup_orphaned_edges();
 ```
 
-#### 1B. Create `supabase/migrations/002_rls.sql`
+#### 1B. Create `ampersand-supabase/migrations/002_rls.sql`
 
 Enable RLS on all tables. Workspace members can read/write their workspace's data. Use a `is_workspace_member(ws_id uuid)` helper function. See the RLS policies in the existing `prompts/BUILD.md` (lines 609-679) — implement those exactly.
 
@@ -498,7 +498,7 @@ Also remove `export const prerender = true` from `src/routes/+layout.js` (or set
 
 **The marketing landing page (`/`) can still be prerendered** — just add `export const prerender = true` to `src/routes/(marketing)/+page.js` instead of the root layout.
 
-#### 3A. Create `supabase/functions/ai-proxy/index.ts`
+#### 3A. Create `ampersand-supabase/functions/ai-proxy/index.ts`
 
 A Deno Edge Function that:
 1. Receives prompt, graphContext, tier, userId, workspaceId, graphId, plan
@@ -748,9 +748,9 @@ Font: `ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas`
 ## Files You Need to CREATE (complete list)
 
 ### Backend & Infrastructure
-- [ ] `supabase/migrations/001_schema.sql`
-- [ ] `supabase/migrations/002_rls.sql`
-- [ ] `supabase/functions/ai-proxy/index.ts`
+- [ ] `ampersand-supabase/migrations/001_schema.sql`
+- [ ] `ampersand-supabase/migrations/002_rls.sql`
+- [ ] `ampersand-supabase/functions/ai-proxy/index.ts`
 - [ ] `src/hooks.server.js`
 - [ ] `src/lib/supabase/client.js`
 - [ ] `src/lib/supabase/queries.js`

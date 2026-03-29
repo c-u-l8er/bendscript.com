@@ -1,6 +1,6 @@
 # Local Supabase Development Workflow
 
-BendScript uses the **shared [&] ecosystem Supabase** at the repo root (`ProjectAmp2/supabase/`). All ecosystem products share one Supabase instance with per-product PostgreSQL schemas.
+BendScript uses the **shared [&] ecosystem Supabase** at the repo root (`ProjectAmp2/ampersand-supabase/`). All ecosystem products share one Supabase instance with per-product PostgreSQL schemas.
 
 BendScript tables live in the `kag.*` schema. Shared identity (profiles, workspaces, members) lives in `amp.*`.
 
@@ -13,10 +13,10 @@ BendScript tables live in the `kag.*` schema. Shared identity (profiles, workspa
 - Node.js + npm installed
 
 Key files (at repo root):
-- `supabase/config.toml` — shared config for all ecosystem schemas
-- `supabase/migrations/010_kag_schema.sql` — BendScript schema
-- `supabase/migrations/011_kag_rls.sql` — BendScript RLS policies
-- `supabase/ARCHITECTURE.md` — full architecture spec
+- `ampersand-supabase/config.toml` — shared config for all ecosystem schemas
+- `ampersand-supabase/migrations/010_kag_schema.sql` — BendScript schema
+- `ampersand-supabase/migrations/011_kag_rls.sql` — BendScript RLS policies
+- `ampersand-supabase/ARCHITECTURE.md` — full architecture spec
 
 ---
 
@@ -113,7 +113,7 @@ Local config has email confirmations disabled, so email login works immediately.
 - Sign up/sign in from `/auth/login`
 - Inspect users in Supabase Studio (`Authentication > Users`)
 - The `amp.handle_new_user` trigger auto-creates profile + workspace on signup
-- Google OAuth requires enabling `[auth.external.google]` in `supabase/config.toml`
+- Google OAuth requires enabling `[auth.external.google]` in `ampersand-supabase/config.toml`
 
 ---
 
@@ -123,10 +123,10 @@ Local config has email confirmations disabled, so email login works immediately.
 Make sure `.env.local` exists in `bendscript.com/` and restart dev server.
 
 ### Auth redirects to wrong host/port
-Ensure app runs on `localhost:5173` to match `supabase/config.toml` auth URLs.
+Ensure app runs on `localhost:5173` to match `ampersand-supabase/config.toml` auth URLs.
 
 ### Docker port conflicts
-If ports `54321-54326` are in use, stop conflicting services or update root `supabase/config.toml`.
+If ports `54321-54326` are in use, stop conflicting services or update root `ampersand-supabase/config.toml`.
 
 ### RLS behavior differs from expectations
 Reset the DB from repo root:
@@ -139,6 +139,6 @@ supabase db reset
 
 ## Team recommendation
 
-1. All schema/RLS changes go in `supabase/migrations/` at repo root (010-019 range for kag)
+1. All schema/RLS changes go in `ampersand-supabase/migrations/` at repo root (010-019 range for kag)
 2. Test auth/RLS against local Supabase before merge
-3. Keep local callback URLs aligned with `supabase/config.toml` and `.env.local`
+3. Keep local callback URLs aligned with `ampersand-supabase/config.toml` and `.env.local`
