@@ -4,7 +4,7 @@ Multi-tenant, AI-powered knowledge graph editor built on SvelteKit + Supabase. T
 
 ## Source-of-truth spec
 
-- `project_spec/README.md` — BendScript technical specification
+- `docs/spec/README.md` — BendScript technical specification
 
 ## Implementation prompts
 
