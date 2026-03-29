@@ -1,22 +1,8 @@
-# Local Supabase Development Workflow (Recommended)
+# Local Supabase Development Workflow
 
-This project is designed for **Supabase in both dev and prod** for maximum behavior parity (Auth, RLS, SQL, Realtime, Edge Functions).
+BendScript uses the **shared [&] ecosystem Supabase** at the repo root (`ProjectAmp2/supabase/`). All ecosystem products share one Supabase instance with per-product PostgreSQL schemas.
 
-Use this workflow to run a full local stack while keeping production on hosted Supabase.
-
----
-
-## Why this is the recommended setup
-
-Using local Supabase in development gives you:
-
-- Same Postgres + schema/migrations as prod
-- Same Supabase Auth session model
-- Same RLS policy behavior
-- Same Realtime channels
-- Same edge/runtime integration patterns
-
-This avoids the drift you get with alternative local databases.
+BendScript tables live in the `kag.*` schema. Shared identity (profiles, workspaces, members) lives in `amp.*`.
 
 ---
 
@@ -26,62 +12,65 @@ This avoids the drift you get with alternative local databases.
 - Supabase CLI installed
 - Node.js + npm installed
 
-From project root:
-
-- `bendscript.com/supabase/config.toml` is committed for local stack defaults
+Key files (at repo root):
+- `supabase/config.toml` — shared config for all ecosystem schemas
+- `supabase/migrations/010_kag_schema.sql` — BendScript schema
+- `supabase/migrations/011_kag_rls.sql` — BendScript RLS policies
+- `supabase/ARCHITECTURE.md` — full architecture spec
 
 ---
 
 ## 1) Start local Supabase
 
+From the **repo root** (`ProjectAmp2/`):
+
 ```sh
-cd bendscript.com
-npm run supabase:start
+supabase start
 ```
 
-This starts local services (API, DB, Studio, Auth, Realtime, Inbucket, etc).
+This starts the full ecosystem: all schemas (amp, kag, webhost, fleet, etc.), Auth, Realtime, Edge Functions, Studio.
 
-Useful helpers:
+Useful commands:
 
 ```sh
-npm run supabase:status
-npm run supabase:stop
+supabase status
+supabase stop
 ```
 
 ---
 
 ## 2) Apply schema + RLS migrations locally
 
-If this is a fresh local environment or you want a clean reset:
+For a clean reset:
 
 ```sh
-npm run supabase:db:reset
+supabase db reset
 ```
 
-This applies migrations in `supabase/migrations` and recreates the local DB.
+This applies all migrations (000–081) and recreates the local DB with every ecosystem schema.
 
 ---
 
 ## 3) Configure app env for local Supabase
 
-Create `.env.local` in `bendscript.com` with these values:
+Create `.env.local` in `bendscript.com/` with these values:
 
 ```env
 PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
 PUBLIC_SUPABASE_ANON_KEY=<local anon key from supabase status>
 SUPABASE_SERVICE_ROLE_KEY=<local service role key from supabase status>
 
-# Optional: force auth callback origin in local/dev to avoid cloud-domain redirects
+# Optional: force auth callback origin in local/dev
 PUBLIC_AUTH_REDIRECT_ORIGIN=http://localhost:5173
 
-# Optional: show Google login button in local UI (disabled by default)
+# Optional: show Google login button
 PUBLIC_BENDSCRIPT_GOOGLE_AUTH_ENABLED=false
 ```
 
 Get local keys from:
 
 ```sh
-npm run supabase:status
+supabase status
 ```
 
 ---
@@ -89,81 +78,67 @@ npm run supabase:status
 ## 4) Run the app
 
 ```sh
+cd bendscript.com
 npm run dev
 ```
 
 Open:
 
 - App: `http://127.0.0.1:5173`
-- Supabase Studio: `http://127.0.0.1:54323`
-- Inbucket (local email inbox): `http://127.0.0.1:54324`
+- Supabase Studio: `http://127.0.0.1:54323` (browse all schemas including `kag`)
+- Inbucket (local email): `http://127.0.0.1:54324`
 
 ---
 
-## 5) Auth testing in local dev
+## 5) Querying kag.* tables
 
-Because local config has email confirmations disabled, email login should work quickly.
+BendScript's Supabase client must target the `kag` schema:
 
-You can:
+```js
+const { data } = await supabase.schema('kag').from('graphs').select('*')
+```
+
+Shared identity tables (profiles, workspaces) are in `amp`:
+
+```js
+const { data } = await supabase.schema('amp').from('profiles').select('*')
+```
+
+---
+
+## 6) Auth testing in local dev
+
+Local config has email confirmations disabled, so email login works immediately.
 
 - Sign up/sign in from `/auth/login`
 - Inspect users in Supabase Studio (`Authentication > Users`)
-- Use Inbucket to inspect local magic-link emails if needed
-- Google login is hidden by default in local UI unless `PUBLIC_BENDSCRIPT_GOOGLE_AUTH_ENABLED=true`
-- Even with the button enabled, local Google OAuth also requires enabling `[auth.external.google]` in `supabase/config.toml` and providing valid Google OAuth credentials/callback setup
-
----
-
-## 6) Production remains hosted Supabase
-
-For prod/staging deployments, use hosted Supabase environment variables only.  
-Do not point production to local URLs.
-
----
-
-## Common commands
-
-```sh
-# Start local stack + app
-npm run supabase:start
-npm run dev
-
-# Reset local DB and re-run migrations
-npm run supabase:db:reset
-
-# Inspect status/endpoints/keys
-npm run supabase:status
-
-# Stop local stack
-npm run supabase:stop
-```
+- The `amp.handle_new_user` trigger auto-creates profile + workspace on signup
+- Google OAuth requires enabling `[auth.external.google]` in `supabase/config.toml`
 
 ---
 
 ## Troubleshooting
 
 ### `Missing required environment variable: PUBLIC_SUPABASE_URL`
-Make sure `.env.local` exists in `bendscript.com` and restart dev server.
+Make sure `.env.local` exists in `bendscript.com/` and restart dev server.
 
 ### Auth redirects to wrong host/port
-Ensure app is running on `localhost:5173` (preferred) or `127.0.0.1:5173` to match `supabase/config.toml` auth URLs.
+Ensure app runs on `localhost:5173` to match `supabase/config.toml` auth URLs.
 
 ### Docker port conflicts
-If ports `54321-54326` are in use, stop conflicting services or update `supabase/config.toml`.
+If ports `54321-54326` are in use, stop conflicting services or update root `supabase/config.toml`.
 
 ### RLS behavior differs from expectations
-Reset local DB and re-apply migrations:
+Reset the DB from repo root:
 
 ```sh
-npm run supabase:db:reset
+supabase db reset
 ```
 
 ---
 
 ## Team recommendation
 
-For team consistency:
-
-1. Keep schema/RLS changes in `supabase/migrations`
-2. Test new auth/rls features against local Supabase before merge
+1. All schema/RLS changes go in `supabase/migrations/` at repo root (010-019 range for kag)
+2. Test auth/RLS against local Supabase before merge
 3. Keep local callback URLs aligned with `supabase/config.toml` and `.env.local`

@@ -28,11 +28,22 @@ npm install
 npm run dev
 ```
 
+## Shared Supabase data layer
+
+BendScript uses the **shared ecosystem Supabase** at the repo root (`/supabase/`), not a local supabase directory. Its tables live in the `kag.*` PostgreSQL schema.
+
+- Schema: `/supabase/migrations/010_kag_schema.sql`
+- RLS: `/supabase/migrations/011_kag_rls.sql`
+- Edge Function: `/supabase/functions/kag-ai-proxy/`
+- Architecture: `/supabase/ARCHITECTURE.md`
+
+Run `supabase start` from the repo root to start the full ecosystem DB. Use `.schema('kag')` in the Supabase JS client to target BendScript tables.
+
 ## Stack
 
 - SvelteKit 2.x + TypeScript
-- Supabase (PostgreSQL 16+, Auth, Realtime)
-- pgvector for embeddings
+- Supabase (PostgreSQL 15+, Auth, Realtime) — shared ecosystem instance
+- pgvector for embeddings (in `kag.*` schema)
 - HTML5 Canvas for force-directed graph rendering
 - Anthropic Claude API for AI synthesis
 - Custom CSS (no Tailwind)

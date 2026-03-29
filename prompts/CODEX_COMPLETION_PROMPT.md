@@ -3,6 +3,8 @@
 **Version:** 1.1 | **Date:** March 23, 2026 | **Target:** ChatGPT-5.3 Codex
 **Objective:** Complete the BendScript SvelteKit + Supabase application from its current state (frontend prototype with extracted engine) to a fully functional, deployable multi-tenant product with real AI graph synthesis.
 
+> **NOTE (2026-03-28):** Supabase config, migrations, and edge functions have moved to the shared ecosystem at `ProjectAmp2/supabase/`. BendScript tables are in the `kag.*` schema. See `/supabase/ARCHITECTURE.md` for the full shared data layer spec. Use `.schema('kag')` in the Supabase JS client.
+
 ---
 
 ## Context: What You're Working On
