@@ -223,14 +223,109 @@ Model: Sonnet 4.6 (Paid only). ~2,500 input tokens, ~800 output tokens.
 
 ### 4.6 Data Model
 
+#### 4.6.1 TypeScript Interface Definitions
+
+```typescript
+// Core graph entities — authoritative schema definitions for Supabase tables
+
+interface Workspace {
+  id: string;                   // UUID, primary key
+  name: string;
+  slug: string;                 // globally unique, lowercase + hyphens
+  plan: 'free' | 'pro' | 'teams' | 'business' | 'enterprise';
+  stripe_customer_id: string | null;
+  owner_id: string;             // Supabase auth user ID
+  created_at: string;           // ISO8601
+  updated_at: string;
+}
+
+interface WorkspaceMember {
+  id: string;
+  workspace_id: string;         // FK → workspaces.id
+  user_id: string;              // Supabase auth user ID
+  role: 'owner' | 'admin' | 'member' | 'viewer';
+  invited_by: string | null;
+  created_at: string;
+}
+
+interface GraphPlane {
+  id: string;
+  workspace_id: string;         // FK → workspaces.id (RLS partition key)
+  graph_id: string;             // FK → graphs.id
+  name: string;
+  parent_plane_id: string | null; // null = root plane
+  is_root: boolean;
+  node_count: number;           // denormalized counter
+  created_at: string;
+  updated_at: string;
+}
+
+interface Node {
+  id: string;
+  plane_id: string;             // FK → graph_planes.id
+  workspace_id: string;         // FK → workspaces.id (RLS partition key)
+  text: string;
+  type: 'normal' | 'stargate';
+  x: number;                    // canvas position
+  y: number;
+  width: number;
+  height: number;
+  pinned: boolean;              // exempt from physics simulation
+  portal_plane_id: string | null; // non-null only for stargate nodes
+  embedding: number[] | null;   // pgvector (384-dim, all-MiniLM-L6-v2)
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+interface Edge {
+  id: string;
+  plane_id: string;             // FK → graph_planes.id
+  workspace_id: string;         // FK → workspaces.id (RLS partition key)
+  source_node_id: string;       // FK → nodes.id
+  target_node_id: string;       // FK → nodes.id
+  label: string;                // human-readable edge label
+  kind: 'context' | 'causal' | 'temporal' | 'associative' | 'custom';
+  strength: number;             // 0.0–1.0, default 0.5
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+interface AIGeneration {
+  id: string;
+  workspace_id: string;         // FK → workspaces.id
+  user_id: string;              // Supabase auth user ID
+  prompt: string;
+  tier: 1 | 2 | 3 | 4;
+  model: string;                // e.g., "claude-haiku-4-5", "claude-sonnet-4-6"
+  input_tokens: number;
+  output_tokens: number;
+  cached_tokens: number;        // prompt cache hits
+  cost_usd: number;             // computed from token counts + model pricing
+  nodes_spawned: number;
+  edges_spawned: number;
+  duration_ms: number;
+  created_at: string;
+}
+
+// Invariants:
+// - {workspace_id} is the RLS partition key on all tables
+// - {source_node_id, target_node_id, plane_id} is unique per edge (no parallel edges of same type)
+// - Stargate nodes: portal_plane_id must reference an existing GraphPlane
+// - Node embedding is auto-generated on insert/update via Supabase Edge Function
+// - ai_generations has composite index on {workspace_id, created_at} for rate-limit queries
 ```
-workspaces          → name, slug, plan, stripe_customer_id
-workspace_members   → workspace_id, user_id, role (owner/admin/member/viewer)
-graph_planes        → workspace_id, graph_id, name, parent_plane_id, is_root
-nodes               → plane_id, workspace_id, text, type, x, y, pinned, portal_plane_id
-edges               → plane_id, workspace_id, node_a, node_b, label, kind, strength
-ai_generations      → workspace_id, user_id, prompt, tier, tokens_used, nodes_spawned
-```
+
+#### 4.6.2 Summary Table
+
+| Table | Primary Key | RLS Key | Relationships |
+|-------|------------|---------|---------------|
+| `workspaces` | `id` | `id` | has_many: members, planes, nodes, edges, generations |
+| `workspace_members` | `id` | `workspace_id` | belongs_to: workspace, user |
+| `graph_planes` | `id` | `workspace_id` | belongs_to: workspace, graph; has_many: nodes, edges; self-ref: parent_plane |
+| `nodes` | `id` | `workspace_id` | belongs_to: plane; has_many: source_edges, target_edges |
+| `edges` | `id` | `workspace_id` | belongs_to: plane, source_node, target_node |
+| `ai_generations` | `id` | `workspace_id` | belongs_to: workspace, user |
 
 Row-level security (RLS) in Postgres enforces tenant isolation at the database layer. On first sign-in, a personal workspace is automatically created.
 
@@ -500,9 +595,98 @@ bendscript/
 
 ---
 
-## 11. Implementation Roadmap
+## 11. Pre-Phase Feasibility Validation (Weeks 0-2)
 
-### Phase 0: Foundation — v1.0 Launch (Weeks 1-8)
+Before committing to the full roadmap, validate the highest-risk technical assumptions:
+
+| Gate | Validates | Pass Criteria | Fallback |
+|------|-----------|---------------|----------|
+| **FV-1: Canvas Performance at Scale** | Force-directed physics simulation with 200+ nodes at 60fps on mid-range hardware (M1 MacBook Air, 8GB) | Sustained 60fps with 200 nodes, 300 edges; frame budget <16ms; no GC jank | Implement spatial indexing (quadtree) in Phase 0 instead of Phase 1; reduce physics tick rate to 30fps for large graphs |
+| **FV-2: KAG-Solver Accuracy** | That typed edge traversal + pgvector similarity produces meaningfully better answers than flat vector search alone on a 500-node test graph | Multi-hop query accuracy >70% on a curated 50-question benchmark (vs. vector-only baseline); latency <500ms | Simplify to "vector search + 1-hop expansion" for v1; defer full logical form decomposition to Phase 3 |
+| **FV-3: Supabase Realtime Collaboration** | Concurrent editing by 5 users on a shared graph with node position + text sync via Supabase Realtime broadcast | No lost updates; position sync latency <200ms; text conflicts resolved by last-write-wins | Defer collaboration to Phase 3; ship single-user-per-graph for v1 |
+| **FV-4: AI Tier 2 Graph Context Window** | That sending graph topology (nodes + edges + plane context) as structured JSON stays within prompt budget while producing topology-aware responses | Tier 2 responses demonstrably reference graph structure (not just text); context fits within 8K tokens for 50-node graphs | Reduce context to nearest 20 nodes by graph distance; use embedding-based selection instead of full topology |
+
+### 11.1 Acceptance Test Criteria
+
+**Canvas Engine:**
+- Given a new graph → root plane is created with 0 nodes
+- Given a Composer prompt submission → 2 nodes (user + response) are created with a labeled edge
+- Given a Stargate click → warp transition fires and breadcrumb updates within 200ms
+- Given a pinned node → physics simulation does not move it; unpinned neighbors still settle
+- Given 200 nodes → frame rate stays above 55fps (measured via `performance.now()` in rAF loop)
+
+**AI Synthesis:**
+- Given a Tier 1 prompt → response contains `{ text, type, edgeLabel, edgeKind }` fields
+- Given a Tier 2 prompt with 10-node context → response references at least 1 existing node by semantic overlap
+- Given a Tier 3 topic → response generates 8-12 nodes with typed edges and optional Stargate suggestions
+- Given a Free plan user → AI calls use Haiku 4.5 model; Paid plan uses Sonnet 4.6
+
+**KAG Server:**
+- Given `search_nodes({ query: "machine learning" })` → returns nodes ranked by pgvector similarity
+- Given `traverse_path({ from: "A", to: "B", max_hops: 3 })` → returns ordered path with edge labels or empty if no path
+- Given `build_from_text({ text: "..." })` → creates nodes and edges; no duplicate entities if overlap exists
+- Given an unauthenticated MCP request → returns 401 with clear error message
+
+**Multi-Tenancy:**
+- Given User A in Workspace 1 → cannot read/write Workspace 2 data (RLS enforced at DB layer)
+- Given a deleted workspace → all planes, nodes, edges, and generations are cascade-deleted
+
+**Data Freedom:**
+- Given JSON export → reimporting the same JSON produces an identical graph (round-trip fidelity)
+- Given Mermaid export → output renders correctly in GitHub Markdown preview
+
+### 11.2 [&] Protocol Integration Detail
+
+BendScript provides `&memory.graph` as a KAG capability. Integration with the broader [&] ecosystem:
+
+**ampersand.json example for an agent using BendScript:**
+```json
+{
+  "$schema": "https://protocol.ampersandboxdesign.com/schema/v0.1.0/ampersand.schema.json",
+  "agent": "DomainExpert",
+  "version": "1.0.0",
+  "capabilities": {
+    "&memory.graph": {
+      "provider": "bendscript",
+      "config": { "workspace_id": "ws_acme_engineering" }
+    },
+    "&memory.graph.learned": {
+      "provider": "graphonomous",
+      "config": { "instance": "domain-expert" }
+    },
+    "&reason.argument": {
+      "provider": "deliberatic",
+      "config": { "governance": "evidence-first" }
+    }
+  },
+  "governance": {
+    "hard": ["Never modify human-curated nodes without approval"],
+    "soft": ["Prefer BendScript knowledge over Graphonomous for domain-specific queries"],
+    "escalate_when": { "confidence_below": 0.6 }
+  }
+}
+```
+
+**`&govern.telemetry` integration:**
+BendScript emits telemetry events for KAG API queries via `&govern.telemetry.emit`:
+- `kag.query` — query_graph, traverse_path, search_nodes calls
+- `kag.build` — build_from_text entity extraction events
+- `ai.generation` — all AI tier calls with token counts and cost
+
+These feed into Delegatic budget enforcement — an org's `max_cost_usd_per_period` limit applies across all [&] capabilities including BendScript KAG queries.
+
+**Graphonomous cross-query pattern:**
+Agents can query both knowledge backends in a single pipeline:
+```
+query |> &memory.graph[bendscript].search() |> &memory.graph[graphonomous].enrich() |> &reason.argument.evaluate()
+```
+BendScript provides human-curated domain knowledge; Graphonomous provides agent-learned operational knowledge. The pipeline composes them before reasoning.
+
+---
+
+## 12. Implementation Roadmap
+
+### Phase 0: Foundation — v1.0 Launch (Weeks 3-10)
 
 - [ ] Extract canvas engine from prototype into SvelteKit component architecture
 - [ ] Supabase persistence — schema, RLS, graph load/save
@@ -517,7 +701,7 @@ bendscript/
 - [ ] MCP endpoint (read-only) — `search_nodes` + `get_subgraph`
 - [ ] AGENTS.md — agent discovery file
 
-### Phase 1: Polish + Export (Weeks 9-14)
+### Phase 1: Polish + Export (Weeks 11-16)
 
 - [ ] Markdown outline export
 - [ ] Mermaid diagram export
@@ -527,7 +711,7 @@ bendscript/
 - [ ] Undo/redo stack — immutable state snapshots
 - [ ] Comparison SEO pages — BendScript vs Flowith, Heptabase, Obsidian Canvas
 
-### Phase 2: KAG API + MCP Full (Weeks 15-22)
+### Phase 2: KAG API + MCP Full (Weeks 17-24)
 
 - [ ] pgvector semantic search — node embeddings + mutual indexing
 - [ ] KAG REST API — `/api/kag/query` endpoint (KAG-Solver)
@@ -537,7 +721,7 @@ bendscript/
 - [ ] `build_from_text` — document ingestion → entity/relation extraction
 - [ ] KAG API dashboard — usage analytics, query logs, cost tracking
 
-### Phase 3: Collaboration + Enterprise (Weeks 23-32)
+### Phase 3: Collaboration + Enterprise (Weeks 25-34)
 
 - [ ] Real-time collaboration — Supabase Realtime broadcast, node sync
 - [ ] Team workspaces with role-based access (owner/admin/member/viewer)
@@ -546,7 +730,7 @@ bendscript/
 - [ ] Graph templates library (community-contributed starter graphs)
 - [ ] Enterprise SSO + audit logging
 
-### Phase 4: Ecosystem Integration (Weeks 33-40)
+### Phase 4: Ecosystem Integration (Weeks 35-42)
 
 - [ ] LangChain/LlamaIndex retriever — drop-in KAG replacement for vector-only retrieval
 - [ ] Embedded reasoning page — iframe/web component for inline Q&A
@@ -556,7 +740,7 @@ bendscript/
 
 ---
 
-## 12. Pricing
+## 13. Pricing
 
 ### 12.1 Canvas Plans (for Humans)
 
@@ -595,7 +779,7 @@ All costs reflect March 2026 Anthropic API pricing: Haiku 4.5 at $1/$5 per MTok,
 
 ---
 
-## 13. Success Criteria
+## 14. Success Criteria
 
 ### MVP (Phase 0-1 complete, ~14 weeks)
 
@@ -619,7 +803,7 @@ All costs reflect March 2026 Anthropic API pricing: Haiku 4.5 at $1/$5 per MTok,
 
 ---
 
-## 14. Open Questions
+## 15. Open Questions
 
 1. **Quadtree vs spatial hashing:** For 500+ node graphs, which spatial indexing approach gives better performance on the force-directed canvas? Quadtree is standard but spatial hashing may be simpler for the hit-testing use case.
 
