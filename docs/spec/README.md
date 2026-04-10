@@ -499,6 +499,52 @@ FleetPrompt (Distribution) · Delegatic (Orchestration)
 
 ---
 
+## 7.4 PULSE Loop Manifest
+
+BendScript is a **PULSE-conforming loop** under OS-010. Unlike most [&] loops it is **human-in-the-loop dominant** — phases are triggered by canvas interactions and AI synthesis requests rather than autonomous tick events. PULSE accommodates this through `cadence.type = "manual"` with an `event` fallback.
+
+**Loop ID:** `bendscript.knowledge_curation`
+**Loop name:** BendScript Knowledge Curation Loop
+**Version:** 0.1.0
+**Owner:** bendscript.com
+**Workspace scope:** required
+
+**Phases (5 canonical kinds — KAG curation maps cleanly to PULSE):**
+
+| Phase ID | Kind | Description |
+|---|---|---|
+| `retrieve_kag` | `retrieve` | Search nodes / get subgraph / query plane against the `kag.*` Supabase schema (vector + graph) |
+| `route_synthesis` | `route` | Choose synthesis tier (manual edit, AI single-node, AI subgraph, AI plane-build) based on user intent + budget |
+| `act_curate` | `act` | Apply mutations to the canvas: create/edit nodes, draw edges, move stargates, update plane |
+| `learn_feedback` | `learn` | Update synthesis confidence from accept/reject/edit signals on AI-generated content |
+| `consolidate_plane` | `consolidate` | Plane-level cleanup: merge near-duplicates, prune low-confidence AI nodes the user never accepted |
+
+**Closure:** `consolidate_plane → retrieve_kag` via Supabase, guarantee `eventual`.
+
+**Cadence:**
+- Primary: `manual` (user actions on the canvas)
+- Fallback: `event` (AI synthesis completion, realtime collaboration events)
+
+**Nesting:** root loop. May be nested under PRISM as a benchmarked KAG memory system.
+
+**Substrates:**
+- `memory`: `bendscript://kag/{workspace_id}` (self — BendScript is its own canonical KAG substrate)
+- `policy`: `delegatic://workspace/{ws_id}` (optional; falls back to Supabase RLS for solo users)
+- `audit`: `delegatic://workspace/{ws_id}/audit` (optional)
+- `auth`: `supabase://workspace/{ws_id}` (Supabase Auth, not OpenSentience — BendScript is the only non-Elixir product)
+- `transport`: `mcp` (streamable HTTP) or `rest`
+- `time`: optional
+
+**Invariants enabled:** `phase_atomicity`, `feedback_immutability`, `outcome_grounding`, `trace_id_propagation`. `append_only_audit` is enabled when Delegatic is configured. `kappa_routing` and `quorum_before_commit` are not used (BendScript is a single-curator loop, not a topological reasoner or consensus engine).
+
+**Cross-loop connections:**
+- `feedback_to_prism` — emits `OutcomeSignal` (synthesis accept/reject) from `learn_feedback` to `prism.benchmark.observe` when registered as a KAG memory system in PRISM
+- `consolidation_to_graphonomous` — optional `ConsolidationEvent` to a paired Graphonomous workspace, enabling human-curated knowledge to seed agent memory
+
+**Why this matters:** BendScript proves that PULSE handles human-driven loops as cleanly as autonomous ones. The `manual` cadence and Supabase Auth substrate demonstrate that PULSE does not require Elixir/OTP or autonomous ticking — it is a pure schema standard.
+
+---
+
 ## 8. Project Structure
 
 ```
