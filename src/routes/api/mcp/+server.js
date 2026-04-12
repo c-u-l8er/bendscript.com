@@ -22,40 +22,43 @@ const CORS_HEADERS = {
 const PROTOCOL_VERSION = "2025-03-26";
 const SERVER_INFO = {
   name: "bendscript-mcp",
-  version: "0.1.0",
+  version: "0.2.0",
 };
 
 const JSON_RPC = "2.0";
 
-const TOOL_DEFINITIONS = [
+// ---------------------------------------------------------------------------
+// Machine definitions — PULSE loop phases
+// ---------------------------------------------------------------------------
+
+const MACHINE_DEFINITIONS = [
   {
-    name: "search_nodes",
-    title: "Search Nodes",
-    description: "Semantic/text search across node text in a workspace graph.",
-    inputSchema: {
-      type: "object",
-      required: ["query"],
-      properties: {
-        query: { type: "string", minLength: 1 },
-        graph_id: { type: "string" },
-        plane_id: { type: "string" },
-        limit: { type: "integer", minimum: 1, maximum: 100, default: 20 },
-      },
-      additionalProperties: false,
-    },
-  },
-  {
-    name: "get_subgraph",
-    title: "Get Subgraph",
+    name: "retrieve",
+    title: "Retrieve",
     description:
-      "Return a node and its N-hop neighborhood with optional edge-kind filtering.",
+      'KAG read machine — "What\'s in the graph?" Search nodes, explore subgraphs, traverse paths, query by natural language, list planes.',
     inputSchema: {
       type: "object",
-      required: ["graph_id", "node_id"],
+      required: ["action"],
       properties: {
+        action: {
+          type: "string",
+          enum: ["search", "subgraph", "traverse", "query", "list_planes"],
+          description:
+            "search: semantic/text node search | subgraph: N-hop neighborhood | traverse: shortest path between nodes | query: natural language graph query | list_planes: enumerate graph planes",
+        },
+        // search
+        query: { type: "string", minLength: 1 },
+        // search, subgraph, traverse, query, list_planes
         graph_id: { type: "string" },
+        // search
+        plane_id: { type: "string" },
+        // search, query
+        limit: { type: "integer", minimum: 1, maximum: 100, default: 20 },
+        // subgraph
         node_id: { type: "string" },
         depth: { type: "integer", minimum: 0, maximum: 6, default: 2 },
+        // subgraph, traverse
         edge_kinds: {
           type: "array",
           items: {
@@ -63,63 +66,33 @@ const TOOL_DEFINITIONS = [
             enum: ["context", "causal", "temporal", "associative", "user"],
           },
         },
-      },
-      additionalProperties: false,
-    },
-  },
-  {
-    name: "traverse_path",
-    title: "Traverse Path",
-    description:
-      "Find a reasoning path between two concepts by node ids or text queries.",
-    inputSchema: {
-      type: "object",
-      required: ["graph_id"],
-      properties: {
-        graph_id: { type: "string" },
+        // traverse
         from_node_id: { type: "string" },
         to_node_id: { type: "string" },
         from_query: { type: "string" },
         to_query: { type: "string" },
         max_hops: { type: "integer", minimum: 1, maximum: 10, default: 4 },
-        plane_id: { type: "string" },
-        edge_kinds: {
-          type: "array",
-          items: {
-            type: "string",
-            enum: ["context", "causal", "temporal", "associative", "user"],
-          },
-        },
-      },
-      additionalProperties: false,
-    },
-  },
-  {
-    name: "query_graph",
-    title: "Query Graph",
-    description:
-      "Natural language graph query that returns candidate nodes and inferred path context.",
-    inputSchema: {
-      type: "object",
-      required: ["graph_id", "question"],
-      properties: {
-        graph_id: { type: "string" },
+        // query
         question: { type: "string", minLength: 1 },
-        limit: { type: "integer", minimum: 1, maximum: 30, default: 12 },
-        max_hops: { type: "integer", minimum: 1, maximum: 10, default: 4 },
       },
       additionalProperties: false,
     },
   },
   {
-    name: "build_from_text",
-    title: "Build From Text",
+    name: "act",
+    title: "Act",
     description:
-      "Ingest text and build graph nodes/edges in a target graph plane.",
+      'KAG write machine — "Mutate the graph." Build nodes and edges from text.',
     inputSchema: {
       type: "object",
-      required: ["graph_id", "text"],
+      required: ["action"],
       properties: {
+        action: {
+          type: "string",
+          enum: ["build_from_text"],
+          description:
+            "build_from_text: ingest text, extract entities, create nodes and edges",
+        },
         graph_id: { type: "string" },
         plane_id: { type: "string" },
         text: { type: "string", minLength: 1, maxLength: 20000 },
@@ -128,20 +101,11 @@ const TOOL_DEFINITIONS = [
       additionalProperties: false,
     },
   },
-  {
-    name: "list_planes",
-    title: "List Planes",
-    description: "List all planes in a workspace graph.",
-    inputSchema: {
-      type: "object",
-      required: ["graph_id"],
-      properties: {
-        graph_id: { type: "string" },
-      },
-      additionalProperties: false,
-    },
-  },
 ];
+
+// ---------------------------------------------------------------------------
+// JSON-RPC helpers
+// ---------------------------------------------------------------------------
 
 function rpcResult(id, result) {
   return { jsonrpc: JSON_RPC, id: id ?? null, result };
@@ -153,7 +117,7 @@ function rpcError(id, code, message, data = null) {
   return { jsonrpc: JSON_RPC, id: id ?? null, error: err };
 }
 
-function textContentResult(name, payload) {
+function textContentResult(machine, action, payload) {
   return {
     content: [
       {
@@ -163,10 +127,15 @@ function textContentResult(name, payload) {
     ],
     structuredContent: payload,
     _meta: {
-      tool: name,
+      machine,
+      action,
     },
   };
 }
+
+// ---------------------------------------------------------------------------
+// Request helpers
+// ---------------------------------------------------------------------------
 
 function getRequestId(request) {
   return request.headers.get("x-request-id") || null;
@@ -198,6 +167,10 @@ function parseStreamPreference(request, body) {
   return headerWantsSSE || bodyWantsSSE;
 }
 
+// ---------------------------------------------------------------------------
+// SSE streaming
+// ---------------------------------------------------------------------------
+
 function sseEncode(event, data) {
   const payload = typeof data === "string" ? data : JSON.stringify(data);
   return `event: ${event}\ndata: ${payload}\n\n`;
@@ -219,6 +192,10 @@ function streamRpcResponses(responses) {
     },
   });
 }
+
+// ---------------------------------------------------------------------------
+// build_from_text helpers
+// ---------------------------------------------------------------------------
 
 function sanitizeText(input, max = 280) {
   return String(input ?? "")
@@ -260,7 +237,7 @@ function inferEdgeKind(text) {
 async function resolvePlaneId({ supabase, workspaceId, graphId, planeId }) {
   if (planeId) return planeId;
 
-  const { data, error } = await supabase
+  const { data, error } = await supabase.schema("kag")
     .from("graphs")
     .select("root_plane_id")
     .eq("workspace_id", workspaceId)
@@ -279,11 +256,15 @@ async function resolvePlaneId({ supabase, workspaceId, graphId, planeId }) {
   return rootPlaneId;
 }
 
-async function handleToolCall({ name, args, supabase, workspaceId }) {
-  switch (name) {
-    case "search_nodes": {
+// ---------------------------------------------------------------------------
+// Machine action dispatchers
+// ---------------------------------------------------------------------------
+
+async function handleRetrieve({ action, args, supabase, workspaceId }) {
+  switch (action) {
+    case "search": {
       if (!args?.query) {
-        throw new Error("search_nodes requires `query`.");
+        throw new Error("retrieve(search) requires `query`.");
       }
       const result = await searchNodes({
         client: supabase,
@@ -293,12 +274,14 @@ async function handleToolCall({ name, args, supabase, workspaceId }) {
         query: args.query,
         limit: args.limit ?? 20,
       });
-      return textContentResult(name, result);
+      return textContentResult("retrieve", action, result);
     }
 
-    case "get_subgraph": {
+    case "subgraph": {
       if (!args?.graph_id || !args?.node_id) {
-        throw new Error("get_subgraph requires `graph_id` and `node_id`.");
+        throw new Error(
+          "retrieve(subgraph) requires `graph_id` and `node_id`.",
+        );
       }
       const result = await getSubgraph({
         client: supabase,
@@ -308,12 +291,12 @@ async function handleToolCall({ name, args, supabase, workspaceId }) {
         depth: args.depth ?? 2,
         edgeKinds: args.edge_kinds ?? null,
       });
-      return textContentResult(name, result);
+      return textContentResult("retrieve", action, result);
     }
 
-    case "traverse_path": {
+    case "traverse": {
       if (!args?.graph_id) {
-        throw new Error("traverse_path requires `graph_id`.");
+        throw new Error("retrieve(traverse) requires `graph_id`.");
       }
       const result = await traversePath({
         client: supabase,
@@ -327,12 +310,14 @@ async function handleToolCall({ name, args, supabase, workspaceId }) {
         planeId: args.plane_id ?? null,
         edgeKinds: args.edge_kinds ?? null,
       });
-      return textContentResult(name, result);
+      return textContentResult("retrieve", action, result);
     }
 
-    case "query_graph": {
+    case "query": {
       if (!args?.graph_id || !args?.question) {
-        throw new Error("query_graph requires `graph_id` and `question`.");
+        throw new Error(
+          "retrieve(query) requires `graph_id` and `question`.",
+        );
       }
       const result = await queryGraph({
         client: supabase,
@@ -342,24 +327,35 @@ async function handleToolCall({ name, args, supabase, workspaceId }) {
         limit: args.limit ?? 12,
         maxHops: args.max_hops ?? 4,
       });
-      return textContentResult(name, result);
+      return textContentResult("retrieve", action, result);
     }
 
     case "list_planes": {
       if (!args?.graph_id) {
-        throw new Error("list_planes requires `graph_id`.");
+        throw new Error("retrieve(list_planes) requires `graph_id`.");
       }
       const result = await listPlanes({
         client: supabase,
         workspaceId,
         graphId: args.graph_id,
       });
-      return textContentResult(name, result);
+      return textContentResult("retrieve", action, result);
     }
 
+    default:
+      throw new Error(
+        `Unknown retrieve action "${action}". Valid: search, subgraph, traverse, query, list_planes`,
+      );
+  }
+}
+
+async function handleAct({ action, args, supabase, workspaceId }) {
+  switch (action) {
     case "build_from_text": {
       if (!args?.graph_id || !args?.text) {
-        throw new Error("build_from_text requires `graph_id` and `text`.");
+        throw new Error(
+          "act(build_from_text) requires `graph_id` and `text`.",
+        );
       }
 
       const graphId = String(args.graph_id);
@@ -395,7 +391,7 @@ async function handleToolCall({ name, args, supabase, workspaceId }) {
         };
       });
 
-      const { data: insertedNodes, error: nodeErr } = await supabase
+      const { data: insertedNodes, error: nodeErr } = await supabase.schema("kag")
         .from("nodes")
         .insert(nodeRows)
         .select(
@@ -427,7 +423,7 @@ async function handleToolCall({ name, args, supabase, workspaceId }) {
 
       let edges = [];
       if (edgeRows.length > 0) {
-        const { data: insertedEdges, error: edgeErr } = await supabase
+        const { data: insertedEdges, error: edgeErr } = await supabase.schema("kag")
           .from("edges")
           .insert(edgeRows)
           .select(
@@ -441,7 +437,7 @@ async function handleToolCall({ name, args, supabase, workspaceId }) {
         edges = insertedEdges || [];
       }
 
-      return textContentResult(name, {
+      return textContentResult("act", action, {
         graph_id: graphId,
         plane_id: planeId,
         nodes,
@@ -454,9 +450,21 @@ async function handleToolCall({ name, args, supabase, workspaceId }) {
     }
 
     default:
-      throw new Error(`Unknown tool "${name}".`);
+      throw new Error(
+        `Unknown act action "${action}". Valid: build_from_text`,
+      );
   }
 }
+
+// Machine dispatcher
+const MACHINE_HANDLERS = {
+  retrieve: handleRetrieve,
+  act: handleAct,
+};
+
+// ---------------------------------------------------------------------------
+// JSON-RPC method handling
+// ---------------------------------------------------------------------------
 
 async function handleRpcRequest({ payload, supabase, workspaceId }) {
   const id = payload?.id ?? null;
@@ -479,13 +487,13 @@ async function handleRpcRequest({ payload, supabase, workspaceId }) {
         logging: {},
       },
       instructions:
-        "Use tools/list then tools/call. Provide arguments as JSON object.",
+        "BendScript KAG server with 2 machines: retrieve (read) and act (write). Call tools/list then tools/call with machine name and action parameter.",
     });
   }
 
   if (method === "tools/list") {
     return rpcResult(id, {
-      tools: TOOL_DEFINITIONS,
+      tools: MACHINE_DEFINITIONS,
     });
   }
 
@@ -497,31 +505,42 @@ async function handleRpcRequest({ payload, supabase, workspaceId }) {
       return rpcError(id, -32602, "Invalid params: `name` is required.");
     }
 
-    const known = TOOL_DEFINITIONS.find((t) => t.name === name);
-    if (!known) {
-      return rpcError(id, -32601, `Tool not found: ${name}`);
+    const handler = MACHINE_HANDLERS[name];
+    if (!handler) {
+      return rpcError(
+        id,
+        -32601,
+        `Machine not found: "${name}". Available: ${Object.keys(MACHINE_HANDLERS).join(", ")}`,
+      );
+    }
+
+    const action = args.action;
+    if (!action || typeof action !== "string") {
+      return rpcError(
+        id,
+        -32602,
+        `Invalid params: \`action\` is required for machine "${name}".`,
+      );
     }
 
     try {
-      const result = await handleToolCall({
-        name,
-        args,
-        supabase,
-        workspaceId,
-      });
-
+      const result = await handler({ action, args, supabase, workspaceId });
       return rpcResult(id, result);
     } catch (err) {
       return rpcError(
         id,
         -32000,
-        err instanceof Error ? err.message : "Tool execution failed.",
+        err instanceof Error ? err.message : "Machine execution failed.",
       );
     }
   }
 
   return rpcError(id, -32601, `Method not found: ${method}`);
 }
+
+// ---------------------------------------------------------------------------
+// HTTP handlers
+// ---------------------------------------------------------------------------
 
 export async function OPTIONS() {
   return new Response(null, {
@@ -548,7 +567,7 @@ export async function GET({ request }) {
     serverInfo: SERVER_INFO,
     endpoint: "/api/mcp",
     transport: "streamable-http",
-    tools: TOOL_DEFINITIONS,
+    machines: MACHINE_DEFINITIONS,
   };
 
   await recordApiKeyEvent({
@@ -567,7 +586,6 @@ export async function GET({ request }) {
 }
 
 export async function DELETE({ request: _request }) {
-  // Streamable HTTP session teardown endpoint (stateless no-op in this implementation).
   return new Response(null, {
     status: 204,
     headers: CORS_HEADERS,

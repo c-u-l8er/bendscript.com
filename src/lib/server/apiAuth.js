@@ -1,6 +1,8 @@
 import crypto from "node:crypto";
 import { error as kitError } from "@sveltejs/kit";
 
+const kag = (c) => c.schema("kag");
+
 const DEFAULT_KEY_PREFIX = process.env.API_KEY_PREFIX || "bsk_live_";
 const DEFAULT_SCOPES = ["read"];
 
@@ -144,7 +146,7 @@ export async function createApiKey({
     expires_at: expiresAt || null,
   };
 
-  const { data, error } = await supabase
+  const { data, error } = await kag(supabase)
     .from("api_keys")
     .insert(payload)
     .select(
@@ -167,7 +169,7 @@ export async function revokeApiKey({ supabase, workspaceId, apiKeyId }) {
   if (!workspaceId) throw new Error("revokeApiKey: workspaceId is required");
   if (!apiKeyId) throw new Error("revokeApiKey: apiKeyId is required");
 
-  const { data, error } = await supabase
+  const { data, error } = await kag(supabase)
     .from("api_keys")
     .update({ is_active: false, updated_at: nowIso() })
     .eq("id", apiKeyId)
@@ -226,7 +228,7 @@ async function logApiKeyEvent({
   };
 
   // Best effort logging only.
-  await supabase.from("api_key_events").insert(payload).then(() => {}).catch(() => {});
+  await kag(supabase).from("api_key_events").insert(payload).then(() => {}).catch(() => {});
 }
 
 /**
@@ -252,7 +254,7 @@ export async function authenticateApiKey({
 
   const keyHash = hashApiKey(rawKey);
 
-  const { data: keyRow, error: keyError } = await supabase
+  const { data: keyRow, error: keyError } = await kag(supabase)
     .from("api_keys")
     .select(
       "id, workspace_id, name, scopes, is_active, expires_at, created_by, last_used_at, key_prefix",
@@ -340,7 +342,7 @@ export async function authenticateApiKey({
   }
 
   // Best-effort usage update
-  await supabase
+  await kag(supabase)
     .from("api_keys")
     .update({ last_used_at: nowIso() })
     .eq("id", keyRow.id)

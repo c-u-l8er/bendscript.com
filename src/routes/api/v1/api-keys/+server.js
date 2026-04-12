@@ -42,6 +42,7 @@ async function requireWorkspaceAdmin({ supabase, workspaceId, userId }) {
   }
 
   const { data, error } = await supabase
+    .schema("amp")
     .from("workspace_members")
     .select("role")
     .eq("workspace_id", workspaceId)
@@ -124,6 +125,7 @@ export async function GET(event) {
   }
 
   const { data, error } = await supabase
+    .schema("kag")
     .from("api_keys")
     .select(
       "id, workspace_id, created_by, name, key_prefix, scopes, is_active, last_used_at, expires_at, created_at, updated_at",

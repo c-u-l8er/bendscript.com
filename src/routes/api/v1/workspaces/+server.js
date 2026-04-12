@@ -1,6 +1,9 @@
 import { createSupabaseAdminClient } from "$lib/supabase/server";
 import { requireApiKeyAuth } from "$lib/server/apiAuth";
 
+const amp = (c) => c.schema("amp");
+const kag = (c) => c.schema("kag");
+
 export const prerender = false;
 
 const CORS_HEADERS = {
@@ -63,30 +66,30 @@ export async function GET(event) {
       { count: activeKeyCount, error: activeKeyCountError },
       { data: recentGraphs, error: recentGraphsError },
     ] = await Promise.all([
-      supabase
+      amp(supabase)
         .from("workspaces")
         .select("id, name, slug, plan, metadata, created_at, updated_at")
         .eq("id", workspaceId)
         .maybeSingle(),
 
-      supabase
+      kag(supabase)
         .from("graphs")
         .select("id", { count: "exact", head: true })
         .eq("workspace_id", workspaceId)
         .eq("is_archived", false),
 
-      supabase
+      amp(supabase)
         .from("workspace_members")
         .select("user_id", { count: "exact", head: true })
         .eq("workspace_id", workspaceId),
 
-      supabase
+      kag(supabase)
         .from("api_keys")
         .select("id", { count: "exact", head: true })
         .eq("workspace_id", workspaceId)
         .eq("is_active", true),
 
-      supabase
+      kag(supabase)
         .from("graphs")
         .select("id, name, slug, description, is_public, updated_at")
         .eq("workspace_id", workspaceId)

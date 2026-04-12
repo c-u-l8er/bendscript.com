@@ -6,20 +6,29 @@
 
 BendScript is a multi-tenant knowledge graph where nodes are contexts, edges are typed relationships, and Stargates are portals into nested sub-graph planes. Humans build graphs on a visual canvas. Agents query and build graphs via MCP or REST API.
 
-## MCP Server
+## MCP Server (v0.2.0 — Machine Architecture)
 
-BendScript exposes its graph data as an MCP-compatible server. Connect via Streamable HTTP transport.
+BendScript exposes its graph data as an MCP-compatible server using a **machine architecture** that mirrors the PULSE loop phases. Connect via Streamable HTTP transport.
 
-### Available Tools
+### Machines
 
-| Tool | Description | Use When |
+Two machines, each accepting an `action` parameter:
+
+#### `retrieve` — "What's in the graph?"
+
+| Action | Description | Use When |
 |---|---|---|
-| `search_nodes` | Semantic search across node text in a workspace | You need to find concepts, entities, or topics in the graph |
-| `get_subgraph` | Return a node and its N-hop neighborhood | You need context around a specific concept |
-| `traverse_path` | Find reasoning paths between two concepts | You need to understand how two ideas are connected |
-| `query_graph` | Natural language → logical form → graph traversal | You have a complex question that requires multi-hop reasoning |
-| `build_from_text` | Ingest text → extract entities/relations → add to graph | You want to add knowledge from a document or conversation |
-| `list_planes` | List all graph planes in a workspace | You need to understand the graph's structure and depth |
+| `search` | Semantic search across node text in a workspace | You need to find concepts, entities, or topics |
+| `subgraph` | Return a node and its N-hop neighborhood | You need context around a specific concept |
+| `traverse` | Find reasoning paths between two concepts | You need to understand how two ideas are connected |
+| `query` | Natural language graph query with multi-hop reasoning | You have a complex question |
+| `list_planes` | List all graph planes in a workspace | You need to understand the graph's structure |
+
+#### `act` — "Mutate the graph"
+
+| Action | Description | Use When |
+|---|---|---|
+| `build_from_text` | Ingest text, extract entities/relations, add to graph | You want to add knowledge from a document or conversation |
 
 ### Edge Types
 
@@ -40,27 +49,27 @@ Edges in BendScript are typed. When creating or querying edges, use these kinds:
 
 ### Find what the graph knows about a topic
 ```
-search_nodes({ query: "machine learning", workspace_id: "..." })
+retrieve({ action: "search", query: "machine learning", graph_id: "..." })
 ```
 
 ### Explore a concept's context
 ```
-get_subgraph({ node_id: "node_abc123", depth: 2, edge_kinds: ["causal", "context"] })
+retrieve({ action: "subgraph", graph_id: "...", node_id: "node_abc123", depth: 2, edge_kinds: ["causal", "context"] })
 ```
 
 ### Trace reasoning between two ideas
 ```
-traverse_path({ from_query: "neural networks", to_query: "gradient descent", workspace_id: "...", max_hops: 4 })
+retrieve({ action: "traverse", graph_id: "...", from_query: "neural networks", to_query: "gradient descent", max_hops: 4 })
 ```
 
 ### Ask a complex question
 ```
-query_graph({ question: "What are the causal factors that led to transformer architectures?", workspace_id: "..." })
+retrieve({ action: "query", graph_id: "...", question: "What are the causal factors that led to transformer architectures?" })
 ```
 
 ### Add knowledge to the graph
 ```
-build_from_text({ text: "Attention mechanisms allow models to focus on relevant parts of the input...", workspace_id: "..." })
+act({ action: "build_from_text", graph_id: "...", text: "Attention mechanisms allow models to focus on relevant parts of the input..." })
 ```
 
 ## Authentication

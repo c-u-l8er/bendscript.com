@@ -6,6 +6,8 @@ import {
 } from "$lib/supabase/server";
 import { listMyWorkspaces, listWorkspaceGraphs } from "$lib/supabase/queries";
 
+const amp = (c) => c.schema("amp");
+
 function getSupabase(event) {
   return event.locals?.supabase ?? createSupabaseServerClient(event);
 }
@@ -70,7 +72,7 @@ async function requireUser(supabase) {
 }
 
 async function getWorkspaceMembershipRole({ client, workspaceId, userId }) {
-  const { data, error } = await client
+  const { data, error } = await amp(client)
     .from("workspace_members")
     .select("role")
     .eq("workspace_id", workspaceId)
@@ -104,7 +106,7 @@ async function createWorkspaceAsAdmin({
   slug,
   plan,
 }) {
-  const { data: workspace, error: createError } = await adminClient
+  const { data: workspace, error: createError } = await amp(adminClient)
     .from("workspaces")
     .insert({
       name,
@@ -122,7 +124,7 @@ async function createWorkspaceAsAdmin({
     );
   }
 
-  const { error: memberError } = await adminClient
+  const { error: memberError } = await amp(adminClient)
     .from("workspace_members")
     .upsert(
       {
@@ -135,7 +137,7 @@ async function createWorkspaceAsAdmin({
     );
 
   if (memberError) {
-    await adminClient.from("workspaces").delete().eq("id", workspace.id);
+    await amp(adminClient).from("workspaces").delete().eq("id", workspace.id);
     throw new Error(
       `Failed to create workspace membership: ${memberError.message || "unknown error"}`,
     );
@@ -157,7 +159,7 @@ async function updateWorkspaceAsAdmin({
     plan,
   };
 
-  const { data, error } = await adminClient
+  const { data, error } = await amp(adminClient)
     .from("workspaces")
     .update(patch)
     .eq("id", workspaceId)
@@ -174,7 +176,7 @@ async function updateWorkspaceAsAdmin({
 }
 
 async function deleteWorkspaceAsAdmin({ adminClient, workspaceId }) {
-  const { error } = await adminClient
+  const { error } = await amp(adminClient)
     .from("workspaces")
     .delete()
     .eq("id", workspaceId);

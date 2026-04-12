@@ -100,6 +100,7 @@ async function requireUser(supabase) {
 
 async function deleteGraphAsAdmin({ adminClient, graphId, workspaceId }) {
   const { error } = await adminClient
+    .schema("kag")
     .from("graphs")
     .delete()
     .eq("id", graphId)
@@ -331,6 +332,7 @@ export const actions = {
 
       try {
         const { error } = await supabase
+          .schema("kag")
           .from("graphs")
           .delete()
           .eq("id", graphId)

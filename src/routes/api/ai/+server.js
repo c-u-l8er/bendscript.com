@@ -212,7 +212,7 @@ export async function POST(event) {
         ? process.env.ANTHROPIC_FAST_MODEL || "claude-3-5-haiku-latest"
         : process.env.ANTHROPIC_DEFAULT_MODEL || "claude-3-5-sonnet-latest");
 
-    supabase.from("ai_generations").insert({
+    supabase.schema("kag").from("ai_generations").insert({
       workspace_id: workspaceId,
       graph_id: graphId,
       plane_id: planeId,

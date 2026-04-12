@@ -21,6 +21,9 @@ function getClient(client) {
   return client;
 }
 
+/** Schema-scoped query helper — all graphApi tables live in kag.* */
+const kag = (c) => c.schema("kag");
+
 function clamp(n, min, max) {
   const x = Number(n);
   if (!Number.isFinite(x)) return min;
@@ -135,7 +138,7 @@ export async function authenticateApiKey({ client, apiKey }) {
   const prefix = raw.slice(0, 12);
   const keyHash = await hashApiKey(raw);
 
-  const { data, error } = await c
+  const { data, error } = await kag(c)
     .from("api_keys")
     .select(
       "id, workspace_id, name, key_prefix, key_hash, scopes, is_active, expires_at, created_by, last_used_at",
@@ -186,7 +189,7 @@ export async function recordApiKeyEvent({
 }) {
   const c = getClient(client);
   try {
-    await c.from("api_key_events").insert({
+    await kag(c).from("api_key_events").insert({
       api_key_id: apiKeyId,
       workspace_id: workspaceId,
       route,
@@ -219,7 +222,7 @@ export async function searchNodes({
 
   const cappedLimit = clamp(limit, 1, 100);
 
-  let dbQuery = c
+  let dbQuery = kag(c)
     .from("nodes")
     .select(
       "id, workspace_id, graph_id, plane_id, text, markdown, type, x, y, pinned, portal_plane_id, metadata, created_at, updated_at",
@@ -256,7 +259,7 @@ export async function listPlanes({ client, workspaceId, graphId }) {
   invariant(workspaceId, "workspaceId is required.");
   invariant(graphId, "graphId is required.");
 
-  const { data, error } = await c
+  const { data, error } = await kag(c)
     .from("graph_planes")
     .select(
       "id, workspace_id, graph_id, name, parent_plane_id, parent_node_id, is_root, camera_x, camera_y, camera_zoom, tick, metadata, created_at, updated_at",
@@ -308,7 +311,7 @@ export async function getSubgraph({
   const hops = clamp(depth, 0, 6);
   const allowedKinds = normalizeEdgeKinds(edgeKinds);
 
-  let edgeQuery = c
+  let edgeQuery = kag(c)
     .from("edges")
     .select(
       "id, workspace_id, graph_id, plane_id, node_a, node_b, label, kind, strength, metadata, created_at, updated_at",
@@ -323,7 +326,7 @@ export async function getSubgraph({
     { data: seedRows, error: seedError },
   ] = await Promise.all([
     edgeQuery,
-    c
+    kag(c)
       .from("nodes")
       .select(
         "id, workspace_id, graph_id, plane_id, text, markdown, type, x, y, pinned, portal_plane_id, metadata, created_at, updated_at",
@@ -362,7 +365,7 @@ export async function getSubgraph({
     (e) => visited.has(e.node_a) && visited.has(e.node_b),
   );
 
-  const { data: nodes, error: nodeError } = await c
+  const { data: nodes, error: nodeError } = await kag(c)
     .from("nodes")
     .select(
       "id, workspace_id, graph_id, plane_id, text, markdown, type, x, y, pinned, portal_plane_id, metadata, created_at, updated_at",
@@ -438,7 +441,7 @@ export async function traversePath({
   }
 
   if (sourceId === targetId) {
-    const { data: onlyNode } = await c
+    const { data: onlyNode } = await kag(c)
       .from("nodes")
       .select(
         "id, workspace_id, graph_id, plane_id, text, markdown, type, x, y, pinned, portal_plane_id, metadata, created_at, updated_at",
@@ -459,7 +462,7 @@ export async function traversePath({
 
   const allowedKinds = normalizeEdgeKinds(edgeKinds);
 
-  let edgeQuery = c
+  let edgeQuery = kag(c)
     .from("edges")
     .select(
       "id, workspace_id, graph_id, plane_id, node_a, node_b, label, kind, strength, metadata, created_at, updated_at",
@@ -529,7 +532,7 @@ export async function traversePath({
   pathNodeIds.reverse();
   pathEdgesRaw.reverse();
 
-  const { data: pathNodes, error: pathNodeError } = await c
+  const { data: pathNodes, error: pathNodeError } = await kag(c)
     .from("nodes")
     .select(
       "id, workspace_id, graph_id, plane_id, text, markdown, type, x, y, pinned, portal_plane_id, metadata, created_at, updated_at",

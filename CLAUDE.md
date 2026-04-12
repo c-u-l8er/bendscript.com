@@ -48,8 +48,18 @@ Run `supabase start` from the repo root to start the full ecosystem DB. Use `.sc
 - Anthropic Claude API for AI synthesis
 - Custom CSS (no Tailwind)
 
-## MCP tools
+## MCP machines (v0.2.0)
 
-`search_nodes`, `get_subgraph`, `traverse_path`, `query_graph`, `build_from_text`, `list_planes`
+BendScript MCP uses a machine architecture matching Graphonomous's PULSE loop phases. Two machines, each accepting an `action` parameter:
+
+**`retrieve`** — "What's in the graph?"
+- `search` — semantic/text node search
+- `subgraph` — N-hop neighborhood from a seed node
+- `traverse` — shortest path between two nodes
+- `query` — natural language graph query
+- `list_planes` — enumerate graph planes
+
+**`act`** — "Mutate the graph"
+- `build_from_text` — ingest text, extract entities, create nodes/edges
 
 See AGENTS.md for full agent interface specification.

@@ -13,6 +13,10 @@ function getClient(client) {
   return resolved;
 }
 
+/** Schema-scoped query helpers — amp.* for shared core, kag.* for BendScript */
+const amp = (c) => c.schema("amp");
+const kag = (c) => c.schema("kag");
+
 function toError(prefix, error) {
   const detail = error?.message || error?.details || "Unknown Supabase error";
   return new Error(`${prefix}: ${detail}`);
@@ -71,7 +75,7 @@ export async function listMyWorkspaces({ client } = {}) {
   const c = getClient(client);
   const user = await requireAuthedUser(c);
 
-  const { data, error } = await c
+  const { data, error } = await amp(c)
     .from("workspace_members")
     .select(
       `
@@ -105,7 +109,7 @@ export async function getWorkspaceById(workspaceId, { client } = {}) {
   if (!workspaceId) throw new Error("workspaceId is required");
   const c = getClient(client);
 
-  const { data, error } = await c
+  const { data, error } = await amp(c)
     .from("workspaces")
     .select("id, name, slug, plan, metadata, created_at, updated_at")
     .eq("id", workspaceId)
@@ -128,7 +132,7 @@ export async function createWorkspace(
     `workspace-${Date.now().toString(36)}`,
   );
 
-  const { data: workspace, error: createWorkspaceError } = await c
+  const { data: workspace, error: createWorkspaceError } = await amp(c)
     .from("workspaces")
     .insert({
       name: workspaceName,
@@ -143,7 +147,7 @@ export async function createWorkspace(
   if (createWorkspaceError)
     throw toError("Failed to create workspace", createWorkspaceError);
 
-  const { error: memberError } = await c.from("workspace_members").upsert(
+  const { error: memberError } = await amp(c).from("workspace_members").upsert(
     {
       workspace_id: workspace.id,
       user_id: user.id,
@@ -189,7 +193,7 @@ export async function updateWorkspace(
     return getWorkspaceById(workspaceId, { client: c });
   }
 
-  const { data, error } = await c
+  const { data, error } = await amp(c)
     .from("workspaces")
     .update(patch)
     .eq("id", workspaceId)
@@ -205,7 +209,7 @@ export async function deleteWorkspace(workspaceId, { client } = {}) {
   const c = getClient(client);
   const user = await requireAuthedUser(c);
 
-  const { data: membership, error: membershipError } = await c
+  const { data: membership, error: membershipError } = await amp(c)
     .from("workspace_members")
     .select("workspace_id, role")
     .eq("workspace_id", workspaceId)
@@ -224,7 +228,7 @@ export async function deleteWorkspace(workspaceId, { client } = {}) {
     throw new Error("Only workspace owners can delete workspaces");
   }
 
-  const { error } = await c.from("workspaces").delete().eq("id", workspaceId);
+  const { error } = await amp(c).from("workspaces").delete().eq("id", workspaceId);
   if (error) throw toError("Failed to delete workspace", error);
 
   return { id: workspaceId, deleted: true };
@@ -234,7 +238,7 @@ export async function listWorkspaceMembers(workspaceId, { client } = {}) {
   if (!workspaceId) throw new Error("workspaceId is required");
   const c = getClient(client);
 
-  const { data, error } = await c
+  const { data, error } = await amp(c)
     .from("workspace_members")
     .select("workspace_id, user_id, role, created_at")
     .eq("workspace_id", workspaceId);
@@ -249,7 +253,7 @@ export async function listWorkspaceMembers(workspaceId, { client } = {}) {
   const profilesById = new Map();
 
   if (userIds.length > 0) {
-    const { data: profiles, error: profilesError } = await c
+    const { data: profiles, error: profilesError } = await amp(c)
       .from("profiles")
       .select("id, email, full_name, avatar_url")
       .in("id", userIds);
@@ -284,7 +288,7 @@ export async function listWorkspaceGraphs(
   if (!workspaceId) throw new Error("workspaceId is required");
   const c = getClient(client);
 
-  let query = c
+  let query = kag(c)
     .from("graphs")
     .select(
       "id, workspace_id, name, slug, description, is_archived, is_public, share_token, metadata, created_at, updated_at",
@@ -303,7 +307,7 @@ export async function getGraphById(graphId, { client } = {}) {
   if (!graphId) throw new Error("graphId is required");
   const c = getClient(client);
 
-  const { data, error } = await c
+  const { data, error } = await kag(c)
     .from("graphs")
     .select(
       "id, workspace_id, name, slug, description, is_archived, is_public, share_token, metadata, created_at, updated_at",
@@ -335,7 +339,7 @@ export async function upsertGraphRecord(
   const graphSlug = slugify(slug || graphName, DEFAULT_GRAPH_SLUG);
 
   if (graphId) {
-    const { data, error } = await c
+    const { data, error } = await kag(c)
       .from("graphs")
       .update({
         name: graphName,
@@ -355,7 +359,7 @@ export async function upsertGraphRecord(
     return data;
   }
 
-  const { data, error } = await c
+  const { data, error } = await kag(c)
     .from("graphs")
     .insert({
       workspace_id: workspaceId,

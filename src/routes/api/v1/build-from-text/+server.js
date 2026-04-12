@@ -2,6 +2,8 @@ import { json } from "@sveltejs/kit";
 import { createSupabaseServerClient } from "$lib/supabase/server";
 import { authenticateApiKey, hasScope } from "$lib/server/apiAuth";
 
+const kag = (c) => c.schema("kag");
+
 const ALLOWED_EDGE_KINDS = new Set([
   "context",
   "causal",
@@ -187,7 +189,7 @@ export async function POST(event) {
     );
   }
 
-  const { data: graphRow, error: graphErr } = await supabase
+  const { data: graphRow, error: graphErr } = await kag(supabase)
     .from("graphs")
     .select("id, workspace_id, root_plane_id, name")
     .eq("id", graphId)
@@ -364,7 +366,7 @@ export async function POST(event) {
     },
   }));
 
-  const { data: insertedNodes, error: nodeInsertErr } = await supabase
+  const { data: insertedNodes, error: nodeInsertErr } = await kag(supabase)
     .from("nodes")
     .insert(nodeInsertRows)
     .select("id, text, type");
@@ -406,7 +408,7 @@ export async function POST(event) {
 
   let insertedEdges = [];
   if (edgeInsertRows.length) {
-    const { data: edgesData, error: edgeInsertErr } = await supabase
+    const { data: edgesData, error: edgeInsertErr } = await kag(supabase)
       .from("edges")
       .insert(edgeInsertRows)
       .select("id, node_a, node_b, label, kind, strength");

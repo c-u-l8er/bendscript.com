@@ -3,6 +3,9 @@ import { error, redirect } from "@sveltejs/kit";
 import { createSupabaseServerClient } from "$lib/supabase/server";
 import { loadGraphState } from "$lib/supabase/queries";
 
+const amp = (c) => c.schema("amp");
+const kag = (c) => c.schema("kag");
+
 /** @type {import('./$types').PageServerLoad} */
 export async function load(event) {
   const { params, locals, url } = event;
@@ -27,7 +30,7 @@ export async function load(event) {
   const user = locals?.user ?? session.user;
 
   // Resolve graph by id or slug. RLS enforces workspace access.
-  const { data: graphRows, error: graphQueryError } = await supabase
+  const { data: graphRows, error: graphQueryError } = await kag(supabase)
     .from("graphs")
     .select(
       `
@@ -41,16 +44,7 @@ export async function load(event) {
       share_token,
       metadata,
       created_at,
-      updated_at,
-      workspace:workspaces (
-        id,
-        name,
-        slug,
-        plan,
-        metadata,
-        created_at,
-        updated_at
-      )
+      updated_at
     `,
     )
     .or(`id.eq.${graphRef},slug.eq.${graphRef}`)
@@ -66,8 +60,15 @@ export async function load(event) {
     throw error(404, "Graph not found.");
   }
 
+  // Fetch workspace separately (lives in amp schema, not kag)
+  const { data: workspace } = await amp(supabase)
+    .from("workspaces")
+    .select("id, name, slug, plan, metadata, created_at, updated_at")
+    .eq("id", graph.workspace_id)
+    .maybeSingle();
+
   // Resolve membership role in this graph's workspace.
-  const { data: membership, error: membershipError } = await supabase
+  const { data: membership, error: membershipError } = await amp(supabase)
     .from("workspace_members")
     .select("role")
     .eq("workspace_id", graph.workspace_id)
@@ -88,7 +89,7 @@ export async function load(event) {
 
   const canEdit = membership.role !== "viewer";
 
-  const { data: memberRows, error: membersError } = await supabase
+  const { data: memberRows, error: membersError } = await amp(supabase)
     .from("workspace_members")
     .select(
       `
@@ -113,7 +114,7 @@ export async function load(event) {
 
   let profilesById = {};
   if (memberUserIds.length > 0) {
-    const { data: profileRows, error: profilesError } = await supabase
+    const { data: profileRows, error: profilesError } = await amp(supabase)
       .from("profiles")
       .select("id, email, full_name, avatar_url")
       .in("id", memberUserIds);
@@ -145,7 +146,7 @@ export async function load(event) {
       id: user.id,
       email: user.email ?? null,
     },
-    workspace: graph.workspace ?? null,
+    workspace: workspace ?? null,
     workspaceRole: membership.role,
     workspaceMembers: (memberRows || []).map((m) => ({
       workspaceId: m.workspace_id,

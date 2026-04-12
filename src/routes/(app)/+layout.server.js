@@ -161,6 +161,7 @@ export async function load(event) {
   let workspaces = [];
   try {
     const { data, error } = await supabase
+      .schema("amp")
       .from("workspace_members")
       .select(
         `

@@ -1,6 +1,9 @@
 import { error } from "@sveltejs/kit";
 import { createSupabaseAdminClient } from "$lib/supabase/server";
 
+const amp = (c) => c.schema("amp");
+const kag = (c) => c.schema("kag");
+
 export const prerender = false;
 
 function toNumber(value, fallback = 0) {
@@ -113,7 +116,7 @@ function buildPrototypeState({ graph, planes = [], nodes = [], edges = [] }) {
 
 async function resolveSharedGraph(supabase, shareId) {
   // Preferred: explicit shared link table
-  const { data: sharedLink, error: sharedLinkError } = await supabase
+  const { data: sharedLink, error: sharedLinkError } = await kag(supabase)
     .from("shared_graph_links")
     .select(
       `
@@ -134,13 +137,7 @@ async function resolveSharedGraph(supabase, shareId) {
         root_plane_id,
         metadata,
         created_at,
-        updated_at,
-        workspace:workspaces (
-          id,
-          name,
-          slug,
-          plan
-        )
+        updated_at
       )
     `,
     )
@@ -174,7 +171,7 @@ async function resolveSharedGraph(supabase, shareId) {
   }
 
   // Fallback: legacy graph.share_token public links
-  const { data: graph, error: graphError } = await supabase
+  const { data: graph, error: graphError } = await kag(supabase)
     .from("graphs")
     .select(
       `
@@ -189,13 +186,7 @@ async function resolveSharedGraph(supabase, shareId) {
       root_plane_id,
       metadata,
       created_at,
-      updated_at,
-      workspace:workspaces (
-        id,
-        name,
-        slug,
-        plan
-      )
+      updated_at
     `,
     )
     .eq("share_token", shareId)
@@ -239,8 +230,15 @@ export async function load(event) {
     throw error(404, "Shared graph is not available.");
   }
 
+  // Fetch workspace separately (lives in amp schema, not kag)
+  const { data: workspace } = await amp(supabase)
+    .from("workspaces")
+    .select("id, name, slug, plan")
+    .eq("id", graph.workspace_id)
+    .maybeSingle();
+
   const [planesRes, nodesRes, edgesRes] = await Promise.all([
-    supabase
+    kag(supabase)
       .from("graph_planes")
       .select(
         "id, workspace_id, graph_id, name, parent_plane_id, parent_node_id, is_root, camera_x, camera_y, camera_zoom, tick, metadata, created_at, updated_at",
@@ -249,7 +247,7 @@ export async function load(event) {
       .eq("graph_id", graph.id)
       .order("created_at", { ascending: true }),
 
-    supabase
+    kag(supabase)
       .from("nodes")
       .select(
         "id, workspace_id, graph_id, plane_id, text, markdown, type, x, y, vx, vy, fx, fy, width, height, scroll_y, pinned, portal_plane_id, metadata, created_at, updated_at",
@@ -257,7 +255,7 @@ export async function load(event) {
       .eq("workspace_id", graph.workspace_id)
       .eq("graph_id", graph.id),
 
-    supabase
+    kag(supabase)
       .from("edges")
       .select(
         "id, workspace_id, graph_id, plane_id, node_a, node_b, label, kind, strength, flow_offset, metadata, created_at, updated_at",
@@ -295,12 +293,12 @@ export async function load(event) {
       expiresAt: resolved.share.expiresAt,
       isActive: resolved.share.isActive,
     },
-    workspace: graph.workspace
+    workspace: workspace
       ? {
-          id: graph.workspace.id,
-          name: graph.workspace.name,
-          slug: graph.workspace.slug,
-          plan: graph.workspace.plan,
+          id: workspace.id,
+          name: workspace.name,
+          slug: workspace.slug,
+          plan: workspace.plan,
         }
       : null,
     graph: {
