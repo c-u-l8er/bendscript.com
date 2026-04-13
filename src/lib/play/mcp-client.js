@@ -39,14 +39,33 @@ export async function discoverTools(serverUrl, authHeader) {
     throw new Error(initResult.error.message || "MCP initialize failed");
   }
   const serverInfo = initResult.result?.serverInfo || {};
+  const sessionId = initResult._mcpSessionId || undefined;
 
-  // Now list tools
+  // Send notifications/initialized (required by stateful MCP servers before tools/list)
+  if (sessionId) {
+    await fetch(PROXY_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        serverUrl,
+        authHeader: authHeader || undefined,
+        sessionId,
+        request: {
+          jsonrpc: "2.0",
+          method: "notifications/initialized",
+        },
+      }),
+    }).catch(() => {}); // notification — no response expected
+  }
+
+  // Now list tools (pass session ID for stateful servers like Graphonomous/PRISM)
   const toolsRes = await fetch(PROXY_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       serverUrl,
       authHeader: authHeader || undefined,
+      sessionId,
       request: {
         jsonrpc: "2.0",
         id: 2,

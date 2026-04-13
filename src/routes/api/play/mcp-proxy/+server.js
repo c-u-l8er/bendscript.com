@@ -22,7 +22,7 @@ export async function POST({ request }) {
     return error(400, "Invalid JSON body");
   }
 
-  const { serverUrl, authHeader, request: rpcRequest } = body;
+  const { serverUrl, authHeader, sessionId, request: rpcRequest } = body;
 
   if (!serverUrl || typeof serverUrl !== "string") {
     return error(400, "Missing serverUrl");
@@ -57,6 +57,9 @@ export async function POST({ request }) {
   };
   if (authHeader) {
     headers["Authorization"] = authHeader;
+  }
+  if (sessionId) {
+    headers["mcp-session-id"] = sessionId;
   }
 
   try {
@@ -101,6 +104,12 @@ export async function POST({ request }) {
       }
     } else {
       result = await upstream.json();
+    }
+
+    // Forward mcp-session-id so the client can maintain stateful sessions
+    const mcpSessionId = upstream.headers.get("mcp-session-id");
+    if (mcpSessionId) {
+      result._mcpSessionId = mcpSessionId;
     }
     return json(result);
   } catch (err) {
