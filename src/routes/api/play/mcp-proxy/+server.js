@@ -53,7 +53,7 @@ export async function POST({ request }) {
   // Build headers for the upstream request
   const headers = {
     "Content-Type": "application/json",
-    Accept: "application/json",
+    Accept: "application/json, text/event-stream",
   };
   if (authHeader) {
     headers["Authorization"] = authHeader;
@@ -87,7 +87,21 @@ export async function POST({ request }) {
       );
     }
 
-    const result = await upstream.json();
+    const contentType = upstream.headers.get("content-type") || "";
+
+    // MCP Streamable HTTP may return SSE (text/event-stream) — extract JSON from first data line
+    let result;
+    if (contentType.includes("text/event-stream")) {
+      const text = await upstream.text();
+      const dataLine = text.split("\n").find((l) => l.startsWith("data: "));
+      if (dataLine) {
+        result = JSON.parse(dataLine.slice(6));
+      } else {
+        throw new Error("No data in SSE response");
+      }
+    } else {
+      result = await upstream.json();
+    }
     return json(result);
   } catch (err) {
     const message =
