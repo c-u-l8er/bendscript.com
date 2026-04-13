@@ -22,7 +22,7 @@ export const DEFAULT_MCP_SERVERS = [
   },
   {
     url: "https://prism-eval.fly.dev/mcp",
-    label: "PRISM",
+    label: "os-prism",
     description: "CL benchmark engine",
   },
 ];

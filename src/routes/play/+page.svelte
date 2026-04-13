@@ -8,7 +8,7 @@
   import McpPanel from "../../components/play/McpPanel.svelte";
   import { validateSpec, SCHEMA_TYPES } from "$lib/play/validator.js";
   import { mcpToolsToOpenAI } from "$lib/play/tools.js";
-  import { discoverTools } from "$lib/play/mcp-client.js";
+  import { discoverTools, discoverLocalTools } from "$lib/play/mcp-client.js";
   import {
     saveGuestState,
     loadGuestState,
@@ -202,16 +202,32 @@
     // Restore API key
     apiKey = loadApiKey();
 
+    // Connect BendScript's own MCP endpoint first (same origin, no proxy)
+    const localMcpUrl = `${window.location.origin}/api/mcp`;
+    try {
+      const info = await discoverLocalTools();
+      const tools = mcpToolsToOpenAI(info.name, info.tools);
+      mcpConnections = [...mcpConnections, {
+        id: localMcpUrl, url: localMcpUrl, authHeader: undefined,
+        name: info.name, version: info.version,
+        tools: info.tools, openaiTools: tools,
+      }];
+      mcpTools = mcpConnections.flatMap((c) => c.openaiTools);
+    } catch {
+      // Local MCP may not be available (e.g. missing Supabase)
+    }
+
     // Restore saved MCP connections + auto-connect defaults
     const savedConns = loadMcpConnections();
     const savedUrls = new Set(savedConns.map((c) => c.url));
 
     // Merge defaults with saved connections (defaults first, then any custom)
+    // Filter out any saved localhost connections (handled by local discovery above)
     const allConns = [
       ...DEFAULT_MCP_SERVERS
         .filter((d) => !savedUrls.has(d.url))
         .map((d) => ({ url: d.url, authHeader: undefined })),
-      ...savedConns,
+      ...savedConns.filter((c) => !c.url.includes("/api/mcp")),
     ];
 
     for (const conn of allConns) {
