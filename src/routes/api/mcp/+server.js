@@ -594,38 +594,36 @@ export async function DELETE({ request: _request }) {
 
 export async function POST({ request }) {
   const supabase = createSupabaseAdminClient();
-  const apiKey = extractApiKey(request);
-
-  const auth = await authenticateApiKey({ client: supabase, apiKey });
-  if (!auth.ok) {
-    return json(rpcError(null, -32001, auth.error || "Unauthorized"), {
-      status: 401,
-      headers: CORS_HEADERS,
-    });
-  }
 
   let payload;
   try {
     payload = await request.json();
   } catch {
-    const parseErr = rpcError(null, -32700, "Parse error: invalid JSON.");
-    await recordApiKeyEvent({
-      client: supabase,
-      apiKeyId: auth.key.id,
-      workspaceId: auth.key.workspace_id,
-      route: "/api/mcp",
-      method: "POST",
-      statusCode: 400,
-      ip: getClientIp(request),
-      userAgent: getUserAgent(request),
-      requestId: getRequestId(request),
+    return json(rpcError(null, -32700, "Parse error: invalid JSON."), {
+      status: 400,
+      headers: CORS_HEADERS,
     });
-
-    return json(parseErr, { status: 400, headers: CORS_HEADERS });
   }
 
+  // Allow discovery methods (initialize, tools/list, ping) without auth
+  const OPEN_METHODS = new Set(["initialize", "tools/list", "ping"]);
   const isBatch = Array.isArray(payload);
   const requests = isBatch ? payload : [payload];
+  const allOpen = requests.every(
+    (r) => r && typeof r === "object" && OPEN_METHODS.has(r.method),
+  );
+
+  let auth = { ok: false, key: null };
+  if (!allOpen) {
+    const apiKey = extractApiKey(request);
+    auth = await authenticateApiKey({ client: supabase, apiKey });
+    if (!auth.ok) {
+      return json(rpcError(null, -32001, auth.error || "Unauthorized"), {
+        status: 401,
+        headers: CORS_HEADERS,
+      });
+    }
+  }
 
   const responses = [];
   for (const item of requests) {
@@ -637,7 +635,7 @@ export async function POST({ request }) {
     const rpcResp = await handleRpcRequest({
       payload: item,
       supabase,
-      workspaceId: auth.key.workspace_id,
+      workspaceId: auth.key?.workspace_id ?? null,
     });
     responses.push(rpcResp);
   }
@@ -646,17 +644,19 @@ export async function POST({ request }) {
   const requestId = getRequestId(request);
   const statusCode = 200;
 
-  await recordApiKeyEvent({
-    client: supabase,
-    apiKeyId: auth.key.id,
-    workspaceId: auth.key.workspace_id,
-    route: "/api/mcp",
-    method: "POST",
-    statusCode,
-    ip: getClientIp(request),
-    userAgent: getUserAgent(request),
-    requestId,
-  });
+  if (auth.key) {
+    await recordApiKeyEvent({
+      client: supabase,
+      apiKeyId: auth.key.id,
+      workspaceId: auth.key.workspace_id,
+      route: "/api/mcp",
+      method: "POST",
+      statusCode,
+      ip: getClientIp(request),
+      userAgent: getUserAgent(request),
+      requestId,
+    });
+  }
 
   if (stream) {
     const body = streamRpcResponses(responses);
