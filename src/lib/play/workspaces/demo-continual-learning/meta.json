@@ -1,0 +1,6 @@
+{
+  "label": "Continual Learning",
+  "description": "Research assistant with graph memory, belief revision, and kappa-routed deliberation",
+  "isDemo": true,
+  "order": 11
+}

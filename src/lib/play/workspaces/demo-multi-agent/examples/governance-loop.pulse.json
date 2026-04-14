@@ -1,0 +1,64 @@
+{
+  "pulse_protocol_version": "0.1",
+  "loop_id": "govern.coordination_loop",
+  "version": "0.1.0",
+  "phases": [
+    {
+      "id": "gather_proposals",
+      "kind": "retrieve",
+      "description": "Collect pending proposals from sub-agents, pull reputation and prior decisions"
+    },
+    {
+      "id": "evaluate_route",
+      "kind": "route",
+      "description": "Auto-approve within policy, route complex proposals to deliberation, escalate deadlocks"
+    },
+    {
+      "id": "execute_decision",
+      "kind": "act",
+      "description": "Apply approved actions, reject violations, record decisions to audit graph"
+    },
+    {
+      "id": "track_outcomes",
+      "kind": "learn",
+      "description": "Update agent reputation based on proposal outcomes, refine policy thresholds"
+    },
+    {
+      "id": "policy_review",
+      "kind": "consolidate",
+      "description": "Merge redundant rules, archive expired policies, surface rule conflicts"
+    }
+  ],
+  "closure": {
+    "from_phase": "policy_review",
+    "to_phase": "gather_proposals",
+    "guarantee": "immediate"
+  },
+  "cadence": { "type": "event" },
+  "substrates": {
+    "memory": "graphonomous://workspace/governance",
+    "policy": "delegatic://coordination-policy",
+    "audit": "bendscript://governance-audit-graph",
+    "auth": "supabase://amp.workspaces/governance"
+  },
+  "invariants": {
+    "phase_atomicity": true,
+    "feedback_immutability": true,
+    "kappa_routing": true
+  },
+  "connections": [
+    {
+      "id": "reputation-outbound",
+      "token": "ReputationUpdate",
+      "emit_phase": "track_outcomes",
+      "to_loop": "agent.sub_loop"
+    },
+    {
+      "id": "deliberation-inbound",
+      "token": "DeliberationResult",
+      "emit_phase": "execute_decision",
+      "to_loop": "govern.deliberation_loop",
+      "to_phase": "execute_decision"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://protocol.ampersandboxdesign.com/schema/v0.1.0/capability-contract.schema.json",
+  "capability": "&govern.policy",
+  "provider": "delegatic",
+  "version": "0.1.0",
+  "description": "Policy enforcement for multi-agent coordination — approval workflows, budget gates, and escalation rules.",
+  "operations": {
+    "evaluate": {
+      "in": "proposal",
+      "out": "decision"
+    },
+    "escalate": {
+      "in": "deadlock_context",
+      "out": "escalation_target"
+    },
+    "audit": {
+      "in": "decision_id",
+      "out": "audit_trail"
+    }
+  },
+  "accepts_from": ["&reason.argument", "&memory.graph", "raw_data"],
+  "feeds_into": ["&memory.graph", "&reason.deliberate", "output"],
+  "a2a_skills": ["policy-evaluation", "approval-workflow", "escalation-routing"]
+}

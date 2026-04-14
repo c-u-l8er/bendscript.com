@@ -1,0 +1,25 @@
+[
+  {
+    "id": "benchmark-all-systems",
+    "label": "Benchmark All Systems",
+    "icon": "play",
+    "description": "Run PRISM evaluation cycles against all registered systems",
+    "type": "prism-benchmark",
+    "params": {
+      "system_id": "auto",
+      "max_cycles": 10
+    }
+  },
+  {
+    "id": "list-prism-systems",
+    "label": "List Systems",
+    "icon": "list",
+    "description": "Show all registered benchmark targets",
+    "type": "mcp-call",
+    "params": {
+      "server_name": "os-prism",
+      "tool_name": "config",
+      "args": { "action": "list_systems" }
+    }
+  }
+]

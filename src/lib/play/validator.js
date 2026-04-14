@@ -1,13 +1,28 @@
-// Paste-only JSON schema validators for [&], PULSE, and PRISM specs.
-// Uses Ajv with JSON Schema 2020-12 support.
+// JSON schema validators for [&], PULSE, and PRISM specs.
+// Dynamically loads all schemas from workspace folders via import.meta.glob.
 
 import Ajv from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
+import { WORKSPACES } from "./workspaces/index.js";
 
-import ampersandSchema from "./schemas/ampersand.schema.json";
-import capabilityContractSchema from "./schemas/capability-contract.schema.json";
-import registrySchema from "./schemas/registry.schema.json";
-import pulseManifestSchema from "./schemas/pulse-loop-manifest.v0.1.json";
+// Collect all schemas from all workspaces into a flat map keyed by schema type
+const allSchemas = {};
+for (const ws of WORKSPACES) {
+  for (const [key, schema] of Object.entries(ws.schemas)) {
+    // Map filename stems to schema types
+    if (key.includes("ampersand") && !key.includes("capability") && !key.includes("registry")) {
+      allSchemas.ampersand = schema;
+    } else if (key.includes("capability-contract") || key.includes("capability")) {
+      allSchemas["capability-contract"] = schema;
+    } else if (key.includes("registry")) {
+      allSchemas.registry = schema;
+    } else if (key.includes("pulse")) {
+      allSchemas.pulse = schema;
+    }
+    // Also store by exact key for direct lookup
+    allSchemas[key] = schema;
+  }
+}
 
 /** @type {import('ajv').default} */
 let ajvInstance = null;
@@ -22,8 +37,13 @@ function getAjv() {
     addFormats(ajvInstance);
 
     // Register all schemas so $ref works across files
-    ajvInstance.addSchema(capabilityContractSchema);
-    ajvInstance.addSchema(registrySchema);
+    for (const schema of Object.values(allSchemas)) {
+      try {
+        ajvInstance.addSchema(schema);
+      } catch {
+        // Skip duplicates or schemas without $id
+      }
+    }
   }
   return ajvInstance;
 }
@@ -64,8 +84,8 @@ export function validateSpec(jsonString) {
     };
   }
 
-  const ajv = getAjv();
   const schema = getSchemaForType(schemaType);
+  const ajv = getAjv();
   const validate = ajv.compile(schema);
   const valid = validate(parsed);
 
@@ -126,27 +146,20 @@ function detectSchemaType(doc) {
  * @returns {object}
  */
 function getSchemaForType(schemaType) {
-  switch (schemaType) {
-    case "ampersand":
-      return ampersandSchema;
-    case "capability-contract":
-      return capabilityContractSchema;
-    case "registry":
-      return registrySchema;
-    case "pulse":
-      return pulseManifestSchema;
-    case "prism":
-      // No schema file yet — return a permissive stub
-      return {
-        type: "object",
-        properties: {
-          scenario_id: { type: "string" },
-        },
-        additionalProperties: true,
-      };
-    default:
-      return { type: "object" };
+  if (allSchemas[schemaType]) return allSchemas[schemaType];
+
+  if (schemaType === "prism") {
+    // No schema file yet — return a permissive stub
+    return {
+      type: "object",
+      properties: {
+        scenario_id: { type: "string" },
+      },
+      additionalProperties: true,
+    };
   }
+
+  return { type: "object" };
 }
 
 /**

@@ -1,0 +1,6 @@
+{
+  "label": "Multi-Agent Governance",
+  "description": "Governance coordinator resolving conflicts between sub-agents with policy enforcement and deliberation",
+  "isDemo": true,
+  "order": 12
+}

@@ -1,0 +1,47 @@
+{
+  "scenario_id": "fleet-recall-001",
+  "name": "Route History Recall Under Load",
+  "description": "Tests whether the fleet agent retains route performance data after a surge event and can recall it accurately for the next dispatch cycle.",
+  "dimensions": ["retention", "latency", "relevance"],
+  "steps": [
+    {
+      "action": "store",
+      "payload": {
+        "key": "route-pdx-sea-2026-04-10",
+        "value": {
+          "origin": "PDX",
+          "destination": "SEA",
+          "avg_time_min": 185,
+          "incidents": 0,
+          "surge_factor": 1.0
+        }
+      }
+    },
+    {
+      "action": "store",
+      "payload": {
+        "key": "surge-event-pdx-2026-04-11",
+        "value": {
+          "zone": "PDX-metro",
+          "peak_multiplier": 3.2,
+          "duration_min": 90,
+          "rerouted_vehicles": 12
+        }
+      }
+    },
+    { "action": "wait", "duration_ms": 10000 },
+    {
+      "action": "retrieve",
+      "query": "What was the surge factor for the PDX to SEA route last week?"
+    },
+    {
+      "action": "retrieve",
+      "query": "How many vehicles were rerouted during the Portland surge?"
+    }
+  ],
+  "expected": {
+    "recall": true,
+    "max_latency_ms": 800,
+    "relevance_threshold": 0.85
+  }
+}

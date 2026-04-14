@@ -1,0 +1,42 @@
+{
+  "scenario_id": "govern-deadlock-001",
+  "name": "Deliberation Deadlock Resolution",
+  "description": "Two sub-agents submit conflicting proposals. Tests whether the governance coordinator detects the deadlock, routes to deliberation, and resolves with a justified decision.",
+  "dimensions": ["coherence", "latency", "provenance"],
+  "steps": [
+    {
+      "action": "store",
+      "payload": {
+        "key": "proposal-a",
+        "value": {
+          "agent": "InventoryBot",
+          "action": "increase_stock",
+          "quantity": 500,
+          "reason": "Demand forecast shows 40% spike next week"
+        }
+      }
+    },
+    {
+      "action": "store",
+      "payload": {
+        "key": "proposal-b",
+        "value": {
+          "agent": "BudgetBot",
+          "action": "freeze_spending",
+          "reason": "Q2 budget is 92% consumed, no discretionary spend allowed"
+        }
+      }
+    },
+    { "action": "wait", "duration_ms": 5000 },
+    {
+      "action": "retrieve",
+      "query": "Should we increase inventory stock given the budget freeze?"
+    }
+  ],
+  "expected": {
+    "recall": true,
+    "max_latency_ms": 1000,
+    "must_reference_both": ["proposal-a", "proposal-b"],
+    "must_contain": "deliberation"
+  }
+}

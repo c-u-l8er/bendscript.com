@@ -1,0 +1,24 @@
+{
+  "$schema": "https://protocol.ampersandboxdesign.com/schema/v0.1.0/capability-contract.schema.json",
+  "capability": "&time.forecast",
+  "provider": "ticktickclock",
+  "version": "0.2.0",
+  "description": "Demand forecasting for fleet dispatch — predicts volume spikes per zone with confidence intervals.",
+  "operations": {
+    "predict": {
+      "in": "zone_history",
+      "out": "forecast_series"
+    },
+    "explain": {
+      "in": "forecast_id",
+      "out": "feature_attribution"
+    },
+    "retrain": {
+      "in": "corrected_actuals",
+      "out": "model_version"
+    }
+  },
+  "accepts_from": ["&memory.episodic", "&space.fleet", "raw_data"],
+  "feeds_into": ["&reason.argument", "&space.fleet", "output"],
+  "a2a_skills": ["demand-forecast", "eta-prediction"]
+}

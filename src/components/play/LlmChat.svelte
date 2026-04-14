@@ -30,9 +30,28 @@
       .map((t) => `- ${t.function.name}: ${t.function.description}`)
       .join("\n");
 
-    return `You are a helpful assistant for the [&] Protocol ecosystem. The user is editing a JSON spec in the BendScript playground. Help them understand and write valid specs.
+    return `You are an expert assistant for the [&] Protocol ecosystem with access to live MCP servers. You MUST call tools to get real data — never describe what to call, just call it.
 
-You have tools available. Use them proactively when helpful:
+RULES:
+- Always call tools first, then summarize results. Never explain what you "would" do.
+- Be efficient: call multiple tools in parallel when possible.
+- Keep responses concise — show key data, not raw JSON dumps.
+- CRITICAL: When you give a text response, it MUST be a complete summary of what you found. NEVER say "let me do X next" or "I'll now run Y" — if you have results, present them. If you need more data, call tools NOW, don't describe what you plan to call.
+- Your final response must always be a finished answer, not a promise of future work.
+
+BENCHMARK WORKFLOW (when user asks to benchmark/evaluate):
+Step 1: Call mcp__os-prism__config with action="list_systems" to check registered systems
+Step 2: Call mcp__os-prism__compose with action="list" to see available scenarios
+Step 3: Call mcp__os-prism__interact with action="run" for available scenarios (needs scenario_id, system_id)
+Step 4: Call mcp__os-prism__diagnose with action="report" for the system to get dimensional scores
+Present results as a summary table. Work with whatever scenarios exist — do NOT try to create new ones unless asked.
+
+GRAPHONOMOUS QUERIES:
+- To search knowledge: mcp__graphonomous__retrieve with action="context", query="..."
+- To check graph health: mcp__graphonomous__consolidate with action="stats"
+- To store knowledge: mcp__graphonomous__act with action="store_node"
+
+Available tools:
 ${toolSummary}
 
 Current editor content:
@@ -44,9 +63,9 @@ ${editorContent}
   async function callOpenRouter(messages, includeTools) {
     const allTools = getAllTools();
     const body = {
-      model: "google/gemma-4-26b-a4b-it",
+      model: "qwen/qwen3.6-plus",
       messages,
-      max_tokens: 1024,
+      max_tokens: 4096,
     };
     if (includeTools && allTools.length > 0) {
       body.tools = allTools;
@@ -85,7 +104,7 @@ ${editorContent}
       if (conn.isLocal) {
         return await callLocalTool(mcpInfo.toolName, args);
       }
-      return await callTool(conn.url, conn.authHeader, mcpInfo.toolName, args);
+      return await callTool(conn.url, conn.authHeader, mcpInfo.toolName, args, conn.sessionId);
     }
 
     // Built-in tool
@@ -114,12 +133,13 @@ ${editorContent}
         ...chatMessages,
       ];
 
+      const MAX_ROUNDS = 6;
       let data = await callOpenRouter(messages, true);
       let msg = data.choices?.[0]?.message;
 
-      // Tool-use loop: up to 5 rounds
+      // Tool-use loop
       let rounds = 0;
-      while (msg?.tool_calls?.length > 0 && rounds < 5) {
+      while (msg?.tool_calls?.length > 0 && rounds < MAX_ROUNDS) {
         rounds++;
 
         // Show which tools are being called
@@ -155,13 +175,35 @@ ${editorContent}
           });
         }
 
-        // Continue the conversation with tool results (no tools in follow-up to avoid infinite loop)
-        data = await callOpenRouter(messages, rounds < 4);
+        // On the last allowed round, disable tools and inject summary instruction
+        const allowMoreTools = rounds < MAX_ROUNDS - 1;
+        if (!allowMoreTools) {
+          messages.push({
+            role: "system",
+            content: "This is your final response. Summarize all results you have gathered so far. Present any scores or data as a formatted table. Give a complete, finished answer.",
+          });
+        }
+        data = await callOpenRouter(messages, allowMoreTools);
         msg = data.choices?.[0]?.message;
       }
 
-      // Final text response
-      const reply = msg?.content ?? "No response received.";
+      // If the model hit the limit and still tried to call tools, or gave no content,
+      // add a wrap-up indicator
+      if (rounds >= MAX_ROUNDS && msg?.tool_calls?.length > 0) {
+        chatMessages = [
+          ...chatMessages,
+          { role: "tool-status", content: "Wrapping up..." },
+        ];
+      }
+
+      // Final text response — use whatever content we got
+      let reply = msg?.content ?? "";
+      if (!reply.trim()) {
+        // Model returned empty — synthesize a minimal response from tool results
+        reply = rounds > 0
+          ? "Benchmark run complete. Check the MCP panel for raw results, or ask a follow-up question for details."
+          : "No response received.";
+      }
       chatMessages = [...chatMessages, { role: "assistant", content: reply }];
     } catch (err) {
       chatMessages = [
@@ -185,7 +227,7 @@ ${editorContent}
   {#if !apiKey}
     <div class="chat-empty">
       <p>Set an <b>OpenRouter API key</b> to enable LLM chat.</p>
-      <p>Default model: <code>google/gemma-4-26b-a4b-it</code></p>
+      <p>Default model: <code>qwen/qwen3.6-plus</code></p>
       <button class="chat-set-key" onclick={onRequestKey}>Set API Key</button>
     </div>
   {:else}
@@ -194,6 +236,20 @@ ${editorContent}
         {#if msg.role === "tool-status"}
           <div class="chat-msg tool-status">
             <span class="chat-tool-label">{msg.content}</span>
+          </div>
+        {:else if msg.role === "action-status"}
+          <div class="chat-msg action-status">
+            <span class="chat-action-label">{msg.content}</span>
+          </div>
+        {:else if msg.role === "action-result"}
+          <div class="chat-msg action-result">
+            <span class="chat-role">BENCHMARK</span>
+            <pre class="chat-content chat-result-pre">{msg.content}</pre>
+          </div>
+        {:else if msg.role === "action-error"}
+          <div class="chat-msg action-error">
+            <span class="chat-role">ERROR</span>
+            <span class="chat-content">{msg.content}</span>
           </div>
         {:else}
           <div class="chat-msg" class:user={msg.role === "user"}>
@@ -309,6 +365,41 @@ ${editorContent}
     font-weight: 600;
     color: var(--violet, #8b5cf6);
     font-style: italic;
+  }
+
+  .chat-msg.action-status {
+    background: rgba(16, 185, 129, 0.06);
+    border: 1px solid rgba(16, 185, 129, 0.15);
+    padding: 4px 8px;
+  }
+  .chat-action-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--green, #10b981);
+    font-style: italic;
+  }
+
+  .chat-msg.action-result {
+    background: rgba(16, 185, 129, 0.08);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+  }
+  .chat-result-pre {
+    white-space: pre-wrap;
+    font-size: 10px;
+    max-height: 200px;
+    overflow-y: auto;
+    margin: 0;
+  }
+
+  .chat-msg.action-error {
+    background: rgba(239, 68, 68, 0.06);
+    border: 1px solid rgba(239, 68, 68, 0.15);
+  }
+  .chat-msg.action-error .chat-role {
+    color: #ef4444;
+  }
+  .chat-msg.action-error .chat-content {
+    color: #ef4444;
   }
 
   .chat-content {

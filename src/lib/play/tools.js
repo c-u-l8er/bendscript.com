@@ -2,6 +2,7 @@
 // Built-in tools run client-side; MCP tools proxy through /api/play/mcp-proxy.
 
 import { validateSpec } from "./validator.js";
+import { WORKSPACES } from "./workspaces/index.js";
 
 /**
  * Built-in playground tools (always available, no auth required).
@@ -22,10 +23,14 @@ export const BUILTIN_TOOLS = [
     function: {
       name: "load_example",
       description:
-        "Load an example JSON spec into the editor for a given schema type. Use this when the user wants to see what a valid spec looks like.",
+        "Load an example JSON spec into the editor. Pass an example_id for a specific workspace example, or a schema_type for the default example of that protocol.",
       parameters: {
         type: "object",
         properties: {
+          example_id: {
+            type: "string",
+            description: "Specific example ID from a workspace (e.g. 'fleet-agent', 'cl-loop', 'deadlock-test')",
+          },
           schema_type: {
             type: "string",
             enum: [
@@ -35,11 +40,19 @@ export const BUILTIN_TOOLS = [
               "pulse",
               "prism",
             ],
-            description: "The schema type to load an example for",
+            description: "Fallback: load the default example for this schema type",
           },
         },
-        required: ["schema_type"],
       },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_workspaces",
+      description:
+        "List all available workspaces and their examples. Use this to help users discover what demo specs are available.",
+      parameters: { type: "object", properties: {}, required: [] },
     },
   },
 ];
@@ -86,14 +99,29 @@ export function executeBuiltinTool(name, args, ctx) {
       return JSON.stringify(result);
     }
     case "load_example": {
-      if (ctx.onLoadExample && args.schema_type) {
-        ctx.onLoadExample(args.schema_type);
+      const id = args.example_id || args.schema_type;
+      if (ctx.onLoadExample && id) {
+        ctx.onLoadExample(id);
         return JSON.stringify({
           success: true,
-          message: `Loaded ${args.schema_type} example into the editor.`,
+          message: `Loaded ${id} example into the editor.`,
         });
       }
-      return JSON.stringify({ success: false, message: "Missing schema_type" });
+      return JSON.stringify({ success: false, message: "Missing example_id or schema_type" });
+    }
+    case "list_workspaces": {
+      const summary = WORKSPACES.map((ws) => ({
+        id: ws.id,
+        label: ws.label,
+        description: ws.description,
+        isDemo: ws.isDemo,
+        examples: ws.examples.map((ex) => ({
+          id: ex.id,
+          label: ex.label,
+          schemaType: ex.schemaType,
+        })),
+      }));
+      return JSON.stringify(summary);
     }
     default:
       return JSON.stringify({ error: `Unknown tool: ${name}` });

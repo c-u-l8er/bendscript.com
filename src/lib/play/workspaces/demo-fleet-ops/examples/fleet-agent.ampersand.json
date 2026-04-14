@@ -1,0 +1,35 @@
+{
+  "$schema": "https://protocol.ampersandboxdesign.com/schema/v0.1.0/ampersand.schema.json",
+  "agent": "FleetDispatcher",
+  "version": "0.2.0",
+  "capabilities": {
+    "&memory.episodic": {
+      "provider": "auto",
+      "need": "driver shift logs, route deviations, incident reports"
+    },
+    "&memory.graph": {
+      "provider": "auto",
+      "need": "fleet topology — vehicles, depots, zones, maintenance schedules"
+    },
+    "&time.forecast": {
+      "provider": "auto",
+      "need": "demand spikes, weather delays, ETA drift"
+    },
+    "&time.anomaly": {
+      "provider": "auto",
+      "need": "late arrivals, route timeout detection"
+    },
+    "&space.fleet": {
+      "provider": "auto",
+      "need": "real-time vehicle positions, geofence alerts"
+    },
+    "&reason.argument": {
+      "provider": "auto",
+      "need": "auditable rerouting and scaling decisions"
+    }
+  },
+  "governance": {
+    "infer_from_goal": true
+  },
+  "provenance": true
+}

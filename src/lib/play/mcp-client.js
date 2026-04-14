@@ -5,9 +5,10 @@ const PROXY_URL = "/api/play/mcp-proxy";
 
 /**
  * Discover tools from an MCP server via the proxy.
+ * Returns sessionId so callers can reuse the established session for tool calls.
  * @param {string} serverUrl - The MCP server URL
  * @param {string} [authHeader] - Optional Authorization header value
- * @returns {Promise<{ name: string, version: string, tools: Array }>}
+ * @returns {Promise<{ name: string, version: string, tools: Array, sessionId: string|undefined }>}
  */
 export async function discoverTools(serverUrl, authHeader) {
   const res = await fetch(PROXY_URL, {
@@ -90,6 +91,7 @@ export async function discoverTools(serverUrl, authHeader) {
     name: serverInfo.name || "unknown",
     version: serverInfo.version || "0.0.0",
     tools,
+    sessionId,
   };
 }
 
@@ -99,15 +101,17 @@ export async function discoverTools(serverUrl, authHeader) {
  * @param {string} [authHeader] - Optional Authorization header value
  * @param {string} toolName - Tool name to call
  * @param {object} args - Tool arguments
+ * @param {string} [sessionId] - Session ID from discoverTools for session reuse
  * @returns {Promise<object>} Tool result
  */
-export async function callTool(serverUrl, authHeader, toolName, args) {
+export async function callTool(serverUrl, authHeader, toolName, args, sessionId) {
   const res = await fetch(PROXY_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       serverUrl,
       authHeader: authHeader || undefined,
+      sessionId: sessionId || undefined,
       request: {
         jsonrpc: "2.0",
         id: Date.now(),

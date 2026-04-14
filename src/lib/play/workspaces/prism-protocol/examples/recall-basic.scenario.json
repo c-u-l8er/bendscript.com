@@ -1,0 +1,14 @@
+{
+  "scenario_id": "recall-basic-001",
+  "name": "Basic Fact Recall",
+  "dimensions": ["retention", "latency"],
+  "steps": [
+    { "action": "store", "payload": { "key": "capital-france", "value": "Paris" } },
+    { "action": "wait", "duration_ms": 5000 },
+    { "action": "retrieve", "query": "What is the capital of France?" }
+  ],
+  "expected": {
+    "recall": true,
+    "max_latency_ms": 500
+  }
+}

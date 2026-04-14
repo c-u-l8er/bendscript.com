@@ -1,0 +1,6 @@
+{
+  "label": "PRISM",
+  "description": "Benchmark scenarios — test memory systems over time",
+  "isDemo": false,
+  "order": 2
+}

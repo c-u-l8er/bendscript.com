@@ -1,0 +1,49 @@
+{
+  "pulse_protocol_version": "0.1",
+  "loop_id": "research.continual_learning",
+  "version": "0.1.0",
+  "phases": [
+    {
+      "id": "retrieve_prior",
+      "kind": "retrieve",
+      "description": "Recall relevant knowledge nodes, check epistemic frontier for uncertainty"
+    },
+    {
+      "id": "route_strategy",
+      "kind": "route",
+      "description": "If kappa > 0 (cyclic beliefs detected), route to deliberation; otherwise proceed"
+    },
+    {
+      "id": "integrate_knowledge",
+      "kind": "act",
+      "description": "Store new claims, update edges, run belief revision if contradictions found"
+    },
+    {
+      "id": "evaluate_outcome",
+      "kind": "learn",
+      "description": "Score retrieval quality, track which stored facts led to correct answers"
+    },
+    {
+      "id": "consolidate_graph",
+      "kind": "consolidate",
+      "description": "Merge duplicate nodes, strengthen high-confidence edges, prune stale claims"
+    }
+  ],
+  "closure": {
+    "from_phase": "consolidate_graph",
+    "to_phase": "retrieve_prior",
+    "guarantee": "eventual"
+  },
+  "cadence": { "type": "event" },
+  "substrates": {
+    "memory": "graphonomous://workspace/research",
+    "policy": null,
+    "audit": "bendscript://research-audit-graph",
+    "auth": null
+  },
+  "invariants": {
+    "phase_atomicity": true,
+    "feedback_immutability": true,
+    "kappa_routing": true
+  }
+}

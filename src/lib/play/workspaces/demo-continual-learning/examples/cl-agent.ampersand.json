@@ -1,0 +1,27 @@
+{
+  "$schema": "https://protocol.ampersandboxdesign.com/schema/v0.1.0/ampersand.schema.json",
+  "agent": "ResearchAssistant",
+  "version": "0.1.0",
+  "capabilities": {
+    "&memory.graph": {
+      "provider": "auto",
+      "need": "durable knowledge graph — papers, authors, claims, evidence chains"
+    },
+    "&memory.episodic": {
+      "provider": "auto",
+      "need": "session history, user corrections, retrieval outcomes"
+    },
+    "&reason.argument": {
+      "provider": "auto",
+      "need": "evidence-weighted claim evaluation, contradiction detection"
+    },
+    "&reason.deliberate": {
+      "provider": "auto",
+      "need": "cyclic belief revision when new evidence contradicts existing claims"
+    }
+  },
+  "governance": {
+    "infer_from_goal": true
+  },
+  "provenance": true
+}

@@ -1,0 +1,24 @@
+[
+  {
+    "id": "benchmark-graphonomous",
+    "label": "Benchmark Graphonomous",
+    "icon": "play",
+    "description": "Run PRISM evaluation cycles against Graphonomous — compose, interact, observe, diagnose",
+    "type": "prism-benchmark",
+    "params": {
+      "system_id": "auto",
+      "max_cycles": 10
+    }
+  },
+  {
+    "id": "run-retention-test",
+    "label": "Run Retention Test",
+    "icon": "test",
+    "description": "Execute the belief-revision scenario from retention-test.scenario.json",
+    "type": "prism-benchmark",
+    "params": {
+      "system_id": "auto",
+      "scenario_ids": ["cl-retention-001"]
+    }
+  }
+]

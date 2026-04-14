@@ -1,150 +1,246 @@
 <script>
-  import { SCHEMA_TYPES } from "$lib/play/validator.js";
+  import { WORKSPACES } from "$lib/play/workspaces/index.js";
 
-  let { selectedSchemaType = "ampersand", onSelect, onLoadExample } = $props();
+  let {
+    selectedSchemaType = "ampersand",
+    selectedExampleId = "",
+    selectedFileKey = "",
+    onSelect,
+    onLoadExample,
+    onLoadJson,
+  } = $props();
 
-  const tree = [
-    {
-      label: "[&] Protocol",
-      children: [
-        { id: "ampersand", label: "Ampersand Spec", hasExample: true },
-        { id: "capability-contract", label: "Capability Contract", hasExample: true },
-        { id: "registry", label: "Registry", hasExample: true },
-      ],
-    },
-    {
-      label: "PULSE",
-      children: [
-        { id: "pulse", label: "Loop Manifest", hasExample: true },
-      ],
-    },
-    {
-      label: "PRISM",
-      children: [
-        { id: "prism", label: "Scenario", hasExample: true },
-      ],
-    },
-  ];
+  // Track which tree nodes are expanded: "ws:<id>", "ws:<id>/schemas", "ws:<id>/examples"
+  let expanded = $state({
+    "ws:ampersand-protocol": true,
+    "ws:ampersand-protocol/examples": true,
+  });
+
+  function toggle(key) {
+    expanded = { ...expanded, [key]: !expanded[key] };
+  }
 </script>
 
-<div class="spec-tree">
-  <div class="spec-tree-header">Schemas</div>
-  {#each tree as group}
-    <div class="spec-group">
-      <div class="spec-group-label">{group.label}</div>
-      {#each group.children as item}
-        <div class="spec-row" class:active={selectedSchemaType === item.id}>
-          <button class="spec-item-btn" onclick={() => onSelect(item.id)}>
-            {item.label}
-          </button>
-          {#if item.hasExample}
-            <button
-              class="spec-example-btn"
-              onclick={() => onLoadExample(item.id)}
-              title="Load example"
-            >
-              ex
-            </button>
-          {/if}
-        </div>
-      {/each}
-    </div>
-  {/each}
+<div class="file-tree">
+  <div class="ft-header">WORKSPACES</div>
 
-  <div class="spec-tree-footer">
-    <span>Paste JSON to validate against the selected schema.</span>
-  </div>
+  {#each WORKSPACES as ws}
+    {@const wsKey = `ws:${ws.id}`}
+    {@const hasSchemas = ws.schemaFiles.length > 0}
+    {@const hasExamples = ws.examples.length > 0}
+
+    <!-- Workspace folder -->
+    <button
+      class="ft-row ft-folder depth-0"
+      class:demo={ws.isDemo}
+      onclick={() => toggle(wsKey)}
+      title={ws.description}
+    >
+      <span class="ft-chevron" class:open={expanded[wsKey]}></span>
+      <span class="ft-icon ft-icon-folder" class:open={expanded[wsKey]}></span>
+      <span class="ft-name">{ws.id}</span>
+    </button>
+
+    {#if expanded[wsKey]}
+      <!-- meta.json -->
+      <button
+        class="ft-row ft-file depth-1 ft-meta"
+        class:selected={selectedFileKey === `${ws.id}/meta.json`}
+        onclick={() => onLoadJson(`${ws.id}/meta.json`, { label: ws.label, description: ws.description, isDemo: ws.isDemo, order: ws.order })}
+      >
+        <span class="ft-icon ft-icon-json"></span>
+        <span class="ft-name">meta.json</span>
+      </button>
+
+      <!-- schemas/ folder -->
+      {#if hasSchemas}
+        <button
+          class="ft-row ft-folder depth-1"
+          onclick={() => toggle(`${wsKey}/schemas`)}
+        >
+          <span class="ft-chevron" class:open={expanded[`${wsKey}/schemas`]}></span>
+          <span class="ft-icon ft-icon-folder" class:open={expanded[`${wsKey}/schemas`]}></span>
+          <span class="ft-name">schemas</span>
+        </button>
+
+        {#if expanded[`${wsKey}/schemas`]}
+          {#each ws.schemaFiles as sf}
+            <button
+              class="ft-row ft-file depth-2 ft-schema"
+              class:selected={selectedFileKey === `${ws.id}/schemas/${sf.filename}`}
+              onclick={() => onLoadJson(`${ws.id}/schemas/${sf.filename}`, sf.data)}
+            >
+              <span class="ft-icon ft-icon-schema"></span>
+              <span class="ft-name">{sf.filename}</span>
+            </button>
+          {/each}
+        {/if}
+      {/if}
+
+      <!-- examples/ folder -->
+      {#if hasExamples}
+        <button
+          class="ft-row ft-folder depth-1"
+          onclick={() => toggle(`${wsKey}/examples`)}
+        >
+          <span class="ft-chevron" class:open={expanded[`${wsKey}/examples`]}></span>
+          <span class="ft-icon ft-icon-folder" class:open={expanded[`${wsKey}/examples`]}></span>
+          <span class="ft-name">examples</span>
+        </button>
+
+        {#if expanded[`${wsKey}/examples`]}
+          {#each ws.examples as ex}
+            <button
+              class="ft-row ft-file depth-2"
+              class:selected={selectedExampleId === ex.id}
+              onclick={() => onLoadExample(ex.id)}
+            >
+              <span class="ft-icon ft-icon-json"></span>
+              <span class="ft-name">{ex.filename}</span>
+            </button>
+          {/each}
+        {/if}
+      {/if}
+    {/if}
+  {/each}
 </div>
 
 <style>
-  .spec-tree {
+  .file-tree {
     display: flex;
     flex-direction: column;
     height: 100%;
-    padding: 8px 0;
     overflow-y: auto;
+    font-size: 13px;
+    line-height: 1;
+    user-select: none;
+    padding: 4px 0;
   }
 
-  .spec-tree-header {
-    padding: 4px 14px 8px;
-    font-size: 10px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--muted, #666);
-  }
-
-  .spec-group {
-    margin-bottom: 4px;
-  }
-
-  .spec-group-label {
-    padding: 6px 14px 2px;
+  .ft-header {
+    padding: 6px 12px 6px;
     font-size: 11px;
-    font-weight: 700;
-    color: var(--text, #222);
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    color: #888;
   }
 
-  .spec-row {
+  /* ── Row base ── */
+  .ft-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 0 14px 0 0;
-  }
-  .spec-row:hover {
-    background: var(--bg-0, #f4f6f8);
-  }
-  .spec-row.active {
-    background: rgba(255, 109, 90, 0.06);
-  }
-
-  .spec-item-btn {
-    flex: 1;
-    min-width: 0;
-    padding: 5px 8px 5px 24px;
+    gap: 4px;
+    width: 100%;
+    height: 22px;
+    padding: 0 8px;
     border: none;
     background: transparent;
-    color: var(--muted, #666);
+    color: #ccc;
     font: inherit;
-    font-size: 12px;
+    font-size: 13px;
     cursor: pointer;
     text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-shrink: 0;
+  }
+  .ft-row:hover {
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  /* ── Depth indentation ── */
+  .depth-0 { padding-left: 8px; }
+  .depth-1 { padding-left: 24px; }
+  .depth-2 { padding-left: 40px; }
+
+  /* ── Chevron ── */
+  .ft-chevron {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    font-size: 10px;
+    color: #888;
+    transition: transform 0.1s ease;
+  }
+  .ft-chevron::before {
+    content: "\25B8";
+  }
+  .ft-chevron.open {
+    transform: rotate(90deg);
+  }
+
+  /* ── Icons ── */
+  .ft-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    font-size: 14px;
+  }
+
+  .ft-icon-folder::before {
+    content: "\1F4C1";
+    font-size: 13px;
+    filter: saturate(0.7);
+  }
+  .ft-icon-folder.open::before {
+    content: "\1F4C2";
+  }
+
+  .ft-icon-json::before {
+    content: "{ }";
+    font-size: 8px;
+    font-weight: 700;
+    color: #e8ab53;
+    letter-spacing: -1px;
+  }
+
+  .ft-icon-schema::before {
+    content: "{ }";
+    font-size: 8px;
+    font-weight: 700;
+    color: #56b6c2;
+    letter-spacing: -1px;
+  }
+
+  /* ── Name text ── */
+  .ft-name {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    transition: color 0.1s ease;
-  }
-  .spec-item-btn:hover {
-    color: var(--text, #222);
-  }
-  .spec-row.active .spec-item-btn {
-    color: var(--cyan, #ff6d5a);
-    font-weight: 600;
   }
 
-  .spec-example-btn {
-    padding: 1px 6px;
-    border-radius: 4px;
-    border: 1px solid var(--bg-2, #e0e4e8);
-    background: var(--bg-0, #f4f6f8);
-    color: var(--muted, #666);
-    font: inherit;
-    font-size: 9px;
+  /* ── Folder styling ── */
+  .ft-folder .ft-name {
     font-weight: 600;
-    cursor: pointer;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
   }
-  .spec-example-btn:hover {
-    border-color: var(--cyan, #ff6d5a);
-    color: var(--cyan, #ff6d5a);
+  .ft-folder.demo .ft-name {
+    color: #ff6d5a;
   }
 
-  .spec-tree-footer {
-    margin-top: auto;
-    padding: 12px 14px;
-    font-size: 10px;
-    color: var(--muted, #666);
-    line-height: 1.4;
+  /* ── File styling ── */
+  .ft-file .ft-name {
+    font-weight: 400;
+  }
+  .ft-file.ft-meta .ft-name {
+    color: #999;
+  }
+  .ft-file.ft-schema .ft-name {
+    color: #56b6c2;
+  }
+
+  /* ── Selected state ── */
+  .ft-file.selected {
+    background: rgba(255, 109, 90, 0.12);
+  }
+  .ft-file.selected .ft-name {
+    color: #ff6d5a;
+    font-weight: 600;
   }
 </style>

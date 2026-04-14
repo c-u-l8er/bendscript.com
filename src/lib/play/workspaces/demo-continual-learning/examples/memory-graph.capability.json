@@ -1,0 +1,32 @@
+{
+  "$schema": "https://protocol.ampersandboxdesign.com/schema/v0.1.0/capability-contract.schema.json",
+  "capability": "&memory.graph",
+  "provider": "graphonomous",
+  "version": "0.4.0",
+  "description": "Graph-structured continual learning memory — stores, retrieves, and consolidates knowledge nodes with typed edges and confidence tracking.",
+  "operations": {
+    "recall": {
+      "in": "query",
+      "out": "context_nodes"
+    },
+    "learn": {
+      "in": "outcome_signal",
+      "out": "updated_confidence"
+    },
+    "consolidate": {
+      "in": "trigger",
+      "out": "merge_report"
+    },
+    "store": {
+      "in": "node_payload",
+      "out": "node_id"
+    },
+    "enrich": {
+      "in": "node_id",
+      "out": "enriched_node"
+    }
+  },
+  "accepts_from": ["&reason.*", "&time.*", "raw_data"],
+  "feeds_into": ["&reason.*", "&memory.episodic", "output"],
+  "a2a_skills": ["graph-recall", "knowledge-store", "belief-revision"]
+}

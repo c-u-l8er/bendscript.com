@@ -1,0 +1,6 @@
+{
+  "label": "Fleet Operations",
+  "description": "Full-stack demo: dispatch agent with memory, time, space, and reasoning across all three protocols",
+  "isDemo": true,
+  "order": 10
+}

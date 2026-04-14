@@ -1,0 +1,70 @@
+{
+  "pulse_protocol_version": "0.1",
+  "loop_id": "fleet.dispatch_loop",
+  "version": "0.2.0",
+  "phases": [
+    {
+      "id": "load_context",
+      "kind": "retrieve",
+      "description": "Pull vehicle positions, pending orders, zone demand forecasts"
+    },
+    {
+      "id": "route_decision",
+      "kind": "route",
+      "description": "Decide: normal dispatch vs surge reroute vs escalate to human"
+    },
+    {
+      "id": "dispatch",
+      "kind": "act",
+      "description": "Assign vehicles to orders, issue route instructions"
+    },
+    {
+      "id": "observe_outcome",
+      "kind": "learn",
+      "description": "Record delivery times, driver feedback, forecast accuracy"
+    },
+    {
+      "id": "nightly_consolidate",
+      "kind": "consolidate",
+      "description": "Merge shift logs, prune stale routes, update zone models"
+    }
+  ],
+  "closure": {
+    "from_phase": "nightly_consolidate",
+    "to_phase": "load_context",
+    "guarantee": "eventual"
+  },
+  "cadence": {
+    "type": "periodic",
+    "params": {
+      "interval_ms": 30000,
+      "note": "Dispatch cycle runs every 30 seconds during active hours"
+    }
+  },
+  "substrates": {
+    "memory": "graphonomous://workspace/fleet-ops",
+    "policy": "delegatic://fleet-dispatch-policy",
+    "audit": "bendscript://fleet-audit-graph",
+    "auth": "supabase://amp.workspaces/fleet-ops"
+  },
+  "invariants": {
+    "phase_atomicity": true,
+    "feedback_immutability": true,
+    "kappa_routing": true
+  },
+  "connections": [
+    {
+      "id": "topology-inbound",
+      "token": "TopologyContext",
+      "emit_phase": "load_context",
+      "to_loop": "fleet.knowledge_loop",
+      "to_phase": "load_context"
+    },
+    {
+      "id": "outcome-outbound",
+      "token": "OutcomeSignal",
+      "emit_phase": "observe_outcome",
+      "to_loop": "fleet.knowledge_loop"
+    }
+  ]
+}

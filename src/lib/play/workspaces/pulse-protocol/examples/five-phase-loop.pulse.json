@@ -1,0 +1,29 @@
+{
+  "pulse_protocol_version": "0.1",
+  "loop_id": "example.my_loop",
+  "version": "0.1.0",
+  "phases": [
+    { "id": "gather_ctx", "kind": "retrieve" },
+    { "id": "decide_path", "kind": "route" },
+    { "id": "execute", "kind": "act" },
+    { "id": "update_model", "kind": "learn" },
+    { "id": "cleanup", "kind": "consolidate" }
+  ],
+  "closure": {
+    "from_phase": "cleanup",
+    "to_phase": "gather_ctx",
+    "guarantee": "eventual"
+  },
+  "cadence": { "type": "event" },
+  "substrates": {
+    "memory": "graphonomous://workspace/default",
+    "policy": null,
+    "audit": null,
+    "auth": null
+  },
+  "invariants": {
+    "phase_atomicity": true,
+    "feedback_immutability": true,
+    "kappa_routing": false
+  }
+}

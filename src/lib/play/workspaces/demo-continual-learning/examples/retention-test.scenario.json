@@ -1,0 +1,34 @@
+{
+  "scenario_id": "cl-retention-001",
+  "name": "Belief Revision After Contradiction",
+  "description": "Stores an initial claim, then a contradicting claim, and verifies the agent revises its belief rather than holding both.",
+  "dimensions": ["retention", "coherence", "latency"],
+  "steps": [
+    {
+      "action": "store",
+      "payload": {
+        "key": "pluto-classification",
+        "value": "Pluto is the ninth planet in the solar system."
+      }
+    },
+    { "action": "wait", "duration_ms": 2000 },
+    {
+      "action": "store",
+      "payload": {
+        "key": "pluto-reclassification",
+        "value": "Pluto was reclassified as a dwarf planet by the IAU in 2006."
+      }
+    },
+    { "action": "wait", "duration_ms": 3000 },
+    {
+      "action": "retrieve",
+      "query": "Is Pluto a planet?"
+    }
+  ],
+  "expected": {
+    "recall": true,
+    "max_latency_ms": 600,
+    "must_contain": "dwarf planet",
+    "must_not_contain": "ninth planet"
+  }
+}

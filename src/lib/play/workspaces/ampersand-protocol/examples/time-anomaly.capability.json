@@ -1,0 +1,15 @@
+{
+  "$schema": "https://protocol.ampersandboxdesign.com/schema/v0.1.0/capability-contract.schema.json",
+  "capability": "&time.anomaly",
+  "provider": "ticktickclock",
+  "version": "0.1.0",
+  "description": "Temporal anomaly detection and enrichment contract.",
+  "operations": {
+    "detect": { "in": "stream_data", "out": "anomaly_set" },
+    "enrich": { "in": "context", "out": "enriched_context" },
+    "learn": { "in": "observation", "out": "ack" }
+  },
+  "accepts_from": ["&memory.*", "&space.*", "raw_data"],
+  "feeds_into": ["&memory.*", "&reason.*", "&space.*", "output"],
+  "a2a_skills": ["temporal-anomaly-detection"]
+}

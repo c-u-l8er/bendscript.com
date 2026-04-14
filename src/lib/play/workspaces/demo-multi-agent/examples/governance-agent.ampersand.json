@@ -1,0 +1,31 @@
+{
+  "$schema": "https://protocol.ampersandboxdesign.com/schema/v0.1.0/ampersand.schema.json",
+  "agent": "GovernanceCoordinator",
+  "version": "0.1.0",
+  "capabilities": {
+    "&govern.policy": {
+      "provider": "auto",
+      "need": "enforce approval workflows, budget limits, escalation rules"
+    },
+    "&memory.graph": {
+      "provider": "auto",
+      "need": "audit trail of decisions, agent reputation scores"
+    },
+    "&reason.argument": {
+      "provider": "auto",
+      "need": "evaluate competing proposals from sub-agents"
+    },
+    "&reason.deliberate": {
+      "provider": "auto",
+      "need": "resolve deadlocks when agents disagree"
+    },
+    "&time.schedule": {
+      "provider": "auto",
+      "need": "SLA timers, escalation deadlines"
+    }
+  },
+  "governance": {
+    "infer_from_goal": false
+  },
+  "provenance": true
+}

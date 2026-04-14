@@ -46,7 +46,7 @@
         onkeydown={handleKeydown}
       />
       <p class="modal-hint">
-        Default model: <code>google/gemma-4-26b-a4b-it</code> (Gemma 4 26B Instruct)
+        Default model: <code>qwen/qwen3.6-plus</code> (Claude Sonnet 4)
       </p>
     </div>
 

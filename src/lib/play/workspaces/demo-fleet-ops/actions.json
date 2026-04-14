@@ -1,0 +1,13 @@
+[
+  {
+    "id": "benchmark-fleet-ops",
+    "label": "Benchmark Fleet Agent",
+    "icon": "play",
+    "description": "Run PRISM evaluation cycles against the fleet dispatch agent",
+    "type": "prism-benchmark",
+    "params": {
+      "system_id": "auto",
+      "max_cycles": 5
+    }
+  }
+]

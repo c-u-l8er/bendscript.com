@@ -6,6 +6,7 @@
   import LlmChat from "../../components/play/LlmChat.svelte";
   import ApiKeyModal from "../../components/play/ApiKeyModal.svelte";
   import McpPanel from "../../components/play/McpPanel.svelte";
+  import ActionBar from "../../components/play/ActionBar.svelte";
   import { validateSpec, SCHEMA_TYPES } from "$lib/play/validator.js";
   import { mcpToolsToOpenAI } from "$lib/play/tools.js";
   import { discoverTools, discoverLocalTools } from "$lib/play/mcp-client.js";
@@ -18,6 +19,7 @@
     saveMcpConnections,
   } from "$lib/play/storage.js";
   import { DEFAULT_MCP_SERVERS } from "$lib/play/default-servers.js";
+  import { WORKSPACES, EXAMPLES_BY_ID, getDefaultExample } from "$lib/play/workspaces/index.js";
 
   let { data } = $props();
 
@@ -32,6 +34,8 @@
   // Validation state
   let validationResult = $state(null);
   let selectedSchemaType = $state("ampersand");
+  let selectedExampleId = $state("");
+  let selectedFileKey = $state("");
 
   // LLM state
   let apiKey = $state("");
@@ -45,147 +49,36 @@
   let mcpConnections = $state([]);
   let mcpTools = $state([]); // OpenAI-format tool defs from all connected servers
 
+  // Derive active workspace actions from current selection
+  let activeActions = $derived.by(() => {
+    if (selectedExampleId) {
+      const entry = EXAMPLES_BY_ID[selectedExampleId];
+      if (entry) {
+        const ws = WORKSPACES.find((w) => w.id === entry.workspaceId);
+        if (ws?.actions?.length) return ws.actions;
+      }
+    }
+    if (selectedFileKey) {
+      const wsId = selectedFileKey.split("/")[0];
+      const ws = WORKSPACES.find((w) => w.id === wsId);
+      if (ws?.actions?.length) return ws.actions;
+    }
+    return [];
+  });
+
+  function handleActionStatus(msg) {
+    chatMessages = [...chatMessages, msg];
+    // Auto-switch to chat tab so user sees progress
+    if (rightTab !== "chat") rightTab = "chat";
+  }
+
+  // Legacy schema-type → example mapping (for header buttons + tools)
   const EXAMPLES = {
-    ampersand: JSON.stringify(
-      {
-        $schema:
-          "https://protocol.ampersandboxdesign.com/schema/v0.1.0/ampersand.schema.json",
-        agent: "FleetManager",
-        version: "0.1.0",
-        capabilities: {
-          "&memory.episodic": {
-            provider: "auto",
-            need: "route performance history",
-          },
-          "&time.forecast": {
-            provider: "auto",
-            need: "demand spike prediction",
-          },
-          "&space.fleet": {
-            provider: "auto",
-            need: "US regional fleet tracking",
-          },
-          "&reason.argument": {
-            provider: "auto",
-            need: "auditable scaling decisions",
-          },
-        },
-        governance: {
-          infer_from_goal: true,
-        },
-        provenance: true,
-      },
-      null,
-      2,
-    ),
-    "capability-contract": JSON.stringify(
-      {
-        $schema:
-          "https://protocol.ampersandboxdesign.com/schema/v0.1.0/capability-contract.schema.json",
-        capability: "&time.anomaly",
-        provider: "ticktickclock",
-        version: "0.1.0",
-        description:
-          "Temporal anomaly detection and enrichment contract.",
-        operations: {
-          detect: { in: "stream_data", out: "anomaly_set" },
-          enrich: { in: "context", out: "enriched_context" },
-          learn: { in: "observation", out: "ack" },
-        },
-        accepts_from: ["&memory.*", "&space.*", "raw_data"],
-        feeds_into: ["&memory.*", "&reason.*", "&space.*", "output"],
-        a2a_skills: ["temporal-anomaly-detection"],
-      },
-      null,
-      2,
-    ),
-    registry: JSON.stringify(
-      {
-        $schema:
-          "https://protocol.ampersandboxdesign.com/schema/v0.1.0/registry.schema.json",
-        version: "0.1.0",
-        registry: "registry.ampersandboxdesign.com",
-        generated_at: "2026-03-14T14:23:07Z",
-        "&memory": {
-          subtypes: {
-            graph: {
-              ops: ["recall", "learn", "consolidate", "enrich"],
-              description:
-                "Graph-structured memory for durable contextual recall.",
-            },
-            vector: {
-              ops: ["search", "upsert", "enrich"],
-            },
-          },
-          providers: [
-            {
-              id: "graphonomous",
-              subtypes: ["graph"],
-              protocol: "mcp_v1",
-              status: "stable",
-            },
-            {
-              id: "pgvector",
-              subtypes: ["vector"],
-              protocol: "mcp_v1",
-            },
-          ],
-        },
-      },
-      null,
-      2,
-    ),
-    pulse: JSON.stringify(
-      {
-        pulse_protocol_version: "0.1",
-        loop_id: "example.my_loop",
-        version: "0.1.0",
-        phases: [
-          { id: "gather_ctx", kind: "retrieve" },
-          { id: "decide_path", kind: "route" },
-          { id: "execute", kind: "act" },
-          { id: "update_model", kind: "learn" },
-          { id: "cleanup", kind: "consolidate" },
-        ],
-        closure: {
-          from_phase: "cleanup",
-          to_phase: "gather_ctx",
-          guarantee: "eventual",
-        },
-        cadence: { type: "event" },
-        substrates: {
-          memory: "graphonomous://workspace/default",
-          policy: null,
-          audit: null,
-          auth: null,
-        },
-        invariants: {
-          phase_atomicity: true,
-          feedback_immutability: true,
-          kappa_routing: false,
-        },
-      },
-      null,
-      2,
-    ),
-    prism: JSON.stringify(
-      {
-        scenario_id: "recall-basic-001",
-        name: "Basic Fact Recall",
-        dimensions: ["retention", "latency"],
-        steps: [
-          { action: "store", payload: { key: "capital-france", value: "Paris" } },
-          { action: "wait", duration_ms: 5000 },
-          { action: "retrieve", query: "What is the capital of France?" },
-        ],
-        expected: {
-          recall: true,
-          max_latency_ms: 500,
-        },
-      },
-      null,
-      2,
-    ),
+    ampersand: getDefaultExample("ampersand"),
+    "capability-contract": getDefaultExample("capability-contract"),
+    registry: getDefaultExample("registry"),
+    pulse: getDefaultExample("pulse"),
+    prism: getDefaultExample("prism"),
   };
 
   // Load guest state on mount
@@ -211,6 +104,7 @@
         id: localMcpUrl, url: localMcpUrl, authHeader: undefined,
         name: info.name, version: info.version,
         tools: info.tools, openaiTools: tools,
+        sessionId: info.sessionId, isLocal: true,
       }];
       mcpTools = mcpConnections.flatMap((c) => c.openaiTools);
     } catch {
@@ -239,6 +133,7 @@
           id, url: conn.url, authHeader: conn.authHeader,
           name: info.name, version: info.version,
           tools: info.tools, openaiTools: tools,
+          sessionId: info.sessionId,
         }];
         mcpTools = mcpConnections.flatMap((c) => c.openaiTools);
       } catch {
@@ -328,13 +223,42 @@
     autoSave();
   }
 
-  function handleLoadExample(schemaId) {
-    const example = EXAMPLES[schemaId] || "{}";
-    editorContent = example;
-    selectedSchemaType = schemaId;
+  function handleLoadExample(exampleOrSchemaId) {
+    // Support both workspace example IDs and legacy schema-type IDs
+    const byId = EXAMPLES_BY_ID[exampleOrSchemaId];
+    let content, schemaType;
+    if (byId) {
+      content = JSON.stringify(byId.data, null, 2);
+      schemaType = byId.schemaType;
+      selectedExampleId = exampleOrSchemaId;
+      selectedFileKey = "";
+    } else {
+      content = EXAMPLES[exampleOrSchemaId] || "{}";
+      schemaType = exampleOrSchemaId;
+      selectedExampleId = "";
+      selectedFileKey = "";
+    }
+
+    editorContent = content;
+    selectedSchemaType = schemaType;
+    validationResult = null;
 
     if (editorInstance) {
-      editorInstance.setValue(example);
+      editorInstance.setValue(content);
+      editorInstance.layout();
+    }
+    autoSave();
+  }
+
+  function handleLoadJson(fileKey, data) {
+    const content = JSON.stringify(data, null, 2);
+    editorContent = content;
+    selectedFileKey = fileKey;
+    selectedExampleId = "";
+    validationResult = null;
+
+    if (editorInstance) {
+      editorInstance.setValue(content);
       editorInstance.layout();
     }
     autoSave();
@@ -372,6 +296,7 @@
       id, url, authHeader,
       name: info.name, version: info.version,
       tools: info.tools, openaiTools,
+      sessionId: info.sessionId,
     }];
     mcpTools = mcpConnections.flatMap((c) => c.openaiTools);
 
@@ -402,18 +327,7 @@
       <span class="play-badge">playground</span>
     </a>
 
-    <div class="play-header-center">
-      <span class="play-schema-label">Schema:</span>
-      {#each SCHEMA_TYPES as schema}
-        <button
-          class="play-schema-btn"
-          class:active={selectedSchemaType === schema.id}
-          onclick={() => handleSchemaSelect(schema.id)}
-        >
-          {schema.label}
-        </button>
-      {/each}
-    </div>
+    <div class="play-header-center"></div>
 
     <div class="play-header-right">
       {#if data.user}
@@ -436,8 +350,11 @@
     <aside class="play-pane play-pane-left">
       <SpecTree
         {selectedSchemaType}
+        {selectedExampleId}
+        {selectedFileKey}
         onSelect={handleSchemaSelect}
         onLoadExample={handleLoadExample}
+        onLoadJson={handleLoadJson}
       />
     </aside>
 
@@ -454,6 +371,13 @@
           Paste or write a {SCHEMA_TYPES.find((s) => s.id === selectedSchemaType)?.ext || "JSON"} spec
         </span>
       </div>
+      {#if activeActions.length > 0}
+        <ActionBar
+          actions={activeActions}
+          {mcpConnections}
+          onStatusMessage={handleActionStatus}
+        />
+      {/if}
       <div class="play-editor" bind:this={editorContainer}></div>
     </main>
 
@@ -639,7 +563,7 @@
   /* ── THREE-PANE BODY ── */
   .play-body {
     display: grid;
-    grid-template-columns: 220px 1fr 320px;
+    grid-template-columns: 260px 1fr 320px;
     flex: 1;
     min-height: 0;
     overflow: hidden;
@@ -653,8 +577,9 @@
   }
 
   .play-pane-left {
-    border-right: 1px solid var(--bg-2, #e0e4e8);
-    background: var(--bg-1, #fff);
+    border-right: 1px solid var(--sidebar-border, #2d2d2d);
+    background: var(--sidebar-bg, #252526);
+    color: var(--sidebar-fg, #cccccc);
   }
 
   .play-pane-center {

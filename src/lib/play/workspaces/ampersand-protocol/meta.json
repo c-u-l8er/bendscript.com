@@ -1,0 +1,6 @@
+{
+  "label": "[&] Protocol",
+  "description": "Agent declarations, capability contracts, and provider registries",
+  "isDemo": false,
+  "order": 0
+}
