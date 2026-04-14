@@ -1,0 +1,60 @@
+[
+  {
+    "id": "ingest-repo-govern",
+    "label": "Ingest Repository",
+    "icon": "ingest",
+    "description": "Fetch repo files and store them as knowledge nodes in Graphonomous",
+    "type": "repo-ingest",
+    "params": {
+      "max_files": 30
+    }
+  },
+  {
+    "id": "analyze-repo-govern",
+    "label": "Analyze Codebase",
+    "icon": "chart",
+    "description": "Run LLM analysis on ingested repo — architecture, governance patterns, conflict-resolution structures",
+    "type": "repo-analyze",
+    "params": {}
+  },
+  {
+    "id": "query-graph-govern",
+    "label": "Query Knowledge",
+    "icon": "search",
+    "description": "Search the knowledge graph for governance policies, agent decisions, conflict patterns",
+    "type": "graph-query",
+    "params": {
+      "query": ""
+    }
+  },
+  {
+    "id": "graph-health-govern",
+    "label": "Graph Health",
+    "icon": "health",
+    "description": "Check Graphonomous stats — node counts, confidence, orphans",
+    "type": "graph-health",
+    "params": {}
+  },
+  {
+    "id": "benchmark-governance",
+    "label": "Benchmark Governance",
+    "icon": "play",
+    "description": "Run PRISM evaluation cycles — tests deliberation, deadlock resolution, knowledge transfer",
+    "type": "prism-benchmark",
+    "params": {
+      "system_id": "auto",
+      "max_cycles": 5
+    }
+  },
+  {
+    "id": "run-deadlock-test",
+    "label": "Deadlock Test",
+    "icon": "test",
+    "description": "Execute the deliberation deadlock scenario — conflicting proposals, resolution, audit trail",
+    "type": "prism-benchmark",
+    "params": {
+      "system_id": "auto",
+      "scenario_ids": ["govern-deadlock-001"]
+    }
+  }
+]

@@ -1,8 +1,9 @@
 <script>
-  let { action, onRun, onClose } = $props();
+  let { action, repositories = [], onRun, onClose } = $props();
 
   // Build editable config from action params
   let config = $state(buildConfig(action));
+  let selectedRepoUrls = $state([]);
 
   function buildConfig(action) {
     if (action.type === "prism-benchmark") {
@@ -20,7 +21,33 @@
         args: JSON.stringify(action.params?.args || {}, null, 2),
       };
     }
+    if (action.type === "repo-ingest") {
+      return {
+        max_files: action.params?.max_files || 30,
+      };
+    }
+    if (action.type === "repo-analyze") {
+      return {
+        model: action.params?.model || "qwen/qwen3.6-plus",
+      };
+    }
+    if (action.type === "graph-query") {
+      return {
+        query: action.params?.query || "",
+      };
+    }
+    if (action.type === "graph-health") {
+      return {};
+    }
     return {};
+  }
+
+  function toggleRepo(url) {
+    if (selectedRepoUrls.includes(url)) {
+      selectedRepoUrls = selectedRepoUrls.filter((u) => u !== url);
+    } else {
+      selectedRepoUrls = [...selectedRepoUrls, url];
+    }
   }
 
   function handleRun() {
@@ -31,6 +58,17 @@
       merged.system_id = config.system_id.trim() || "auto";
       const ids = config.scenario_ids.trim();
       merged.scenario_ids = ids ? ids.split(/\s*,\s*/).filter(Boolean) : [];
+      // Attach selected repository targets
+      if (selectedRepoUrls.length > 0) {
+        merged.target_repos = repositories
+          .filter((r) => selectedRepoUrls.includes(r.url))
+          .map((r) => ({
+            url: r.url,
+            owner: r.owner,
+            repo: r.repo,
+            branch: r.branch,
+          }));
+      }
     } else if (action.type === "mcp-call") {
       merged.tool_name = config.tool_name;
       merged.server_name = config.server_name;
@@ -39,6 +77,32 @@
       } catch {
         merged.args = action.params?.args || {};
       }
+    } else if (action.type === "repo-ingest") {
+      merged.max_files = parseInt(config.max_files, 10) || 30;
+      if (selectedRepoUrls.length > 0) {
+        merged.target_repos = repositories
+          .filter((r) => selectedRepoUrls.includes(r.url))
+          .map((r) => ({
+            url: r.url,
+            owner: r.owner,
+            repo: r.repo,
+            branch: r.branch,
+          }));
+      }
+    } else if (action.type === "repo-analyze") {
+      merged.model = config.model?.trim() || "qwen/qwen3.6-plus";
+      if (selectedRepoUrls.length > 0) {
+        merged.target_repos = repositories
+          .filter((r) => selectedRepoUrls.includes(r.url))
+          .map((r) => ({
+            url: r.url,
+            owner: r.owner,
+            repo: r.repo,
+            branch: r.branch,
+          }));
+      }
+    } else if (action.type === "graph-query") {
+      merged.query = config.query?.trim() || "";
     }
     onRun({ ...action, params: merged });
   }
@@ -112,6 +176,117 @@
             onkeydown={handleKeydown}
           />
         </label>
+
+        <!-- Repository targets -->
+        {#if repositories.length > 0}
+          <div class="config-field">
+            <span class="config-label">Target Repositories</span>
+            <p class="config-hint">Select repositories to benchmark against instead of the default system.</p>
+            <div class="repo-list">
+              {#each repositories as repo}
+                {@const checked = selectedRepoUrls.includes(repo.url)}
+                <label class="repo-item" class:checked>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onchange={() => toggleRepo(repo.url)}
+                  />
+                  <span class="repo-icon"></span>
+                  <span class="repo-label">{repo.owner}/{repo.repo}</span>
+                  <span class="repo-branch">{repo.branch}</span>
+                </label>
+              {/each}
+            </div>
+          </div>
+        {/if}
+      {:else if action.type === "repo-ingest"}
+        <label class="config-field">
+          <span class="config-label">Max files per repo</span>
+          <input
+            type="number"
+            class="config-input config-input-sm"
+            min="1"
+            max="100"
+            bind:value={config.max_files}
+            onkeydown={handleKeydown}
+          />
+        </label>
+
+        {#if repositories.length > 0}
+          <div class="config-field">
+            <span class="config-label">Repositories to Ingest</span>
+            <p class="config-hint">Select which repositories to ingest into the knowledge graph. All are ingested if none selected.</p>
+            <div class="repo-list">
+              {#each repositories as repo}
+                {@const checked = selectedRepoUrls.includes(repo.url)}
+                <label class="repo-item" class:checked>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onchange={() => toggleRepo(repo.url)}
+                  />
+                  <span class="repo-icon"></span>
+                  <span class="repo-label">{repo.owner}/{repo.repo}</span>
+                  <span class="repo-branch">{repo.branch}</span>
+                </label>
+              {/each}
+            </div>
+          </div>
+        {:else}
+          <p class="config-hint">No repositories imported yet. Import a GitHub repo first.</p>
+        {/if}
+      {:else if action.type === "repo-analyze"}
+        <label class="config-field">
+          <span class="config-label">Analysis model</span>
+          <input
+            type="text"
+            class="config-input"
+            placeholder="qwen/qwen3.6-plus"
+            bind:value={config.model}
+            onkeydown={handleKeydown}
+          />
+        </label>
+
+        {#if repositories.length > 0}
+          <div class="config-field">
+            <span class="config-label">Repositories to Analyze</span>
+            <p class="config-hint">Select which repositories to analyze. All are analyzed if none selected.</p>
+            <div class="repo-list">
+              {#each repositories as repo}
+                {@const checked = selectedRepoUrls.includes(repo.url)}
+                <label class="repo-item" class:checked>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onchange={() => toggleRepo(repo.url)}
+                  />
+                  <span class="repo-icon"></span>
+                  <span class="repo-label">{repo.owner}/{repo.repo}</span>
+                  <span class="repo-branch">{repo.branch}</span>
+                </label>
+              {/each}
+            </div>
+          </div>
+        {:else}
+          <p class="config-hint">No repositories imported yet. Import and ingest a GitHub repo first.</p>
+        {/if}
+
+      {:else if action.type === "graph-query"}
+        <label class="config-field">
+          <span class="config-label">Search query</span>
+          <input
+            type="text"
+            class="config-input"
+            placeholder="e.g. architecture patterns, module dependencies..."
+            bind:value={config.query}
+            onkeydown={handleKeydown}
+          />
+        </label>
+        <p class="config-hint">Natural language query against the Graphonomous knowledge graph.</p>
+
+      {:else if action.type === "graph-health"}
+        <p class="config-hint">Runs graph health diagnostics — node counts, confidence distribution, orphans, edge coverage. No configuration needed.</p>
+
       {:else if action.type === "mcp-call"}
         <label class="config-field">
           <span class="config-label">Server</span>
@@ -193,6 +368,8 @@
 
   .modal-body {
     padding: 16px;
+    max-height: 60vh;
+    overflow-y: auto;
   }
 
   .modal-desc {
@@ -214,6 +391,13 @@
     font-weight: 600;
     color: var(--text, #222);
     letter-spacing: 0.02em;
+  }
+
+  .config-hint {
+    margin: 0;
+    font-size: 11px;
+    color: var(--muted, #888);
+    line-height: 1.4;
   }
 
   .config-input {
@@ -246,6 +430,65 @@
     resize: vertical;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     font-size: 12px;
+  }
+
+  /* ── Repository list ── */
+  .repo-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 4px;
+  }
+
+  .repo-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--bg-2, #e0e4e8);
+    background: var(--bg-0, #f4f6f8);
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+    font-size: 12px;
+  }
+  .repo-item:hover {
+    border-color: var(--cyan, #ff6d5a);
+  }
+  .repo-item.checked {
+    border-color: #a78bfa;
+    background: rgba(167, 139, 250, 0.06);
+  }
+
+  .repo-item input[type="checkbox"] {
+    accent-color: #a78bfa;
+    margin: 0;
+    flex-shrink: 0;
+  }
+
+  .repo-icon::before {
+    content: "\2693";
+    font-size: 12px;
+    color: #a78bfa;
+  }
+
+  .repo-label {
+    font-weight: 600;
+    color: var(--text, #222);
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .repo-branch {
+    font-size: 10px;
+    color: var(--muted, #888);
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: var(--bg-2, #e0e4e8);
+    flex-shrink: 0;
   }
 
   .modal-footer {

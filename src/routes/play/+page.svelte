@@ -10,6 +10,7 @@
   import { validateSpec, SCHEMA_TYPES } from "$lib/play/validator.js";
   import { mcpToolsToOpenAI } from "$lib/play/tools.js";
   import { discoverTools, discoverLocalTools } from "$lib/play/mcp-client.js";
+  import RepoImportModal from "../../components/play/RepoImportModal.svelte";
   import {
     saveGuestState,
     loadGuestState,
@@ -17,6 +18,10 @@
     saveApiKey,
     loadMcpConnections,
     saveMcpConnections,
+    loadRepositories,
+    saveRepositories,
+    saveBenchmarkRuns,
+    loadBenchmarkRuns,
   } from "$lib/play/storage.js";
   import { DEFAULT_MCP_SERVERS } from "$lib/play/default-servers.js";
   import { WORKSPACES, EXAMPLES_BY_ID, getDefaultExample } from "$lib/play/workspaces/index.js";
@@ -49,6 +54,17 @@
   let mcpConnections = $state([]);
   let mcpTools = $state([]); // OpenAI-format tool defs from all connected servers
 
+  // Repository state
+  let repositories = $state([]);
+  let showRepoImportModal = $state(false);
+
+  // Benchmark runs state — accumulated across the session
+  // Each run: { id, label, systemId, judgeModel, targetRepos, cycles: [...], leaderboard, completedAt }
+  let benchmarkRuns = $state([]);
+  let currentRunCycles = $state([]); // cycles for the in-progress run
+  let liveRunId = $state(null); // ID of the run being built incrementally
+  let selectedRun = $state(null); // currently selected benchmark run (for continue/delete)
+
   // Derive active workspace actions from current selection
   let activeActions = $derived.by(() => {
     if (selectedExampleId) {
@@ -70,6 +86,141 @@
     chatMessages = [...chatMessages, msg];
     // Auto-switch to chat tab so user sees progress
     if (rightTab !== "chat") rightTab = "chat";
+  }
+
+  function handleCycleComplete(cycleResult) {
+    currentRunCycles = [...currentRunCycles, cycleResult];
+
+    if (!liveRunId) {
+      // First cycle — create a new live run entry
+      liveRunId = `run-${Date.now()}`;
+      const runNumber = benchmarkRuns.length + 1;
+      benchmarkRuns = [...benchmarkRuns, {
+        id: liveRunId,
+        label: `Run ${runNumber} (running...)`,
+        systemId: "",
+        judgeModel: "",
+        targetRepos: [],
+        cycles: [cycleResult],
+        leaderboard: [],
+        success: true,
+        live: true,
+        completedAt: null,
+      }];
+    } else {
+      // Subsequent cycles — update the live run in-place
+      benchmarkRuns = benchmarkRuns.map((r) =>
+        r.id === liveRunId
+          ? { ...r, cycles: [...r.cycles, cycleResult] }
+          : r
+      );
+    }
+    // Persist incrementally
+    saveBenchmarkRuns(benchmarkRuns);
+  }
+
+  function handleRunComplete(runResult) {
+    const cycleCount = runResult.cycles?.length || 0;
+
+    if (liveRunId) {
+      // Finalize the live run with complete data
+      const runNumber = benchmarkRuns.findIndex((r) => r.id === liveRunId) + 1;
+      benchmarkRuns = benchmarkRuns.map((r) =>
+        r.id === liveRunId
+          ? {
+              ...r,
+              label: `Run ${runNumber} (${cycleCount} cycle${cycleCount !== 1 ? "s" : ""})`,
+              systemId: runResult.systemId,
+              judgeModel: runResult.judgeModel,
+              targetRepos: runResult.targetRepos || [],
+              cycles: runResult.cycles || [],
+              leaderboard: runResult.leaderboard || [],
+              success: runResult.success,
+              error: runResult.error,
+              live: false,
+              completedAt: runResult.completedAt || Date.now(),
+            }
+          : r
+      );
+    } else {
+      // No cycles were emitted (edge case) — create the run from scratch
+      const runId = `run-${Date.now()}`;
+      const label = `Run ${benchmarkRuns.length + 1} (${cycleCount} cycle${cycleCount !== 1 ? "s" : ""})`;
+      benchmarkRuns = [...benchmarkRuns, {
+        id: runId,
+        label,
+        systemId: runResult.systemId,
+        judgeModel: runResult.judgeModel,
+        targetRepos: runResult.targetRepos || [],
+        cycles: runResult.cycles || [],
+        leaderboard: runResult.leaderboard || [],
+        success: runResult.success,
+        error: runResult.error,
+        completedAt: runResult.completedAt || Date.now(),
+      }];
+    }
+
+    liveRunId = null;
+    currentRunCycles = [];
+    selectedRun = null;
+    saveBenchmarkRuns(benchmarkRuns);
+  }
+
+  function handleSelectRun(run) {
+    // Toggle selection — if clicking the already-selected run, deselect
+    selectedRun = selectedRun?.id === run.id ? null : run;
+  }
+
+  function handleContinueRun(run) {
+    if (!run || run.live) return;
+
+    // Set this run as the live run so new cycles append to it
+    liveRunId = run.id;
+    currentRunCycles = [...(run.cycles || [])];
+
+    // Mark as live again
+    benchmarkRuns = benchmarkRuns.map((r) =>
+      r.id === run.id
+        ? { ...r, live: true, label: r.label.replace(/\(.*\)/, "(running...)") }
+        : r
+    );
+    saveBenchmarkRuns(benchmarkRuns);
+    selectedRun = null;
+  }
+
+  function handleStopRun(run) {
+    if (!run) return;
+
+    const cycleCount = run.cycles?.length || 0;
+    const runNumber = benchmarkRuns.findIndex((r) => r.id === run.id) + 1;
+
+    // Finalize the run as stopped
+    benchmarkRuns = benchmarkRuns.map((r) =>
+      r.id === run.id
+        ? {
+            ...r,
+            label: `Run ${runNumber} (${cycleCount} cycle${cycleCount !== 1 ? "s" : ""}, stopped)`,
+            live: false,
+            success: false,
+            error: "Stopped by user",
+            completedAt: r.completedAt || Date.now(),
+          }
+        : r
+    );
+
+    // Clear live tracking if this was the active run
+    if (liveRunId === run.id) {
+      liveRunId = null;
+      currentRunCycles = [];
+    }
+    selectedRun = null;
+    saveBenchmarkRuns(benchmarkRuns);
+  }
+
+  function handleDeleteRun(runId) {
+    benchmarkRuns = benchmarkRuns.filter((r) => r.id !== runId);
+    if (selectedRun?.id === runId) selectedRun = null;
+    saveBenchmarkRuns(benchmarkRuns);
   }
 
   // Legacy schema-type → example mapping (for header buttons + tools)
@@ -94,6 +245,37 @@
 
     // Restore API key
     apiKey = loadApiKey();
+
+    // Restore benchmark runs
+    benchmarkRuns = loadBenchmarkRuns();
+
+    // Restore imported repositories (metadata only — re-fetch trees in background)
+    const savedRepos = loadRepositories();
+    if (savedRepos.length > 0) {
+      repositories = savedRepos; // Show immediately without trees
+      // Fetch trees in background
+      Promise.all(
+        savedRepos.map(async (repo) => {
+          try {
+            const resp = await fetch(
+              `https://api.github.com/repos/${repo.owner}/${repo.repo}/git/trees/${repo.branch}?recursive=1`
+            );
+            if (!resp.ok) return repo;
+            const data = await resp.json();
+            return {
+              ...repo,
+              tree: (data.tree || [])
+                .filter((e) => e.type === "blob" || e.type === "tree")
+                .map((e) => ({ path: e.path, type: e.type, size: e.size || 0 })),
+            };
+          } catch {
+            return repo;
+          }
+        })
+      ).then((reposWithTrees) => {
+        repositories = reposWithTrees;
+      });
+    }
 
     // Connect BendScript's own MCP endpoint first (same origin, no proxy)
     const localMcpUrl = `${window.location.origin}/api/mcp`;
@@ -213,6 +395,7 @@
 
   function handleSchemaSelect(schemaId) {
     selectedSchemaType = schemaId;
+    selectedRun = null;
     const example = EXAMPLES[schemaId] || "{}";
     editorContent = example;
     if (editorInstance) {
@@ -241,6 +424,7 @@
 
     editorContent = content;
     selectedSchemaType = schemaType;
+    selectedRun = null;
     validationResult = null;
 
     if (editorInstance) {
@@ -255,10 +439,36 @@
     editorContent = content;
     selectedFileKey = fileKey;
     selectedExampleId = "";
+    // Only clear selectedRun when navigating away from benchmark items
+    if (!fileKey.startsWith("bench:")) selectedRun = null;
     validationResult = null;
 
     if (editorInstance) {
       editorInstance.setValue(content);
+      // Switch Monaco language to JSON
+      if (monacoModule) {
+        monacoModule.editor.setModelLanguage(editorInstance.getModel(), "json");
+      }
+      editorInstance.layout();
+    }
+    autoSave();
+  }
+
+  function handleLoadText(fileKey, text) {
+    editorContent = text;
+    selectedFileKey = fileKey;
+    selectedExampleId = "";
+    // Only clear selectedRun when navigating away from benchmark items
+    if (!fileKey.startsWith("bench:")) selectedRun = null;
+    validationResult = null;
+
+    if (editorInstance) {
+      editorInstance.setValue(text);
+      // Switch Monaco language to markdown for .md files
+      if (monacoModule) {
+        const lang = fileKey.endsWith("-md") ? "markdown" : "plaintext";
+        monacoModule.editor.setModelLanguage(editorInstance.getModel(), lang);
+      }
       editorInstance.layout();
     }
     autoSave();
@@ -280,6 +490,52 @@
     apiKey = key;
     saveApiKey(key);
     showApiKeyModal = false;
+  }
+
+  function handleRepoImport(repo) {
+    // Deduplicate by URL
+    if (repositories.some((r) => r.url === repo.url && r.branch === repo.branch)) return;
+    repositories = [...repositories, repo];
+    // Persist without the full tree (too large for localStorage)
+    saveRepositories(repositories.map((r) => ({
+      url: r.url, owner: r.owner, repo: r.repo, branch: r.branch, importedAt: r.importedAt,
+    })));
+    showRepoImportModal = false;
+  }
+
+  function handleRepoRemove(repo) {
+    repositories = repositories.filter((r) => r.url !== repo.url || r.branch !== repo.branch);
+    saveRepositories(repositories.map((r) => ({
+      url: r.url, owner: r.owner, repo: r.repo, branch: r.branch, importedAt: r.importedAt,
+    })));
+  }
+
+  async function handleLoadRepoFile(repo, filePath) {
+    selectedFileKey = `repo:${repo.owner}/${repo.repo}/${filePath}`;
+    selectedExampleId = "";
+    selectedRun = null;
+    try {
+      const resp = await fetch(
+        `https://api.github.com/repos/${repo.owner}/${repo.repo}/contents/${filePath}?ref=${repo.branch}`
+      );
+      if (!resp.ok) throw new Error(`GitHub API error (${resp.status})`);
+      const data = await resp.json();
+      // GitHub returns base64-encoded content
+      const content = data.encoding === "base64"
+        ? atob(data.content.replace(/\n/g, ""))
+        : data.content;
+      editorContent = content;
+      validationResult = null;
+      if (editorInstance) {
+        editorInstance.setValue(content);
+        editorInstance.layout();
+      }
+    } catch {
+      editorContent = `// Failed to load ${filePath}`;
+      if (editorInstance) {
+        editorInstance.setValue(editorContent);
+      }
+    }
   }
 
   async function handleMcpConnect(url, authHeader) {
@@ -352,9 +608,17 @@
         {selectedSchemaType}
         {selectedExampleId}
         {selectedFileKey}
+        {repositories}
+        {benchmarkRuns}
+        {currentRunCycles}
         onSelect={handleSchemaSelect}
         onLoadExample={handleLoadExample}
         onLoadJson={handleLoadJson}
+        onLoadText={handleLoadText}
+        onLoadRepoFile={handleLoadRepoFile}
+        onImportRepo={() => (showRepoImportModal = true)}
+        onRemoveRepo={handleRepoRemove}
+        onSelectRun={handleSelectRun}
       />
     </aside>
 
@@ -371,12 +635,19 @@
           Paste or write a {SCHEMA_TYPES.find((s) => s.id === selectedSchemaType)?.ext || "JSON"} spec
         </span>
       </div>
-      {#if activeActions.length > 0}
+      {#if activeActions.length > 0 || selectedRun}
         <ActionBar
           actions={activeActions}
           {mcpConnections}
           {apiKey}
+          {repositories}
+          {selectedRun}
           onStatusMessage={handleActionStatus}
+          onCycleComplete={handleCycleComplete}
+          onRunComplete={handleRunComplete}
+          onContinueRun={handleContinueRun}
+          onStopRun={handleStopRun}
+          onDeleteRun={handleDeleteRun}
         />
       {/if}
       <div class="play-editor" bind:this={editorContainer}></div>
@@ -441,6 +712,13 @@
     currentKey={apiKey}
     onSave={handleApiKeySave}
     onClose={() => (showApiKeyModal = false)}
+  />
+{/if}
+
+{#if showRepoImportModal}
+  <RepoImportModal
+    onImport={handleRepoImport}
+    onClose={() => (showRepoImportModal = false)}
   />
 {/if}
 

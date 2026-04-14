@@ -4,6 +4,8 @@
 const STORAGE_KEY = "bendscript_play_state";
 const API_KEY_STORAGE = "bendscript_play_openrouter_key";
 const MCP_STORAGE = "bendscript_play_mcp_connections";
+const REPO_STORAGE = "bendscript_play_repositories";
+const BENCH_STORAGE = "bendscript_play_benchmarks";
 const TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 /**
@@ -97,6 +99,64 @@ export function loadMcpConnections() {
 }
 
 /**
+ * Save imported repositories to localStorage.
+ * @param {Array<{ url: string, owner: string, repo: string, branch: string, importedAt: number }>} repos
+ */
+export function saveRepositories(repos) {
+  try {
+    localStorage.setItem(REPO_STORAGE, JSON.stringify(repos));
+  } catch {
+    // silently fail
+  }
+}
+
+/**
+ * Load imported repositories from localStorage.
+ * @returns {Array<{ url: string, owner: string, repo: string, branch: string, importedAt: number }>}
+ */
+export function loadRepositories() {
+  try {
+    const raw = localStorage.getItem(REPO_STORAGE);
+    if (!raw) return [];
+    return JSON.parse(raw);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Save benchmark runs to localStorage.
+ * @param {Array<object>} runs
+ */
+export function saveBenchmarkRuns(runs) {
+  try {
+    localStorage.setItem(BENCH_STORAGE, JSON.stringify(runs));
+  } catch {
+    // localStorage may be full — try trimming oldest runs
+    try {
+      const trimmed = runs.slice(-5); // keep last 5 runs
+      localStorage.setItem(BENCH_STORAGE, JSON.stringify(trimmed));
+    } catch {
+      // silently fail
+    }
+  }
+}
+
+/**
+ * Load benchmark runs from localStorage.
+ * @returns {Array<object>}
+ */
+export function loadBenchmarkRuns() {
+  try {
+    const raw = localStorage.getItem(BENCH_STORAGE);
+    if (!raw) return [];
+    return JSON.parse(raw);
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Clear all playground data from localStorage.
  */
 export function clearGuestData() {
@@ -104,6 +164,8 @@ export function clearGuestData() {
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(API_KEY_STORAGE);
     localStorage.removeItem(MCP_STORAGE);
+    localStorage.removeItem(REPO_STORAGE);
+    localStorage.removeItem(BENCH_STORAGE);
   } catch {
     // silently fail
   }

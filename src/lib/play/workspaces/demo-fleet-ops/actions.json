@@ -1,9 +1,45 @@
 [
   {
+    "id": "ingest-repo-fleet",
+    "label": "Ingest Repository",
+    "icon": "ingest",
+    "description": "Fetch repo files and store them as knowledge nodes in Graphonomous",
+    "type": "repo-ingest",
+    "params": {
+      "max_files": 30
+    }
+  },
+  {
+    "id": "analyze-repo-fleet",
+    "label": "Analyze Codebase",
+    "icon": "chart",
+    "description": "Run LLM analysis on ingested repo code — architecture, dependencies, fleet-relevant patterns",
+    "type": "repo-analyze",
+    "params": {}
+  },
+  {
+    "id": "query-graph-fleet",
+    "label": "Query Knowledge",
+    "icon": "search",
+    "description": "Search the knowledge graph for fleet-relevant patterns, route data, dispatch logic",
+    "type": "graph-query",
+    "params": {
+      "query": ""
+    }
+  },
+  {
+    "id": "graph-health-fleet",
+    "label": "Graph Health",
+    "icon": "health",
+    "description": "Check Graphonomous stats — node counts, confidence, orphans",
+    "type": "graph-health",
+    "params": {}
+  },
+  {
     "id": "benchmark-fleet-ops",
     "label": "Benchmark Fleet Agent",
     "icon": "play",
-    "description": "Run PRISM evaluation cycles against the fleet dispatch agent",
+    "description": "Run PRISM evaluation cycles — tests recall, transfer, and stability on fleet + repo knowledge",
     "type": "prism-benchmark",
     "params": {
       "system_id": "auto",

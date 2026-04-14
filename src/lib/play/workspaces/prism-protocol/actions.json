@@ -1,5 +1,23 @@
 [
   {
+    "id": "ingest-repo-prism",
+    "label": "Ingest Repository",
+    "icon": "ingest",
+    "description": "Fetch repo files and store them as knowledge nodes in Graphonomous",
+    "type": "repo-ingest",
+    "params": {
+      "max_files": 30
+    }
+  },
+  {
+    "id": "analyze-repo-prism",
+    "label": "Analyze Codebase",
+    "icon": "chart",
+    "description": "Run LLM analysis on ingested repo — identifies benchmark-relevant patterns and CL dimensions",
+    "type": "repo-analyze",
+    "params": {}
+  },
+  {
     "id": "benchmark-all-systems",
     "label": "Benchmark All Systems",
     "icon": "play",
@@ -21,5 +39,13 @@
       "tool_name": "config",
       "args": { "action": "list_systems" }
     }
+  },
+  {
+    "id": "graph-health-prism",
+    "label": "Graph Health",
+    "icon": "health",
+    "description": "Check Graphonomous stats — verify ingested knowledge before benchmarking",
+    "type": "graph-health",
+    "params": {}
   }
 ]

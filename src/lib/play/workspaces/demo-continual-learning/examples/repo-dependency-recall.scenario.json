@@ -1,0 +1,29 @@
+{
+  "scenario_id": "cl-repo-deps-001",
+  "name": "Dependency Graph Recall",
+  "description": "Stores structured dependency information from a repo's package manifest, waits, then tests recall of specific dependency relationships and version constraints.",
+  "dimensions": ["retention", "latency", "relevance"],
+  "steps": [
+    {
+      "action": "store",
+      "payload": {
+        "key": "deps-manifest",
+        "value": "Project dependencies: phoenix 1.7.14 (web framework), ecto 3.12 (database), jason 1.4 (JSON), nx 0.9 (numerical computing), exla 0.9 (GPU acceleration for Nx), plug_cowboy 2.7 (HTTP server). Dev deps: ex_doc, credo, dialyxir."
+      }
+    },
+    { "action": "wait", "duration_ms": 5000 },
+    {
+      "action": "retrieve",
+      "query": "What numerical computing libraries does the project use and what are their versions?"
+    },
+    {
+      "action": "retrieve",
+      "query": "What are the dev-only dependencies?"
+    }
+  ],
+  "expected": {
+    "recall": true,
+    "max_latency_ms": 600,
+    "must_contain": "nx"
+  }
+}

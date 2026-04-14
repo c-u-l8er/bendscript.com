@@ -1,0 +1,33 @@
+{
+  "scenario_id": "cl-repo-transfer-001",
+  "name": "Cross-Repo Knowledge Transfer",
+  "description": "Tests whether the agent can use knowledge from one ingested repo to reason about a related question in another repo's domain. Stores facts from two repos, then queries for cross-domain insight.",
+  "dimensions": ["transfer", "coherence", "relevance"],
+  "steps": [
+    {
+      "action": "store",
+      "payload": {
+        "key": "repo-a-architecture",
+        "value": "Repository A uses Elixir/OTP with GenServer processes for concurrent state management and supervision trees for fault tolerance."
+      }
+    },
+    {
+      "action": "store",
+      "payload": {
+        "key": "repo-b-architecture",
+        "value": "Repository B uses Node.js with Express and relies on try/catch for error handling with no process isolation."
+      }
+    },
+    { "action": "wait", "duration_ms": 3000 },
+    {
+      "action": "retrieve",
+      "query": "What fault-tolerance patterns from Repository A could improve Repository B's error handling?"
+    }
+  ],
+  "expected": {
+    "recall": true,
+    "max_latency_ms": 800,
+    "must_contain": "supervision",
+    "relevance_threshold": 0.7
+  }
+}

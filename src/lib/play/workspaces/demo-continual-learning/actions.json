@@ -1,9 +1,45 @@
 [
   {
+    "id": "ingest-repo",
+    "label": "Ingest Repository",
+    "icon": "ingest",
+    "description": "Fetch repo files and store them as knowledge nodes in Graphonomous",
+    "type": "repo-ingest",
+    "params": {
+      "max_files": 30
+    }
+  },
+  {
+    "id": "analyze-repo",
+    "label": "Analyze Codebase",
+    "icon": "chart",
+    "description": "Retrieve ingested repo nodes and run LLM analysis — architecture, tech stack, patterns, dependencies",
+    "type": "repo-analyze",
+    "params": {}
+  },
+  {
+    "id": "query-graph",
+    "label": "Query Knowledge",
+    "icon": "search",
+    "description": "Search the knowledge graph for ingested repo content — modules, patterns, relationships",
+    "type": "graph-query",
+    "params": {
+      "query": ""
+    }
+  },
+  {
+    "id": "graph-health",
+    "label": "Graph Health",
+    "icon": "health",
+    "description": "Check Graphonomous stats — node counts, confidence distribution, orphans, edge coverage",
+    "type": "graph-health",
+    "params": {}
+  },
+  {
     "id": "benchmark-graphonomous",
-    "label": "Benchmark Graphonomous",
+    "label": "Benchmark Memory",
     "icon": "play",
-    "description": "Run PRISM evaluation cycles against Graphonomous — compose, interact, observe, diagnose",
+    "description": "Run PRISM evaluation cycles against Graphonomous — tests retention, recall, belief revision on ingested data",
     "type": "prism-benchmark",
     "params": {
       "system_id": "auto",
@@ -12,9 +48,9 @@
   },
   {
     "id": "run-retention-test",
-    "label": "Run Retention Test",
+    "label": "Retention Test",
     "icon": "test",
-    "description": "Execute the belief-revision scenario from retention-test.scenario.json",
+    "description": "Test if Graphonomous retains repo knowledge after belief revision — stores a fact, contradicts it, checks recall",
     "type": "prism-benchmark",
     "params": {
       "system_id": "auto",

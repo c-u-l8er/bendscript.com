@@ -1,0 +1,30 @@
+{
+  "scenario_id": "fleet-code-recall-001",
+  "name": "Fleet Codebase Architecture Recall",
+  "description": "Stores fleet dispatch system architecture details, then tests whether the agent can recall specific module responsibilities and data flow patterns.",
+  "dimensions": ["retention", "relevance", "coherence"],
+  "steps": [
+    {
+      "action": "store",
+      "payload": {
+        "key": "fleet-arch-overview",
+        "value": "The fleet dispatch system has three main modules: DispatchEngine (assigns vehicles to orders using constraint optimization), RouteOptimizer (calculates shortest paths with traffic-aware weights), and SurgeDetector (monitors real-time demand using sliding window statistics). Data flows: orders → DispatchEngine → RouteOptimizer → vehicle assignments. SurgeDetector feeds multipliers into DispatchEngine pricing."
+      }
+    },
+    { "action": "wait", "duration_ms": 4000 },
+    {
+      "action": "retrieve",
+      "query": "How does the surge detection system affect vehicle dispatch?"
+    },
+    {
+      "action": "retrieve",
+      "query": "What module handles route calculation?"
+    }
+  ],
+  "expected": {
+    "recall": true,
+    "max_latency_ms": 700,
+    "must_contain": "SurgeDetector",
+    "relevance_threshold": 0.8
+  }
+}

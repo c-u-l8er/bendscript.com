@@ -1,0 +1,33 @@
+{
+  "scenario_id": "govern-repo-conflict-001",
+  "name": "Multi-Repo Dependency Conflict",
+  "description": "Tests governance coordination when two repos have conflicting dependency requirements. Stores both constraints, then tests if the agent can identify the conflict and propose a resolution.",
+  "dimensions": ["coherence", "provenance", "transfer"],
+  "steps": [
+    {
+      "action": "store",
+      "payload": {
+        "key": "repo-frontend-deps",
+        "value": "Frontend repo requires React 18.x and webpack 5.90+. Cannot use React 19 due to breaking changes in useEffect cleanup timing that affect the animation library."
+      }
+    },
+    {
+      "action": "store",
+      "payload": {
+        "key": "repo-design-system-deps",
+        "value": "Design system repo requires React 19.x for the new use() hook and server components support. All components use React 19 APIs."
+      }
+    },
+    { "action": "wait", "duration_ms": 4000 },
+    {
+      "action": "retrieve",
+      "query": "Is there a dependency conflict between the frontend and design system repos?"
+    }
+  ],
+  "expected": {
+    "recall": true,
+    "max_latency_ms": 900,
+    "must_reference_both": ["React 18", "React 19"],
+    "must_contain": "conflict"
+  }
+}

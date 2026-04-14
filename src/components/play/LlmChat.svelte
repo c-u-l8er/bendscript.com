@@ -128,9 +128,11 @@ ${editorContent}
     loading = true;
 
     try {
+      // Filter out non-API roles (action-status, action-error, tool-status are display-only)
+      const VALID_ROLES = new Set(["user", "assistant", "system", "tool"]);
       const messages = [
         { role: "system", content: buildSystemPrompt() },
-        ...chatMessages,
+        ...chatMessages.filter((m) => VALID_ROLES.has(m.role)),
       ];
 
       const MAX_ROUNDS = 6;
@@ -243,7 +245,7 @@ ${editorContent}
           </div>
         {:else if msg.role === "action-result"}
           <div class="chat-msg action-result">
-            <span class="chat-role">BENCHMARK</span>
+            <span class="chat-role">RESULT</span>
             <pre class="chat-content chat-result-pre">{msg.content}</pre>
           </div>
         {:else if msg.role === "action-error"}

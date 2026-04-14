@@ -1,0 +1,28 @@
+{
+  "$schema": "https://protocol.ampersandboxdesign.com/schema/v0.1.0/capability-contract.schema.json",
+  "capability": "&reason.analyze",
+  "provider": "bendscript-play",
+  "version": "0.1.0",
+  "description": "Repository analysis capability — ingests code from GitHub, extracts architecture patterns, identifies tech stack, and stores structured knowledge in Graphonomous.",
+  "operations": {
+    "ingest": {
+      "in": "github_repo_url",
+      "out": "node_ids"
+    },
+    "analyze": {
+      "in": "repo_identifier",
+      "out": "analysis_report"
+    },
+    "query": {
+      "in": "natural_language_query",
+      "out": "relevant_nodes"
+    },
+    "compare": {
+      "in": "repo_identifiers",
+      "out": "comparison_report"
+    }
+  },
+  "accepts_from": ["raw_data", "&memory.graph"],
+  "feeds_into": ["&memory.graph", "&reason.argument", "output"],
+  "a2a_skills": ["repo-ingest", "codebase-analysis", "knowledge-query"]
+}
