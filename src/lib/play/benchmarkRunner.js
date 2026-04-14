@@ -1,29 +1,30 @@
 /**
  * Benchmark runner — executes PRISM evaluation cycles via MCP tool calls.
- * No LLM in the loop; calls MCP tools directly.
+ * LLM judging happens client-side via OpenRouter (MCP servers don't call LLMs).
  */
 import { callTool } from "./mcp-client.js";
 
+// 9 CL dimensions with rubric summaries for the judge prompt
+const CL_DIMENSIONS = [
+  { key: "stability", desc: "Retaining old knowledge when new arrives. 1.0=correct recall after updates, 0.5=partial, 0.0=wrong/lost" },
+  { key: "plasticity", desc: "Speed and accuracy of learning new info. 1.0=immediate incorporation, 0.5=delayed/partial, 0.0=fails to learn" },
+  { key: "knowledge_update", desc: "Correctly integrating updates/corrections. 1.0=seamless update, 0.5=partial, 0.0=retains stale info" },
+  { key: "temporal", desc: "Awareness of time ordering and recency. 1.0=correct temporal reasoning, 0.5=partial, 0.0=ignores time" },
+  { key: "consolidation", desc: "Merging/strengthening knowledge over time. 1.0=well-organized graph, 0.5=some redundancy, 0.0=no consolidation" },
+  { key: "epistemic_awareness", desc: "Knowing what it knows/doesn't know. 1.0=calibrated confidence, 0.5=partial, 0.0=overconfident/unaware" },
+  { key: "transfer", desc: "Applying knowledge to new domains. 1.0=successful transfer, 0.5=partial, 0.0=no cross-domain use" },
+  { key: "forgetting", desc: "Appropriate forgetting of outdated info. 1.0=clean pruning, 0.5=partial, 0.0=retains junk" },
+  { key: "feedback", desc: "Learning from user corrections/feedback. 1.0=immediate adaptation, 0.5=partial, 0.0=ignores feedback" },
+];
+
 /**
  * Call a PRISM MCP tool and unwrap the MCP content envelope.
- *
- * MCP tools/call returns: { content: [{ type: "text", text: "..." }], structuredContent: {...} }
- * We prefer structuredContent, fall back to parsing the text content.
- *
- * @param {object} conn - MCP connection object { url, authHeader, sessionId }
- * @param {string} toolName - raw MCP tool name (e.g., "config", "compose")
- * @param {object} args - tool arguments
- * @returns {Promise<object>}
  */
 async function prismCall(conn, toolName, args) {
   const raw = await callTool(conn.url, conn.authHeader, toolName, args, conn.sessionId);
 
-  // If we got a structured content object, prefer it
-  if (raw?.structuredContent) {
-    return raw.structuredContent;
-  }
+  if (raw?.structuredContent) return raw.structuredContent;
 
-  // Try parsing text content from the MCP content array
   if (raw?.content && Array.isArray(raw.content)) {
     const textItem = raw.content.find((c) => c.type === "text" && c.text);
     if (textItem) {
@@ -31,7 +32,6 @@ async function prismCall(conn, toolName, args) {
     }
   }
 
-  // Fallback: maybe the proxy already unwrapped it
   if (typeof raw === "string") {
     try { return JSON.parse(raw); } catch { return { raw }; }
   }
@@ -45,7 +45,6 @@ async function prismCall(conn, toolName, args) {
 async function resolveSystemId(conn, systemId) {
   if (systemId && systemId !== "auto") return systemId;
   const data = await prismCall(conn, "config", { action: "list_systems" });
-  // PRISM returns { status: "ok", result: [{ id, name, ... }] }
   const systems = data?.result || data?.systems || [];
   if (!Array.isArray(systems) || systems.length === 0) {
     throw new Error("No systems registered in PRISM");
@@ -54,20 +53,101 @@ async function resolveSystemId(conn, systemId) {
 }
 
 /**
- * Run a single PRISM benchmark cycle:
- *   compose(list) → interact(run) per scenario → observe(judge) → diagnose(report)
- *
- * @param {object} params
- * @param {object} params.conn - PRISM MCP connection
- * @param {string} params.systemId - resolved system ID
- * @param {string[]} [params.scenarioIds] - specific scenarios, or empty = all
- * @param {number} params.cycle - current cycle number (1-based)
- * @param {number} params.totalCycles - total planned cycles
- * @param {(msg: object) => void} params.onProgress - progress callback
- * @param {AbortSignal} params.signal - cancellation signal
- * @returns {Promise<object>} - cycle result with scores
+ * Call OpenRouter to judge a transcript against CL dimensions.
+ * Returns array of { dimension, composite_score, evidence } objects.
  */
-async function runSingleCycle({ conn, systemId, scenarioIds, cycle, totalCycles, onProgress, signal }) {
+async function llmJudgeTranscript(apiKey, transcript, judgeModel) {
+  const dimList = CL_DIMENSIONS.map((d) => `- ${d.key}: ${d.desc}`).join("\n");
+
+  const transcriptText = formatTranscriptForJudge(transcript);
+
+  const systemPrompt = `You are a continual learning evaluator for the PRISM benchmark.
+You will receive a transcript of interactions between a user simulator and a memory system.
+Score the memory system on each of the 9 CL dimensions below (0.0 to 1.0).
+
+Dimensions:
+${dimList}
+
+IMPORTANT: Only score dimensions where the transcript provides evidence. If there is no evidence for a dimension, score it null.
+Return ONLY a JSON array, no markdown, no explanation. Each element:
+{"dimension": "<key>", "composite_score": <0.0-1.0 or null>, "evidence": "<1 sentence>"}`;
+
+  const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: judgeModel,
+      max_tokens: 2048,
+      temperature: 0,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: `Transcript:\n${transcriptText}` },
+      ],
+    }),
+  });
+
+  if (!resp.ok) {
+    const errText = await resp.text();
+    throw new Error(`OpenRouter judge call failed (${resp.status}): ${errText.slice(0, 200)}`);
+  }
+
+  const data = await resp.json();
+  const content = data?.choices?.[0]?.message?.content || "";
+
+  // Extract JSON array from response (may be wrapped in markdown code fence)
+  const jsonMatch = content.match(/\[[\s\S]*\]/);
+  if (!jsonMatch) {
+    throw new Error(`Judge returned non-JSON: ${content.slice(0, 200)}`);
+  }
+
+  const judgments = JSON.parse(jsonMatch[0]);
+  // Filter to valid dimensions with non-null scores
+  return judgments.filter(
+    (j) => j.dimension && typeof j.composite_score === "number" && j.composite_score !== null
+  );
+}
+
+/**
+ * Format a PRISM transcript into readable text for the LLM judge.
+ */
+function formatTranscriptForJudge(transcript) {
+  const tData = transcript?.result || transcript;
+  const sessions = tData?.sessions || [];
+  const lines = [];
+
+  for (const session of sessions) {
+    lines.push(`--- Session ${session.session_number || "?"} ---`);
+    for (const turn of session.turns || []) {
+      const text = turn.content || turn.actual_text || turn.text || "";
+      const result = turn.result || {};
+      const action = result.action || "message";
+      lines.push(`[User → ${action}]: ${text}`);
+
+      if (result.response) {
+        const resp = typeof result.response === "string"
+          ? result.response.slice(0, 500)
+          : JSON.stringify(result.response).slice(0, 500);
+        lines.push(`[System]: ${resp}`);
+      }
+
+      if (result.retrieval_context) {
+        const ctx = result.retrieval_context;
+        const count = ctx.count || ctx.results?.length || 0;
+        lines.push(`[Retrieval]: ${count} nodes returned`);
+      }
+    }
+  }
+
+  return lines.join("\n") || "(empty transcript)";
+}
+
+/**
+ * Run a single PRISM benchmark cycle with LLM judging.
+ */
+async function runSingleCycle({ conn, systemId, scenarioIds, cycle, totalCycles, onProgress, signal, apiKey, judgeModel }) {
   const prefix = `Cycle ${cycle}/${totalCycles}`;
 
   // 1. Compose — list available scenarios
@@ -75,13 +155,10 @@ async function runSingleCycle({ conn, systemId, scenarioIds, cycle, totalCycles,
   if (signal?.aborted) throw new Error("Cancelled");
 
   const composeResult = await prismCall(conn, "compose", { action: "list" });
-  // PRISM compose returns { status: "ok", result: [...scenarios...] }
-  // The result itself is the array of scenarios (not nested under .scenarios)
   let scenarios = Array.isArray(composeResult?.result) ? composeResult.result
     : composeResult?.result?.scenarios || composeResult?.scenarios || [];
   if (!Array.isArray(scenarios)) scenarios = [];
 
-  // Filter to specific scenario IDs if provided
   if (scenarioIds && scenarioIds.length > 0) {
     scenarios = scenarios.filter((s) => scenarioIds.includes(s.id || s.scenario_id));
   }
@@ -123,18 +200,38 @@ async function runSingleCycle({ conn, systemId, scenarioIds, cycle, totalCycles,
     }
   }
 
-  // 3. Observe — judge transcripts
+  // 3. Observe — fetch transcripts, judge via LLM, store scores in PRISM
   if (signal?.aborted) throw new Error("Cancelled");
-  onProgress({ phase: "observe", message: `${prefix} — judging ${transcriptIds.length} transcript(s)...` });
+  onProgress({ phase: "observe", message: `${prefix} — judging ${transcriptIds.length} transcript(s) via LLM...` });
 
   for (const tid of transcriptIds) {
     try {
-      await prismCall(conn, "observe", {
-        action: "judge",
+      // Fetch transcript content
+      const transcript = await prismCall(conn, "interact", {
+        action: "transcript",
         transcript_id: tid,
       });
-    } catch {
-      // Some transcripts may already be judged
+
+      // Call LLM to judge
+      onProgress({ phase: "observe", message: `${prefix} — LLM evaluating transcript...` });
+      const judgments = await llmJudgeTranscript(apiKey, transcript, judgeModel);
+
+      if (judgments.length > 0) {
+        // Store judgments in PRISM via observe
+        await prismCall(conn, "observe", {
+          action: "judge_transcript",
+          transcript_id: tid,
+          judge_model: judgeModel,
+          reason: JSON.stringify(judgments),
+        });
+
+        const dimSummary = judgments.map((j) => `${j.dimension}=${j.composite_score.toFixed(2)}`).join(", ");
+        onProgress({ phase: "observe", message: `${prefix} — judged: ${dimSummary}` });
+      } else {
+        onProgress({ phase: "observe", message: `${prefix} — LLM returned no scoreable dimensions` });
+      }
+    } catch (err) {
+      onProgress({ phase: "observe", message: `${prefix} — judge failed: ${err.message}` });
     }
   }
 
@@ -147,7 +244,7 @@ async function runSingleCycle({ conn, systemId, scenarioIds, cycle, totalCycles,
     system_id: systemId,
   });
 
-  // Extract dimensional scores — PRISM nests in result.dimensions or dimensions
+  // Extract dimensional scores
   const reportData = report?.result || report || {};
   const dimensions = reportData?.dimensions || {};
   const scores = {};
@@ -172,14 +269,13 @@ async function runSingleCycle({ conn, systemId, scenarioIds, cycle, totalCycles,
 
 /**
  * Format a scores object into a single-line summary.
- * e.g., "Stability: 0.78 | Coherence: 0.65 | Retention: —"
  */
 function formatScores(scores) {
   const dims = Object.entries(scores);
   if (dims.length === 0) return "No scores available";
   return dims
     .map(([dim, val]) => {
-      const label = dim.charAt(0).toUpperCase() + dim.slice(1);
+      const label = dim.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
       const score = typeof val === "number" ? val.toFixed(2) : "—";
       return `${label}: ${score}`;
     })
@@ -194,6 +290,8 @@ function formatScores(scores) {
  * @param {string[]} [params.scenarioIds] - specific scenarios, or empty = all
  * @param {number} [params.maxCycles=10] - maximum number of cycles
  * @param {object} params.prismConnection - MCP connection for PRISM server
+ * @param {string} params.apiKey - OpenRouter API key for LLM judging
+ * @param {string} [params.judgeModel="qwen/qwen3.6-plus"] - model for judging
  * @param {(msg: { role: string, content: string }) => void} params.onMessage - chat message callback
  * @param {AbortSignal} params.signal - cancellation signal
  * @returns {Promise<{ success: boolean, cycles: object[], error?: string }>}
@@ -203,17 +301,23 @@ export async function runBenchmark({
   scenarioIds,
   maxCycles = 10,
   prismConnection,
+  apiKey,
+  judgeModel = "qwen/qwen3.6-plus",
   onMessage,
   signal,
 }) {
   const results = [];
 
+  if (!apiKey) {
+    onMessage({ role: "action-error", content: "OpenRouter API key required for LLM judging. Set it in the API Key modal." });
+    return { success: false, cycles: results, error: "No API key" };
+  }
+
   try {
-    // Resolve system ID
     const resolvedId = await resolveSystemId(prismConnection, systemId);
     onMessage({
       role: "action-status",
-      content: `Starting benchmark: system=${resolvedId}, max_cycles=${maxCycles}`,
+      content: `Starting benchmark: system=${resolvedId}, judge=${judgeModel}, max_cycles=${maxCycles}`,
     });
 
     for (let cycle = 1; cycle <= maxCycles; cycle++) {
@@ -230,11 +334,12 @@ export async function runBenchmark({
         totalCycles: maxCycles,
         onProgress: (p) => onMessage({ role: "action-status", content: p.message }),
         signal,
+        apiKey,
+        judgeModel,
       });
 
       results.push(cycleResult);
 
-      // Emit cycle summary
       const scoreLine = formatScores(cycleResult.scores);
       onMessage({
         role: "action-result",
@@ -265,13 +370,6 @@ export async function runBenchmark({
 
 /**
  * Run a single MCP tool call action (non-benchmark).
- *
- * @param {object} params
- * @param {string} params.toolName - raw MCP tool name
- * @param {object} params.args - tool arguments
- * @param {object} params.connection - MCP connection object
- * @param {(msg: { role: string, content: string }) => void} params.onMessage
- * @returns {Promise<{ success: boolean, data?: object, error?: string }>}
  */
 export async function runMcpCall({ toolName, args, connection, onMessage }) {
   try {

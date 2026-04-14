@@ -4,6 +4,7 @@
   let {
     actions = [],
     mcpConnections = [],
+    apiKey = "",
     onStatusMessage,
   } = $props();
 
@@ -72,6 +73,8 @@
           scenarioIds: action.params?.scenario_ids || [],
           maxCycles: action.params?.max_cycles || 10,
           prismConnection: prismConn,
+          apiKey,
+          judgeModel: action.params?.judge_model || "qwen/qwen3.6-plus",
           onMessage: emitMessage,
           signal: ctrl.signal,
         });

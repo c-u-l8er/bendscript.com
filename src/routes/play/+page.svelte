@@ -375,6 +375,7 @@
         <ActionBar
           actions={activeActions}
           {mcpConnections}
+          {apiKey}
           onStatusMessage={handleActionStatus}
         />
       {/if}
