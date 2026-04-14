@@ -28,6 +28,7 @@
     {@const wsKey = `ws:${ws.id}`}
     {@const hasSchemas = ws.schemaFiles.length > 0}
     {@const hasExamples = ws.examples.length > 0}
+    {@const hasActions = ws.actions?.length > 0}
 
     <!-- Workspace folder -->
     <button
@@ -100,6 +101,18 @@
             </button>
           {/each}
         {/if}
+      {/if}
+
+      <!-- actions.json -->
+      {#if hasActions}
+        <button
+          class="ft-row ft-file depth-1 ft-action"
+          class:selected={selectedFileKey === `${ws.id}/actions.json`}
+          onclick={() => onLoadJson(`${ws.id}/actions.json`, ws.actions)}
+        >
+          <span class="ft-icon ft-icon-action"></span>
+          <span class="ft-name">actions.json</span>
+        </button>
       {/if}
     {/if}
   {/each}
@@ -207,6 +220,16 @@
     font-weight: 700;
     color: #56b6c2;
     letter-spacing: -1px;
+  }
+
+  .ft-icon-action::before {
+    content: "\25B6";
+    font-size: 9px;
+    color: #10b981;
+  }
+
+  .ft-file.ft-action .ft-name {
+    color: #10b981;
   }
 
   /* ── Name text ── */

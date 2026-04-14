@@ -20,8 +20,8 @@ const CL_DIMENSIONS = [
 /**
  * Call a PRISM MCP tool and unwrap the MCP content envelope.
  */
-async function prismCall(conn, toolName, args) {
-  const raw = await callTool(conn.url, conn.authHeader, toolName, args, conn.sessionId);
+async function prismCall(conn, toolName, args, signal) {
+  const raw = await callTool(conn.url, conn.authHeader, toolName, args, conn.sessionId, signal);
 
   if (raw?.structuredContent) return raw.structuredContent;
 
@@ -42,9 +42,9 @@ async function prismCall(conn, toolName, args) {
 /**
  * Resolve "auto" system_id by listing registered systems and picking the first.
  */
-async function resolveSystemId(conn, systemId) {
+async function resolveSystemId(conn, systemId, signal) {
   if (systemId && systemId !== "auto") return systemId;
-  const data = await prismCall(conn, "config", { action: "list_systems" });
+  const data = await prismCall(conn, "config", { action: "list_systems" }, signal);
   const systems = data?.result || data?.systems || [];
   if (!Array.isArray(systems) || systems.length === 0) {
     throw new Error("No systems registered in PRISM");
@@ -56,7 +56,7 @@ async function resolveSystemId(conn, systemId) {
  * Call OpenRouter to judge a transcript against CL dimensions.
  * Returns array of { dimension, composite_score, evidence } objects.
  */
-async function llmJudgeTranscript(apiKey, transcript, judgeModel) {
+async function llmJudgeTranscript(apiKey, transcript, judgeModel, signal) {
   const dimList = CL_DIMENSIONS.map((d) => `- ${d.key}: ${d.desc}`).join("\n");
 
   const transcriptText = formatTranscriptForJudge(transcript);
@@ -78,6 +78,7 @@ Return ONLY a JSON array, no markdown, no explanation. Each element:
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
+    signal,
     body: JSON.stringify({
       model: judgeModel,
       max_tokens: 2048,
@@ -154,7 +155,7 @@ async function runSingleCycle({ conn, systemId, scenarioIds, cycle, totalCycles,
   onProgress({ phase: "compose", message: `${prefix} — listing scenarios...` });
   if (signal?.aborted) throw new Error("Cancelled");
 
-  const composeResult = await prismCall(conn, "compose", { action: "list" });
+  const composeResult = await prismCall(conn, "compose", { action: "list" }, signal);
   let scenarios = Array.isArray(composeResult?.result) ? composeResult.result
     : composeResult?.result?.scenarios || composeResult?.scenarios || [];
   if (!Array.isArray(scenarios)) scenarios = [];
@@ -189,7 +190,7 @@ async function runSingleCycle({ conn, systemId, scenarioIds, cycle, totalCycles,
         scenario_id: sid,
         system_id: systemId,
         llm_backend: "qwen/qwen3.6-plus",
-      });
+      }, signal);
       const tid = result?.result?.transcript_id || result?.transcript_id;
       if (tid) transcriptIds.push(tid);
     } catch (err) {
@@ -210,11 +211,11 @@ async function runSingleCycle({ conn, systemId, scenarioIds, cycle, totalCycles,
       const transcript = await prismCall(conn, "interact", {
         action: "transcript",
         transcript_id: tid,
-      });
+      }, signal);
 
       // Call LLM to judge
       onProgress({ phase: "observe", message: `${prefix} — LLM evaluating transcript...` });
-      const judgments = await llmJudgeTranscript(apiKey, transcript, judgeModel);
+      const judgments = await llmJudgeTranscript(apiKey, transcript, judgeModel, signal);
 
       if (judgments.length > 0) {
         // Store judgments in PRISM via observe
@@ -223,7 +224,7 @@ async function runSingleCycle({ conn, systemId, scenarioIds, cycle, totalCycles,
           transcript_id: tid,
           judge_model: judgeModel,
           reason: JSON.stringify(judgments),
-        });
+        }, signal);
 
         const dimSummary = judgments.map((j) => `${j.dimension}=${j.composite_score.toFixed(2)}`).join(", ");
         onProgress({ phase: "observe", message: `${prefix} — judged: ${dimSummary}` });
@@ -242,7 +243,7 @@ async function runSingleCycle({ conn, systemId, scenarioIds, cycle, totalCycles,
   const report = await prismCall(conn, "diagnose", {
     action: "report",
     system_id: systemId,
-  });
+  }, signal);
 
   // Extract dimensional scores
   const reportData = report?.result || report || {};
@@ -259,7 +260,7 @@ async function runSingleCycle({ conn, systemId, scenarioIds, cycle, totalCycles,
     await prismCall(conn, "reflect", {
       action: "advance_cycle",
       system_id: systemId,
-    });
+    }, signal);
   } catch {
     // reflect may not be available
   }
@@ -314,7 +315,7 @@ export async function runBenchmark({
   }
 
   try {
-    const resolvedId = await resolveSystemId(prismConnection, systemId);
+    const resolvedId = await resolveSystemId(prismConnection, systemId, signal);
     onMessage({
       role: "action-status",
       content: `Starting benchmark: system=${resolvedId}, judge=${judgeModel}, max_cycles=${maxCycles}`,
@@ -359,9 +360,9 @@ export async function runBenchmark({
 
     return { success: true, cycles: results };
   } catch (err) {
-    if (err.message === "Cancelled") {
-      onMessage({ role: "action-status", content: "Benchmark cancelled." });
-      return { success: false, cycles: results, error: "Cancelled" };
+    if (err.message === "Cancelled" || err.name === "AbortError") {
+      onMessage({ role: "action-status", content: "Benchmark stopped." });
+      return { success: false, cycles: results, error: "Stopped" };
     }
     onMessage({ role: "action-error", content: `Benchmark failed: ${err.message}` });
     return { success: false, cycles: results, error: err.message };
@@ -371,10 +372,10 @@ export async function runBenchmark({
 /**
  * Run a single MCP tool call action (non-benchmark).
  */
-export async function runMcpCall({ toolName, args, connection, onMessage }) {
+export async function runMcpCall({ toolName, args, connection, onMessage, signal }) {
   try {
     onMessage({ role: "action-status", content: `Calling ${toolName}...` });
-    const result = await prismCall(connection, toolName, args);
+    const result = await prismCall(connection, toolName, args, signal);
     const formatted = typeof result === "object"
       ? JSON.stringify(result, null, 2)
       : String(result);

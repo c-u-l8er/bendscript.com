@@ -102,12 +102,14 @@ export async function discoverTools(serverUrl, authHeader) {
  * @param {string} toolName - Tool name to call
  * @param {object} args - Tool arguments
  * @param {string} [sessionId] - Session ID from discoverTools for session reuse
+ * @param {AbortSignal} [signal] - Optional abort signal for cancellation
  * @returns {Promise<object>} Tool result
  */
-export async function callTool(serverUrl, authHeader, toolName, args, sessionId) {
+export async function callTool(serverUrl, authHeader, toolName, args, sessionId, signal) {
   const res = await fetch(PROXY_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    signal,
     body: JSON.stringify({
       serverUrl,
       authHeader: authHeader || undefined,

@@ -1,5 +1,6 @@
 <script>
   import { runBenchmark, runMcpCall } from "$lib/play/benchmarkRunner.js";
+  import ActionConfigModal from "./ActionConfigModal.svelte";
 
   let {
     actions = [],
@@ -11,6 +12,7 @@
   let runningActionId = $state(null);
   let progressMessage = $state("");
   let abortController = $state(null);
+  let pendingAction = $state(null); // action awaiting config modal
 
   const ICONS = {
     play: "\u25B6",
@@ -47,6 +49,19 @@
       return `${action.description} (${action.params?.server_name} not connected)`;
     }
     return action.description;
+  }
+
+  function requestAction(action) {
+    pendingAction = action;
+  }
+
+  function handleConfigClose() {
+    pendingAction = null;
+  }
+
+  function handleConfigRun(configuredAction) {
+    pendingAction = null;
+    runAction(configuredAction);
   }
 
   async function runAction(action) {
@@ -90,10 +105,15 @@
           args: action.params?.args || {},
           connection: conn,
           onMessage: emitMessage,
+          signal: ctrl.signal,
         });
       }
     } catch (err) {
-      emitMessage({ role: "action-error", content: err.message });
+      if (err.name === "AbortError") {
+        emitMessage({ role: "action-status", content: "Stopped by user." });
+      } else {
+        emitMessage({ role: "action-error", content: err.message });
+      }
     } finally {
       runningActionId = null;
       abortController = null;
@@ -114,7 +134,7 @@
         class:running={runningActionId === action.id}
         class:unavailable={!canRun(action) && runningActionId !== action.id}
         disabled={!canRun(action) && runningActionId !== action.id}
-        onclick={() => runAction(action)}
+        onclick={() => requestAction(action)}
         title={tooltip(action)}
       >
         <span class="action-icon">{iconFor(action.icon)}</span>
@@ -126,12 +146,20 @@
   {#if runningActionId}
     <div class="action-running">
       <span class="action-progress">{progressMessage}</span>
-      <button class="action-stop" onclick={stopAction} title="Stop benchmark">
+      <button class="action-stop" onclick={stopAction} title="Stop">
         Stop
       </button>
     </div>
   {/if}
 </div>
+
+{#if pendingAction}
+  <ActionConfigModal
+    action={pendingAction}
+    onRun={handleConfigRun}
+    onClose={handleConfigClose}
+  />
+{/if}
 
 <style>
   .action-bar {
