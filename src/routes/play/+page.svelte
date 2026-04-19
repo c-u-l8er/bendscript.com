@@ -727,7 +727,7 @@
   .play-layout {
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    height: 100%;
     width: 100vw;
     overflow: hidden;
     background: var(--bg-0, #f4f6f8);
