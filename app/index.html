@@ -1,0 +1,3205 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>BendScript Playground — workspaces, scripts, reader, inspector</title>
+    <meta
+      name="description"
+      content="Workspace-based authoring environment for the BendScript Protocol. Read the protocol spec encoded in BendScript itself, run examples, write your own scripts, and inspect them — all client-side."
+    />
+    <link rel="canonical" href="https://bendscript.com/app/" />
+    <style>
+      :root {
+        --bg: #0a0c0a;
+        --s1: #141714;
+        --s2: #1c211c;
+        --s3: #232b22;
+        --br: #2a322a;
+        --br-h: #3a4338;
+        --tx: #e8e4d8;
+        --tm: #a8a59a;
+        --td: #6e6c63;
+        --ac: #7fb850;
+        --ac-h: #9fd870;
+        --ac-d: rgba(127, 184, 80, 0.1);
+        --warn: #ff8a3d;
+        --err: #ff5f57;
+        --ok: #7fb850;
+        --ff: ui-monospace, "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+        --fp: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      }
+      *, *::before, *::after { box-sizing: border-box; }
+      html, body {
+        margin: 0; padding: 0; height: 100%;
+        background: var(--bg); color: var(--tx);
+        font-family: var(--ff); font-size: 13px; line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+      }
+      body { display: flex; flex-direction: column; overflow: hidden; }
+      a { color: var(--ac); }
+
+      /* ── Toolbar ── */
+      .toolbar {
+        display: flex; align-items: center; gap: 10px;
+        padding: 9px 14px;
+        border-bottom: 1px solid var(--br);
+        background: var(--s2);
+        flex-wrap: wrap;
+      }
+      .brand {
+        color: var(--ac); letter-spacing: 0.16em;
+        font-size: 11px; font-weight: 500; text-decoration: none;
+      }
+      .brand .glyph { margin-right: 6px; }
+      .toolbar .label {
+        font-size: 10px; letter-spacing: 0.06em;
+        color: var(--td); text-transform: uppercase;
+      }
+      .toolbar .doc-title {
+        font-size: 12px; color: var(--tx);
+        max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        padding: 4px 10px; border: 1px solid transparent; cursor: text;
+      }
+      .toolbar .doc-title:hover, .toolbar .doc-title:focus {
+        border-color: var(--br); outline: none;
+      }
+      .toolbar .doc-title.builtin { color: var(--tm); cursor: default; }
+
+      .vis-toggle {
+        display: inline-flex; align-items: center; gap: 5px;
+        font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase;
+        padding: 4px 9px; border: 1px solid var(--br); cursor: pointer;
+        background: var(--bg); color: var(--tm);
+      }
+      .vis-toggle.public { color: var(--ac); border-color: var(--ac); }
+      .vis-toggle.disabled { opacity: 0.5; cursor: not-allowed; }
+      .vis-toggle::before {
+        content: ""; width: 6px; height: 6px; border-radius: 50%;
+        background: currentColor; display: inline-block;
+      }
+
+      button.tb-btn, select.tb-sel {
+        font: inherit; font-size: 11px; letter-spacing: 0.04em;
+        color: var(--tx); background: var(--bg);
+        border: 1px solid var(--br); padding: 5px 10px; cursor: pointer;
+        transition: border-color .15s, color .15s;
+      }
+      button.tb-btn:hover, select.tb-sel:hover {
+        border-color: var(--ac); color: var(--ac);
+      }
+      .toolbar .spacer { flex: 1; }
+      .toolbar a.tb-link {
+        font-size: 11px; letter-spacing: 0.05em;
+        color: var(--tm); text-decoration: none;
+      }
+      .toolbar a.tb-link:hover { color: var(--ac); }
+
+      /* ── App body grid ── */
+      .app {
+        flex: 1; display: grid;
+        grid-template-columns: 240px 1fr;
+        min-height: 0;
+      }
+      .app.chat-open {
+        grid-template-columns: 240px 1fr 360px;
+      }
+      @media (max-width: 1100px) {
+        .app.chat-open { grid-template-columns: 200px 1fr 320px; }
+      }
+      @media (max-width: 800px) {
+        .app, .app.chat-open { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+        .sidebar { max-height: 200px; border-right: 0; border-bottom: 1px solid var(--br); }
+        .chat-col { display: none !important; }
+      }
+
+      /* ── Chat column ── */
+      .chat-col {
+        background: var(--s1);
+        border-left: 1px solid var(--br);
+        display: flex; flex-direction: column;
+        min-height: 0; min-width: 0;
+      }
+      .app:not(.chat-open) .chat-col { display: none; }
+      .chat-head {
+        padding: 9px 12px;
+        font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase;
+        color: var(--td);
+        border-bottom: 1px solid var(--br);
+        display: flex; align-items: center; gap: 8px;
+      }
+      .chat-head .grow { flex: 1; }
+      .chat-head .model-pill {
+        font-size: 9px; color: var(--ac); border: 1px solid var(--ac);
+        padding: 1px 5px; letter-spacing: 0.04em;
+      }
+      .chat-head .cost-pill {
+        font-size: 9px; color: var(--warn); border: 1px solid var(--br);
+        padding: 1px 5px; letter-spacing: 0.04em;
+      }
+      .chat-log {
+        flex: 1; overflow: auto;
+        padding: 10px 12px;
+        display: flex; flex-direction: column; gap: 10px;
+      }
+      .chat-msg {
+        font-family: var(--fp);
+        font-size: 13px; line-height: 1.5;
+        padding: 10px 12px;
+        border: 1px solid var(--br);
+        background: var(--s2);
+        white-space: pre-wrap; word-wrap: break-word;
+      }
+      .chat-msg .role {
+        font-family: var(--ff); font-size: 9px;
+        letter-spacing: 0.08em; text-transform: uppercase;
+        color: var(--td);
+        margin-bottom: 4px;
+      }
+      .chat-msg.user { border-color: var(--br-h); background: var(--bg); }
+      .chat-msg.user .role { color: var(--tm); }
+      .chat-msg.assistant { border-left: 2px solid var(--ac); }
+      .chat-msg.assistant .role { color: var(--ac); }
+      .chat-msg.error { border-left: 2px solid var(--err); color: var(--err); }
+      .chat-msg.system { border-left: 2px solid var(--warn); }
+      .chat-msg.system .role { color: var(--warn); }
+      .chat-msg .actions {
+        display: flex; gap: 6px; margin-top: 8px;
+        font-family: var(--ff);
+      }
+      .chat-msg .actions button {
+        font: inherit; font-size: 10px; letter-spacing: 0.05em;
+        padding: 4px 9px; cursor: pointer;
+        background: transparent; color: var(--tm);
+        border: 1px solid var(--br);
+      }
+      .chat-msg .actions button.primary {
+        background: var(--ac); color: var(--bg); border-color: var(--ac); font-weight: 600;
+      }
+      .chat-msg .actions button:hover { color: var(--ac); border-color: var(--ac); }
+      .chat-msg .actions button.primary:hover { background: var(--ac-h); border-color: var(--ac-h); color: var(--bg); }
+      .chat-msg .diff-summary {
+        font-family: var(--ff); font-size: 11px; color: var(--tm);
+        margin-top: 6px;
+        padding: 6px 8px; background: var(--s1); border: 1px dashed var(--br);
+      }
+      .chat-msg .diff-summary .ok { color: var(--ok); }
+      .chat-msg .diff-summary .err { color: var(--err); }
+      .chat-empty {
+        padding: 22px 14px; color: var(--td);
+        font-family: var(--fp); font-size: 13px; font-style: italic;
+        text-align: center;
+      }
+      .chat-empty .hints {
+        margin-top: 14px; font-size: 11px; font-style: normal;
+        font-family: var(--ff); text-align: left;
+      }
+      .chat-empty .hints .h-row {
+        cursor: pointer; padding: 4px 0; color: var(--tm);
+        border-bottom: 1px dashed var(--br);
+      }
+      .chat-empty .hints .h-row:hover { color: var(--ac); }
+      .chat-empty .hints .h-row::before { content: "› "; color: var(--ac); }
+      .chat-input-wrap {
+        border-top: 1px solid var(--br);
+        background: var(--bg);
+        padding: 8px 10px;
+      }
+      .chat-input {
+        width: 100%; resize: none;
+        font: inherit; font-size: 13px; line-height: 1.45;
+        font-family: var(--fp);
+        background: var(--bg); color: var(--tx);
+        border: 1px solid var(--br); padding: 8px 10px;
+        min-height: 56px; max-height: 200px;
+      }
+      .chat-input:focus { outline: 0; border-color: var(--ac); }
+      .chat-bar {
+        display: flex; align-items: center; gap: 8px;
+        margin-top: 6px;
+      }
+      .chat-bar .grow { flex: 1; }
+      .chat-bar .hint {
+        font-size: 10px; color: var(--td); letter-spacing: 0.04em;
+      }
+      .chat-bar button.send {
+        font: inherit; font-size: 11px; letter-spacing: 0.05em;
+        padding: 6px 14px; cursor: pointer; font-weight: 600;
+        background: var(--ac); color: var(--bg); border: 1px solid var(--ac);
+      }
+      .chat-bar button.send:hover { background: var(--ac-h); border-color: var(--ac-h); }
+      .chat-bar button.send[disabled] { opacity: 0.4; cursor: not-allowed; }
+      .chat-bar button.clear {
+        font: inherit; font-size: 10px; letter-spacing: 0.04em;
+        padding: 4px 9px; cursor: pointer;
+        background: transparent; color: var(--td); border: 1px solid var(--br);
+      }
+      .chat-bar button.clear:hover { color: var(--err); border-color: var(--err); }
+
+      .spinner {
+        display: inline-block; width: 9px; height: 9px;
+        border: 1px solid currentColor;
+        border-top-color: transparent;
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+        vertical-align: -1px; margin-right: 4px;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      /* ── Sidebar ── */
+      .sidebar {
+        background: var(--s1);
+        border-right: 1px solid var(--br);
+        overflow: auto; min-height: 0; min-width: 0;
+        display: flex; flex-direction: column;
+      }
+      .sb-head {
+        padding: 9px 12px;
+        font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase;
+        color: var(--td);
+        border-bottom: 1px solid var(--br);
+        display: flex; align-items: center; gap: 8px;
+      }
+      .sb-head .grow { flex: 1; }
+      .sb-add {
+        font-size: 10px; letter-spacing: 0.04em;
+        background: transparent; border: 1px solid var(--br);
+        color: var(--tm); padding: 2px 7px; cursor: pointer;
+      }
+      .sb-add:hover { border-color: var(--ac); color: var(--ac); }
+      .ws-list { list-style: none; margin: 0; padding: 6px 0; }
+      .ws-item { padding: 0; }
+      .ws-row {
+        display: flex; align-items: center; gap: 6px;
+        padding: 5px 12px; cursor: pointer;
+        font-size: 11px; letter-spacing: 0.04em;
+        color: var(--tm); text-transform: uppercase;
+        user-select: none;
+      }
+      .ws-row:hover { color: var(--tx); }
+      .ws-row .chev {
+        display: inline-block; width: 10px;
+        font-size: 9px; color: var(--td);
+        transition: transform .12s;
+      }
+      .ws-row.collapsed .chev { transform: rotate(-90deg); }
+      .ws-row .ws-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .ws-row .ws-tag {
+        font-size: 9px; color: var(--td); border: 1px solid var(--br);
+        padding: 0 4px; letter-spacing: 0.06em;
+      }
+      .ws-row .ws-add {
+        opacity: 0; font-size: 12px; color: var(--td);
+        background: transparent; border: 0; cursor: pointer; padding: 0 4px;
+      }
+      .ws-row:hover .ws-add { opacity: 1; }
+      .ws-row .ws-add:hover { color: var(--ac); }
+
+      .scripts { list-style: none; margin: 0; padding: 0 0 4px; }
+      .ws-item.collapsed .scripts { display: none; }
+      .scripts li {
+        display: flex; align-items: center; gap: 6px;
+        padding: 4px 12px 4px 28px;
+        cursor: pointer;
+        font-size: 12px;
+        color: var(--tm);
+        border-left: 2px solid transparent;
+      }
+      .scripts li:hover { color: var(--tx); background: var(--s2); }
+      .scripts li.active {
+        color: var(--ac); border-left-color: var(--ac);
+        background: var(--ac-d);
+      }
+      .scripts li .name {
+        flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .scripts li .vis {
+        font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase;
+        color: var(--td);
+      }
+      .scripts li.active .vis { color: var(--ac); }
+      .scripts li .vis.public { color: var(--ac); }
+      .scripts li .menu {
+        opacity: 0; cursor: pointer; color: var(--td);
+        background: transparent; border: 0; font-size: 14px;
+        padding: 0 2px;
+      }
+      .scripts li:hover .menu { opacity: 1; }
+      .scripts li .menu:hover { color: var(--tx); }
+      .scripts .empty {
+        padding: 10px 14px 12px 28px;
+        color: var(--td); font-size: 11px; font-style: italic;
+        cursor: default;
+      }
+      .scripts .empty:hover { background: transparent; color: var(--td); }
+
+      /* ── Main area ── */
+      .main {
+        display: flex; flex-direction: column;
+        min-width: 0; min-height: 0;
+      }
+      .modes {
+        display: flex; align-items: stretch;
+        background: var(--s1);
+        border-bottom: 1px solid var(--br);
+      }
+      .modes button {
+        font: inherit; font-size: 11px; letter-spacing: 0.06em;
+        text-transform: uppercase;
+        background: transparent; color: var(--tm);
+        border: 0; border-right: 1px solid var(--br);
+        padding: 9px 16px; cursor: pointer; position: relative;
+      }
+      .modes button.active { color: var(--ac); background: var(--bg); }
+      .modes button.active::after {
+        content: ""; position: absolute; left: 0; right: 0; bottom: -1px;
+        height: 1px; background: var(--ac);
+      }
+      .modes button:hover { color: var(--tx); }
+      .modes .grow { flex: 1; border-right: 0; cursor: default; }
+      .modes .grow:hover { color: var(--tm); }
+      .pill-row {
+        display: flex; align-items: center; gap: 8px;
+        padding: 0 12px;
+      }
+      .pill {
+        display: inline-flex; align-items: center; gap: 5px;
+        padding: 2px 8px; font-size: 10px;
+        border: 1px solid var(--br); color: var(--tm);
+        letter-spacing: 0.04em;
+      }
+      .pill.ok { color: var(--ok); border-color: var(--ok); }
+      .pill.err { color: var(--err); border-color: var(--err); }
+      .pill.warn { color: var(--warn); border-color: var(--warn); }
+
+      .mode-body { flex: 1; overflow: auto; min-height: 0; }
+      .mode-pane { display: none; height: 100%; }
+      .mode-pane.active { display: flex; flex-direction: column; }
+
+      /* Reader */
+      .reader-wrap { padding: 32px 8vw 40px; max-width: 880px; margin: 0 auto; }
+      .reader { font-family: var(--fp); font-size: 16px; line-height: 1.65; color: var(--tx); }
+      .reader h1, .reader h2, .reader h3, .reader h4, .reader h5, .reader h6 {
+        font-family: var(--fp); color: var(--tx);
+        margin: 1.6em 0 .55em; line-height: 1.25;
+      }
+      .reader h1 { font-size: 2em; letter-spacing: -0.01em; margin-top: 0; }
+      .reader h2 { font-size: 1.5em; letter-spacing: -0.005em; }
+      .reader h3 { font-size: 1.2em; }
+      .reader h4 { font-size: 1.05em; color: var(--tm); }
+      .reader p { margin: .9em 0; }
+      .reader ul, .reader ol { margin: .9em 0; padding-left: 1.6em; }
+      .reader li { margin: .25em 0; }
+      .reader li > p:first-child { margin-top: 0; }
+      .reader li > p:last-child { margin-bottom: 0; }
+      .reader blockquote {
+        margin: 1em 0; padding: .2em 0 .2em 16px;
+        border-left: 3px solid var(--ac);
+        color: var(--tm); font-style: italic;
+      }
+      .reader pre {
+        margin: 1em 0; padding: 14px 16px;
+        background: var(--s2); border: 1px solid var(--br);
+        font-family: var(--ff); font-size: 13px; line-height: 1.55;
+        overflow: auto; white-space: pre;
+      }
+      .reader pre code { font-family: inherit; color: var(--tx); }
+      .reader code { font-family: var(--ff); font-size: 0.92em; color: var(--ac); background: var(--s2); padding: 1px 5px; border: 1px solid var(--br); }
+      .reader pre code { background: transparent; border: 0; padding: 0; color: inherit; }
+      .reader hr { border: 0; border-top: 1px solid var(--br); margin: 2em 0; }
+      .reader strong { color: var(--tx); font-weight: 600; }
+      .reader em { color: var(--tx); }
+      .reader a { color: var(--ac); text-decoration: underline; text-decoration-color: rgba(127,184,80,.45); }
+      .reader a.typed-link {
+        text-decoration-color: var(--ac);
+      }
+      .reader .pred-badge {
+        display: inline-block; font-family: var(--ff); font-size: 0.7em;
+        letter-spacing: 0.05em; text-transform: lowercase;
+        color: var(--ac); border: 1px solid var(--ac); padding: 0 4px;
+        margin-left: 4px; vertical-align: 1px;
+      }
+      .reader .embed {
+        margin: 1em 0; padding: 14px 16px;
+        background: var(--s1); border: 1px dashed var(--br);
+        font-family: var(--ff); font-size: 12px; color: var(--tm);
+      }
+      .reader .embed .label {
+        font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase;
+        color: var(--td); margin-bottom: 4px;
+      }
+      .reader .doc-meta {
+        font-family: var(--ff); font-size: 11px; color: var(--td);
+        border: 1px solid var(--br); padding: 8px 12px;
+        margin-bottom: 24px;
+        display: flex; flex-wrap: wrap; gap: 14px;
+      }
+      .reader .doc-meta .k { color: var(--td); }
+      .reader .doc-meta .v { color: var(--tm); margin-left: 4px; }
+      .reader .reader-empty {
+        padding: 32px 0; color: var(--td);
+        font-family: var(--ff); font-size: 13px; font-style: italic;
+      }
+      /* Citation markers: small bracketed superscripts inline in prose, linking
+         to numbered edge entries in the graph section. */
+      .reader .citation {
+        font-family: var(--ff); font-size: 0.7em;
+        color: var(--ac); text-decoration: none;
+        vertical-align: super; line-height: 1;
+        padding: 0 2px; margin-left: 1px;
+        white-space: nowrap;
+      }
+      .reader .citation:hover { background: var(--s2); }
+      .reader .gs-edge.target {
+        background: var(--s2); transition: background 200ms;
+      }
+      /* Graph section: grouped edge listing appended to the end of the Reader. */
+      .reader .graph-section {
+        margin-top: 36px; padding: 16px 18px;
+        border: 1px solid var(--br); background: var(--s1);
+        font-family: var(--ff); font-size: 12px;
+      }
+      .reader .graph-section .gs-head {
+        font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+        color: var(--td); margin-bottom: 12px;
+      }
+      .reader .graph-section .gs-group { margin-bottom: 10px; }
+      .reader .graph-section .gs-group:last-child { margin-bottom: 0; }
+      .reader .graph-section .gs-pred {
+        color: var(--ac); letter-spacing: 0.03em; text-transform: lowercase;
+        font-size: 11px; margin-bottom: 4px;
+      }
+      .reader .graph-section .gs-edge {
+        display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px;
+        padding: 3px 6px;
+        color: var(--tm);
+        scroll-margin-top: 16px;
+      }
+      .reader .graph-section .gs-edge .num {
+        color: var(--ac); font-size: 0.85em; min-width: 22px;
+      }
+      .reader .graph-section .gs-edge .ref {
+        color: var(--tx); font-style: italic;
+      }
+      .reader .graph-section .gs-edge .ref.external {
+        color: var(--td); font-style: normal;
+      }
+      .reader .graph-section .gs-edge .arrow { color: var(--td); }
+      .reader .graph-section code {
+        font-family: var(--ff); font-size: 0.95em;
+        color: var(--td); background: transparent; border: 0; padding: 0;
+      }
+
+      /* Source editor */
+      #editor {
+        flex: 1; width: 100%; resize: none; border: 0; outline: 0;
+        padding: 14px 16px; background: var(--bg); color: var(--tx);
+        font: inherit; font-size: 12.5px; line-height: 1.6;
+        tab-size: 2; white-space: pre; overflow: auto;
+      }
+      #editor[readonly] { color: var(--tm); }
+      .src-bar {
+        display: flex; align-items: center; gap: 8px;
+        padding: 7px 12px;
+        background: var(--s1); border-bottom: 1px solid var(--br);
+      }
+      .src-bar .grow { flex: 1; }
+
+      /* Inspector tabs */
+      .insp-wrap { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+      .tabs { display: flex; background: var(--s1); border-bottom: 1px solid var(--br); }
+      .tabs button {
+        font: inherit; font-size: 11px; letter-spacing: 0.05em;
+        color: var(--tm); background: transparent; border: 0;
+        padding: 9px 14px; cursor: pointer;
+        border-right: 1px solid var(--br); position: relative;
+      }
+      .tabs button.active { color: var(--ac); background: var(--bg); }
+      .tabs button.active::after {
+        content: ""; position: absolute; left: 0; right: 0; bottom: -1px;
+        height: 1px; background: var(--ac);
+      }
+      .tabs button:hover { color: var(--tx); }
+      .tab-spacer { flex: 1; border-bottom: 1px solid var(--br); }
+      .tab-body { flex: 1; overflow: auto; background: var(--bg); }
+      .tab-pane { display: none; padding: 14px 16px; }
+      .tab-pane.active { display: block; }
+      .tab-pane pre { margin: 0; font-size: 11.5px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+
+      .err-list { margin: 0; padding: 0; list-style: none; }
+      .err-list li {
+        padding: 10px 12px; margin-bottom: 8px;
+        background: var(--s2); border-left: 3px solid var(--err);
+        font-size: 12px;
+      }
+      .err-list li.warn { border-left-color: var(--warn); }
+      .err-list li .path {
+        display: block; color: var(--td); font-size: 10.5px;
+        letter-spacing: 0.04em; margin-top: 4px;
+      }
+      .err-list .ok-state {
+        padding: 10px 12px; background: var(--s2);
+        border-left: 3px solid var(--ok); color: var(--tm);
+      }
+      .id-block {
+        background: var(--s2); padding: 14px 16px;
+        border-left: 3px solid var(--ac); margin-bottom: 16px;
+      }
+      .id-block .label {
+        font-size: 10px; letter-spacing: 0.06em; color: var(--td);
+        text-transform: uppercase; margin-bottom: 6px;
+      }
+      .id-block .value {
+        font-size: 13px; color: var(--ac); word-break: break-all;
+      }
+      .id-block .stated { color: var(--tx); }
+      .id-block .match { margin-top: 10px; font-size: 11px; color: var(--tm); }
+      .id-block .match.ok { color: var(--ok); }
+      .id-block .match.err { color: var(--err); }
+      .stamp-btn {
+        font: inherit; font-size: 11px; letter-spacing: 0.05em;
+        background: var(--ac); color: var(--bg);
+        border: 1px solid var(--ac);
+        padding: 6px 12px; cursor: pointer; font-weight: 600;
+      }
+      .stamp-btn:hover { background: var(--ac-h); border-color: var(--ac-h); }
+      .stamp-btn[disabled] { opacity: 0.4; cursor: not-allowed; }
+
+      .edge-list { list-style: none; margin: 0; padding: 0; }
+      .edge-list li {
+        padding: 10px 12px; margin-bottom: 6px;
+        background: var(--s2); border-left: 3px solid var(--ac);
+        font-size: 11.5px; line-height: 1.55;
+      }
+      .edge-list li.from-mark { border-left-color: var(--warn); }
+      .edge-list .pred { color: var(--ac); font-weight: 600; }
+      .edge-list .uri { color: var(--tx); word-break: break-all; }
+      .edge-list .src-tag {
+        display: inline-block; font-size: 9.5px; letter-spacing: 0.06em;
+        color: var(--td); margin-left: 8px; padding: 1px 6px;
+        border: 1px solid var(--br); vertical-align: middle;
+      }
+      .edge-list .src-tag.from-mark { color: var(--warn); border-color: var(--warn); }
+      .empty { padding: 14px; color: var(--td); font-size: 12px; font-style: italic; }
+
+      .tree { font-size: 12px; line-height: 1.6; }
+      .tree ul { list-style: none; margin: 0 0 0 16px; padding: 0; border-left: 1px dashed var(--br); }
+      .tree li { padding: 2px 0 2px 12px; position: relative; }
+      .tree .kind { color: var(--ac); }
+      .tree .id { color: var(--td); font-size: 10.5px; margin-left: 6px; }
+      .tree .text { color: var(--tx); }
+      .tree .mark {
+        display: inline-block; font-size: 10px; color: var(--warn);
+        margin-left: 6px; padding: 0 4px; border: 1px solid var(--warn);
+      }
+      .tree .mark.link { color: var(--ac); border-color: var(--ac); }
+
+      /* ── Status bar ── */
+      .status {
+        padding: 6px 14px; border-top: 1px solid var(--br);
+        background: var(--s2); color: var(--td);
+        font-size: 10.5px; letter-spacing: 0.04em;
+        display: flex; gap: 18px; flex-wrap: wrap;
+      }
+      .status .item .k { color: var(--td); }
+      .status .item .v { color: var(--tx); }
+      .status .item .v.ok { color: var(--ok); }
+      .status .item .v.err { color: var(--err); }
+      .status .item .v.warn { color: var(--warn); }
+
+      /* ── Modal (share / new ws / new script) ── */
+      .modal-wrap {
+        position: fixed; inset: 0;
+        background: rgba(0,0,0,.55);
+        display: none; align-items: center; justify-content: center;
+        z-index: 100;
+      }
+      .modal-wrap.show { display: flex; }
+      .modal {
+        background: var(--s1); border: 1px solid var(--br);
+        max-width: 520px; width: 92%;
+        padding: 18px 20px;
+      }
+      .modal h3 {
+        margin: 0 0 12px;
+        font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
+        color: var(--ac);
+      }
+      .modal p { margin: 0 0 12px; color: var(--tm); font-size: 12px; }
+      .modal input[type=text], .modal textarea {
+        width: 100%; font: inherit; font-size: 12px;
+        background: var(--bg); color: var(--tx);
+        border: 1px solid var(--br); padding: 7px 10px;
+      }
+      .modal textarea { min-height: 80px; resize: vertical; word-break: break-all; }
+      .modal .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+      .modal .row.start { justify-content: flex-start; }
+      .modal button {
+        font: inherit; font-size: 11px; letter-spacing: 0.04em;
+        padding: 6px 12px; cursor: pointer;
+        background: transparent; color: var(--tm); border: 1px solid var(--br);
+      }
+      .modal button.primary {
+        background: var(--ac); color: var(--bg); border-color: var(--ac);
+        font-weight: 600;
+      }
+      .modal button:hover { color: var(--ac); border-color: var(--ac); }
+      .modal button.primary:hover { background: var(--ac-h); border-color: var(--ac-h); color: var(--bg); }
+
+      /* small viewport tweaks */
+      @media (max-width: 600px) {
+        .toolbar { padding: 7px 10px; }
+        .toolbar a.tb-link { display: none; }
+        .reader-wrap { padding: 24px 5vw 32px; }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- ── Toolbar ── -->
+    <div class="toolbar">
+      <a class="brand" href="/"><span class="glyph">⤳</span>BENDSCRIPT</a>
+      <span class="label">playground</span>
+      <span id="doc-title" class="doc-title" contenteditable="false">untitled</span>
+      <button id="vis-btn" class="vis-toggle" title="Toggle visibility (URL-shareable)">private</button>
+      <button id="btn-share" class="tb-btn" title="Share via URL">share</button>
+      <button id="btn-fork" class="tb-btn" title="Duplicate this script into your workspace">fork</button>
+      <button id="btn-chat" class="tb-btn" title="Toggle chat panel (Ctrl+L)">⤳ chat</button>
+      <button id="btn-settings" class="tb-btn" title="OpenRouter settings">⚙</button>
+      <span class="spacer"></span>
+      <a href="/" class="tb-link">site &uarr;</a>
+      <a href="https://github.com/c-u-l8er/bendscript.com" class="tb-link">github &uarr;</a>
+    </div>
+
+    <div class="app">
+      <!-- ── Sidebar ── -->
+      <aside class="sidebar">
+        <div class="sb-head">
+          <span class="grow">workspaces</span>
+          <button class="sb-add" id="sb-new-ws" title="New workspace">+ ws</button>
+        </div>
+        <ul class="ws-list" id="ws-list"></ul>
+      </aside>
+
+      <!-- ── Main ── -->
+      <section class="main">
+        <div class="modes">
+          <button data-mode="reader" class="active">reader</button>
+          <button data-mode="source">source</button>
+          <button data-mode="inspect">inspect</button>
+          <span class="pill-row">
+            <span class="pill" id="pill-bytes">— bytes</span>
+            <span class="pill" id="pill-json">— json</span>
+            <span class="pill" id="pill-valid">— structural</span>
+          </span>
+          <button class="grow" disabled></button>
+        </div>
+
+        <div class="mode-body">
+          <!-- Reader -->
+          <div class="mode-pane active" data-mode="reader">
+            <div class="reader-wrap">
+              <div class="reader" id="reader">
+                <div class="reader-empty">no script open. pick one from the sidebar →</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Source editor -->
+          <div class="mode-pane" data-mode="source" style="flex-direction: column">
+            <div class="src-bar">
+              <button class="tb-btn" id="btn-format">format JSON</button>
+              <button class="tb-btn" id="btn-stamp">compute &amp; stamp id</button>
+              <button class="tb-btn" id="btn-copy-canonical">copy canonical</button>
+              <span class="grow"></span>
+              <button class="tb-btn" id="btn-revert" title="Reset to last saved">revert</button>
+            </div>
+            <textarea id="editor" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
+          </div>
+
+          <!-- Inspector -->
+          <div class="mode-pane" data-mode="inspect" style="flex-direction: column">
+            <div class="insp-wrap">
+              <div class="tabs" role="tablist">
+                <button data-tab="errors" class="active">errors</button>
+                <button data-tab="id">document id</button>
+                <button data-tab="edges">edges</button>
+                <button data-tab="tree">tree</button>
+                <button data-tab="canonical">canonical</button>
+              </div>
+              <div class="tab-body">
+                <div class="tab-pane active" data-tab="errors">
+                  <ul class="err-list" id="err-list">
+                    <li class="ok-state">no document loaded yet — pick a script.</li>
+                  </ul>
+                </div>
+                <div class="tab-pane" data-tab="id">
+                  <div class="id-block">
+                    <div class="label">computed id (CIDv1, json codec)</div>
+                    <div class="value" id="id-computed">—</div>
+                  </div>
+                  <div class="id-block">
+                    <div class="label">stated id (from document)</div>
+                    <div class="value stated" id="id-stated">—</div>
+                    <div class="match" id="id-match"></div>
+                  </div>
+                  <div style="margin-top: 18px">
+                    <button class="stamp-btn" id="stamp-2">stamp computed id into document</button>
+                    <p style="color: var(--td); font-size: 11px; margin: 14px 0 0; line-height: 1.6">
+                      The id is sha2-256 over JCS-canonical
+                      <code>{ blocks, edges }</code> wrapped as a CIDv1 with the
+                      json multicodec (<code>0x0200</code>). <code>id</code> and
+                      <code>meta</code> are excluded from the hash so metadata
+                      edits don't invalidate the id (§5.1).
+                    </p>
+                  </div>
+                </div>
+                <div class="tab-pane" data-tab="edges">
+                  <p style="color: var(--td); font-size: 11px; margin: 0 0 14px">
+                    edges after link-mark expansion (§2.5.1). Orange border =
+                    derived from a link mark; green = was in
+                    <code>edges</code> array.
+                  </p>
+                  <ul class="edge-list" id="edge-list"><li class="empty">no edges.</li></ul>
+                </div>
+                <div class="tab-pane" data-tab="tree">
+                  <div class="tree" id="tree"><em class="empty">no document parsed.</em></div>
+                </div>
+                <div class="tab-pane" data-tab="canonical">
+                  <p style="color: var(--td); font-size: 11px; margin: 0 0 10px">
+                    RFC 8785 (JCS) canonical serialization. Hash input is
+                    <code>{ blocks, edges }</code> from this form.
+                  </p>
+                  <pre id="canonical">—</pre>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Status bar -->
+        <div class="status">
+          <span class="item"><span class="k">vocabulary:</span> <span class="v" id="st-vocab">—</span></span>
+          <span class="item"><span class="k">blocks:</span> <span class="v" id="st-blocks">—</span></span>
+          <span class="item"><span class="k">edges:</span> <span class="v" id="st-edges">—</span></span>
+          <span class="item"><span class="k">link-marks:</span> <span class="v" id="st-marks">—</span></span>
+          <span class="item"><span class="k">workspace:</span> <span class="v" id="st-ws">—</span></span>
+          <span class="item"><span class="k">spec:</span> <span class="v">v0.1 draft</span></span>
+        </div>
+      </section>
+
+      <!-- ── Chat column ── -->
+      <aside class="chat-col">
+        <div class="chat-head">
+          <span class="grow">chat</span>
+          <span class="model-pill" id="chat-model">—</span>
+          <span class="cost-pill" id="chat-cost">$0.0000</span>
+        </div>
+        <div class="chat-log" id="chat-log"></div>
+        <div class="chat-input-wrap">
+          <textarea id="chat-input" class="chat-input" placeholder="ask the model to bend this script: e.g. &quot;rewrite the intro to be one paragraph&quot; or &quot;add a list of three caveats&quot; or &quot;turn this into argument vocab&quot;"></textarea>
+          <div class="chat-bar">
+            <button class="clear" id="chat-clear" title="Clear conversation history">clear</button>
+            <span class="grow"></span>
+            <span class="hint">⌘↩ to send</span>
+            <button class="send" id="chat-send">send</button>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal-wrap" id="modal-wrap">
+      <div class="modal" id="modal"></div>
+    </div>
+
+    <script type="module">
+      // ─────────────────────────────────────────────────────────────
+      // BendScript Playground v2 — workspaces, scripts, reader mode.
+      // Self-contained: only canonicalize + multiformats from esm.sh.
+      // ─────────────────────────────────────────────────────────────
+      import canonicalize from "https://esm.sh/canonicalize@2.0.0";
+      import { CID } from "https://esm.sh/multiformats@13.3.1/cid";
+      import { sha256 } from "https://esm.sh/multiformats@13.3.1/hashes/sha2";
+
+      const JSON_CODEC = 0x0200;
+      const STORAGE_KEY = "bendscript.playground.v1";
+
+      // ── Validator port (§2/§3) ──
+      const CORE_PREDICATES = new Set(["cites","supports","contradicts","derives-from","supersedes","transcludes","responds-to","defines","exemplifies"]);
+      const CORE_BLOCK_KINDS = new Set(["paragraph","heading","list","list-item","code","quote","embed","divider"]);
+      const ALLOWED_MARK_KINDS = new Set(["bold","italic","code","link"]);
+
+      function validate(doc) {
+        const errs = [];
+        if (typeof doc !== "object" || doc === null) {
+          errs.push({ msg: "document must be an object", path: "$" });
+          return errs;
+        }
+        const d = doc;
+        if (d.bendscript !== "0.1") errs.push({ msg: 'bendscript must be "0.1"', path: "$.bendscript" });
+        if (typeof d.id !== "string") errs.push({ msg: "id must be a string", path: "$.id" });
+        if (typeof d.vocabulary !== "string") errs.push({ msg: "vocabulary must be a string", path: "$.vocabulary" });
+        if (!Array.isArray(d.blocks)) errs.push({ msg: "blocks must be an array", path: "$.blocks" });
+        if (!Array.isArray(d.edges)) errs.push({ msg: "edges must be an array", path: "$.edges" });
+        if (Array.isArray(d.blocks)) d.blocks.forEach((b, i) => validateBlock(b, `$.blocks[${i}]`, errs));
+        if (Array.isArray(d.edges)) d.edges.forEach((e, i) => validateEdge(e, `$.edges[${i}]`, errs));
+        return errs;
+      }
+      function validateBlock(block, path, errs) {
+        if (typeof block !== "object" || block === null) { errs.push({ msg: "block must be an object", path }); return; }
+        const b = block;
+        if (typeof b.id !== "string") errs.push({ msg: "block.id must be a string", path: `${path}.id` });
+        if (typeof b.kind !== "string") { errs.push({ msg: "block.kind must be a string", path: `${path}.kind` }); return; }
+        if (CORE_BLOCK_KINDS.has(b.kind)) validateCoreBlock(b, path, errs);
+        if (Array.isArray(b.spans)) b.spans.forEach((s, i) => validateSpan(s, `${path}.spans[${i}]`, errs));
+        if (Array.isArray(b.blocks)) b.blocks.forEach((bb, i) => validateBlock(bb, `${path}.blocks[${i}]`, errs));
+        if (Array.isArray(b.items)) b.items.forEach((bb, i) => validateBlock(bb, `${path}.items[${i}]`, errs));
+      }
+      function validateCoreBlock(b, path, errs) {
+        switch (b.kind) {
+          case "paragraph":
+          case "heading":
+            if (!Array.isArray(b.spans)) errs.push({ msg: `${b.kind} requires spans[]`, path: `${path}.spans` });
+            if (b.kind === "heading" && (typeof b.level !== "number" || b.level < 1 || b.level > 6))
+              errs.push({ msg: "heading.level must be 1..6", path: `${path}.level` });
+            break;
+          case "list":
+            if (typeof b.ordered !== "boolean") errs.push({ msg: "list.ordered must be boolean", path: `${path}.ordered` });
+            if (!Array.isArray(b.items)) errs.push({ msg: "list requires items[]", path: `${path}.items` });
+            break;
+          case "list-item":
+            if (!Array.isArray(b.blocks)) errs.push({ msg: "list-item requires blocks[]", path: `${path}.blocks` });
+            break;
+          case "code":
+            if (typeof b.text !== "string") errs.push({ msg: "code.text must be string", path: `${path}.text` });
+            if (typeof b.language !== "string") errs.push({ msg: "code.language must be string", path: `${path}.language` });
+            break;
+          case "quote":
+            if (!Array.isArray(b.blocks)) errs.push({ msg: "quote requires blocks[]", path: `${path}.blocks` });
+            break;
+          case "embed":
+            if (typeof b.target !== "string") errs.push({ msg: "embed.target must be string", path: `${path}.target` });
+            break;
+        }
+      }
+      function validateSpan(span, path, errs) {
+        if (typeof span !== "object" || span === null) { errs.push({ msg: "span must be an object", path }); return; }
+        const s = span;
+        if (typeof s.id !== "string") errs.push({ msg: "span.id must be a string", path: `${path}.id` });
+        if (s.text !== null && typeof s.text !== "string") errs.push({ msg: "span.text must be string or null", path: `${path}.text` });
+        if (s.marks !== undefined) {
+          if (!Array.isArray(s.marks)) errs.push({ msg: "span.marks must be an array", path: `${path}.marks` });
+          else s.marks.forEach((m, i) => validateMark(m, `${path}.marks[${i}]`, errs));
+        }
+      }
+      function validateMark(mark, path, errs) {
+        if (typeof mark === "string") {
+          if (!ALLOWED_MARK_KINDS.has(mark) || mark === "link")
+            errs.push({ msg: "mark must be bold|italic|code (link must be object)", path });
+          return;
+        }
+        if (typeof mark !== "object" || mark === null) { errs.push({ msg: "mark must be a string or object", path }); return; }
+        if (mark.kind !== "link") errs.push({ msg: 'object marks must have kind="link"', path: `${path}.kind` });
+        if (typeof mark.target !== "string") errs.push({ msg: "link mark requires target string", path: `${path}.target` });
+        if (mark.predicate !== undefined && typeof mark.predicate !== "string") errs.push({ msg: "link mark predicate must be string if present", path: `${path}.predicate` });
+      }
+      function validateEdge(edge, path, errs) {
+        if (typeof edge !== "object" || edge === null) { errs.push({ msg: "edge must be an object", path }); return; }
+        const e = edge;
+        if (typeof e.subject !== "string") errs.push({ msg: "edge.subject must be string", path: `${path}.subject` });
+        if (typeof e.predicate !== "string") { errs.push({ msg: "edge.predicate must be string", path: `${path}.predicate` }); return; }
+        if (typeof e.object !== "string") errs.push({ msg: "edge.object must be string", path: `${path}.object` });
+        const isCore = CORE_PREDICATES.has(e.predicate);
+        const isNamespaced = e.predicate.includes(":");
+        if (!isCore && !isNamespaced) errs.push({ msg: `predicate "${e.predicate}" is neither core nor namespaced`, path: `${path}.predicate` });
+      }
+
+      // ── Link-mark expansion (§2.5.1) ──
+      function* walkSpans(blocks) {
+        for (const block of blocks) {
+          if (block.spans) for (const span of block.spans) yield { block, span };
+          if (block.blocks) yield* walkSpans(block.blocks);
+          if (block.items) yield* walkSpans(block.items);
+        }
+      }
+      function expandLinkMarks(doc) {
+        const baseEdges = Array.isArray(doc.edges) ? doc.edges : [];
+        const edges = baseEdges.map((e) => ({ ...e, _src: "edges" }));
+        const seen = new Set();
+        for (const e of edges) seen.add(`${e.subject}\x00${e.predicate}\x00${e.object}`);
+        if (!Array.isArray(doc.blocks)) return edges;
+        for (const { block, span } of walkSpans(doc.blocks)) {
+          if (!span.marks) continue;
+          for (const mark of span.marks) {
+            if (typeof mark === "string") continue;
+            if (mark.kind !== "link") continue;
+            if (!mark.predicate) continue;
+            const subject = `bend:${doc.id}#${block.id}.${span.id}`;
+            const key = `${subject}\x00${mark.predicate}\x00${mark.target}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            edges.push({ subject, predicate: mark.predicate, object: mark.target, _src: "mark" });
+          }
+        }
+        return edges;
+      }
+      function countLinkMarks(doc) {
+        if (!Array.isArray(doc.blocks)) return 0;
+        let n = 0;
+        for (const { span } of walkSpans(doc.blocks)) {
+          if (!span.marks) continue;
+          for (const m of span.marks) if (typeof m !== "string" && m.kind === "link") n++;
+        }
+        return n;
+      }
+
+      // ── ID + JCS ──
+      async function computeId(doc) {
+        const hashInput = {
+          blocks: doc.blocks,
+          edges: (doc.edges || []).map((e) => { const { _src, ...r } = e; return r; }),
+        };
+        const canonical = canonicalize(hashInput);
+        const bytes = new TextEncoder().encode(canonical);
+        const digest = await sha256.digest(bytes);
+        const cid = CID.create(1, JSON_CODEC, digest);
+        return cid.toString();
+      }
+      const jcs = (obj) => canonicalize(obj);
+
+      // ── HTML helpers ──
+      const $ = (id) => document.getElementById(id);
+      const escapeHtml = (s) => String(s)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+      // ─────────────────────────────────────────────────────────────
+      // Built-in protocol-doc scripts. Each one is a hand-authored
+      // BendScript document explaining a piece of the spec — so the
+      // reader is reading BendScript itself.
+      // ─────────────────────────────────────────────────────────────
+      function bsDoc(o) {
+        return JSON.stringify({ bendscript: "0.1", id: "PLACEHOLDER", ...o }, null, 2);
+      }
+
+      const PROTOCOL_DOCS = [
+        {
+          id: "doc-what",
+          name: "What BendScript is",
+          source: bsDoc({
+            vocabulary: "core",
+            title: "What BendScript is",
+            blocks: [
+              { id: "h1", kind: "heading", level: 1, spans: [{ id: "s1", text: "What BendScript is" }] },
+              { id: "p1", kind: "paragraph", spans: [
+                { id: "s1", text: "BendScript is a " },
+                { id: "s2", text: "graph-first document format with typed inline link facets", marks: ["bold"] },
+                { id: "s3", text: ", designed for agent-native systems. The canonical form is JSON; documents are content-addressable; and the same parser must round-trip a document through any frontier LLM without semantic drift." },
+              ] },
+              { id: "h2-1", kind: "heading", level: 2, spans: [{ id: "s1", text: "Why a new format" }] },
+              { id: "p2", kind: "paragraph", spans: [
+                { id: "s1", text: "Markdown was made for humans reading prose. JSON-LD was made for the semantic web. ProseMirror trees were made for editor backends. None of them are " },
+                { id: "s2", text: "agent-shaped", marks: ["italic"] },
+                { id: "s3", text: ": LLM-stable, deterministic under canonicalization, and structurally explicit about which spans of text mean what to whom." },
+              ] },
+              { id: "h2-2", kind: "heading", level: 2, spans: [{ id: "s1", text: "What you can do with it" }] },
+              { id: "ul1", kind: "list", ordered: false, items: [
+                { id: "li1", kind: "list-item", blocks: [{ id: "li1-p", kind: "paragraph", spans: [{ id: "s1", text: "Author documents whose meaning is preserved when an LLM rewrites them." }] }] },
+                { id: "li2", kind: "list-item", blocks: [{ id: "li2-p", kind: "paragraph", spans: [{ id: "s1", text: "Attach typed edges to specific spans of text — not to whole documents — so a single sentence can cite, contradict, or supersede another sentence." }] }] },
+                { id: "li3", kind: "list-item", blocks: [{ id: "li3-p", kind: "paragraph", spans: [{ id: "s1", text: "Use the same primitives across memory systems, argumentation, formal specs, and spatial-cognition layouts via reserved vocabularies." }] }] },
+              ] },
+              { id: "p3", kind: "paragraph", spans: [
+                { id: "s1", text: "This page itself is a BendScript document. View its " },
+                { id: "s2", text: "source", marks: ["italic"] },
+                { id: "s3", text: " in the toolbar above." },
+              ] },
+            ],
+            edges: [],
+          }),
+        },
+        {
+          id: "doc-six",
+          name: "The six primitives",
+          source: bsDoc({
+            vocabulary: "core",
+            title: "The six primitives",
+            blocks: [
+              { id: "h1", kind: "heading", level: 1, spans: [{ id: "s1", text: "The six primitives" }] },
+              { id: "p0", kind: "paragraph", spans: [{ id: "s1", text: "Every BendScript document is built from six structural primitives. Everything else — typed marks, vocabularies, integrations — sits on top of these." }] },
+              { id: "h2-1", kind: "heading", level: 2, spans: [{ id: "s1", text: "Document" }] },
+              { id: "p1", kind: "paragraph", spans: [
+                { id: "s1", text: "The top-level object. Has a " },
+                { id: "s2", text: "bendscript", marks: ["code"] },
+                { id: "s3", text: " version, an " },
+                { id: "s4", text: "id", marks: ["code"] },
+                { id: "s5", text: " (CIDv1), a " },
+                { id: "s6", text: "vocabulary", marks: ["code"] },
+                { id: "s7", text: ", a list of " },
+                { id: "s8", text: "blocks", marks: ["code"] },
+                { id: "s9", text: ", and a list of " },
+                { id: "s10", text: "edges", marks: ["code"] },
+                { id: "s11", text: ". Optional metadata sits in " },
+                { id: "s12", text: "meta", marks: ["code"] },
+                { id: "s13", text: ", which is excluded from the id hash." },
+              ] },
+              { id: "h2-2", kind: "heading", level: 2, spans: [{ id: "s1", text: "Block" }] },
+              { id: "p2", kind: "paragraph", spans: [
+                { id: "s1", text: "A structural unit of content. Core kinds: " },
+                { id: "s2", text: "paragraph, heading, list, list-item, code, quote, embed, divider", marks: ["code"] },
+                { id: "s3", text: ". Vocabularies may add their own kinds." },
+              ] },
+              { id: "h2-3", kind: "heading", level: 2, spans: [{ id: "s1", text: "Span" }] },
+              { id: "p3", kind: "paragraph", spans: [
+                { id: "s1", text: "A run of text inside a block. Spans are the " },
+                { id: "s2", text: "anchor unit for typed links", marks: ["italic"] },
+                { id: "s3", text: ": every link mark resolves to a span-addressable subject of the form " },
+                { id: "s4", text: "bend:<doc>#<block>.<span>", marks: ["code"] },
+                { id: "s5", text: "." },
+              ] },
+              { id: "h2-4", kind: "heading", level: 2, spans: [{ id: "s1", text: "Mark" }] },
+              { id: "p4", kind: "paragraph", spans: [
+                { id: "s1", text: "Inline annotations on a span. Three string marks: " },
+                { id: "s2", text: "bold, italic, code", marks: ["code"] },
+                { id: "s3", text: ". One object mark: " },
+                { id: "s4", text: "{ kind: \"link\", target, predicate? }", marks: ["code"] },
+                { id: "s5", text: ". A link with a predicate is the load-bearing facet of the format." },
+              ] },
+              { id: "h2-5", kind: "heading", level: 2, spans: [{ id: "s1", text: "Edge" }] },
+              { id: "p5", kind: "paragraph", spans: [
+                { id: "s1", text: "A typed triple " },
+                { id: "s2", text: "(subject, predicate, object)", marks: ["code"] },
+                { id: "s3", text: ", where subjects and objects are " },
+                { id: "s4", text: "bend:", marks: ["code"] },
+                { id: "s5", text: " URIs and predicates are either " },
+                { id: "s6", text: "core", marks: ["italic"] },
+                { id: "s7", text: " (nine fixed verbs) or " },
+                { id: "s8", text: "namespaced", marks: ["italic"] },
+                { id: "s9", text: " (e.g., " },
+                { id: "s10", text: "bendscript.memory.v1:consolidated-from", marks: ["code"] },
+                { id: "s11", text: ")." },
+              ] },
+              { id: "h2-6", kind: "heading", level: 2, spans: [{ id: "s1", text: "Vocabulary" }] },
+              { id: "p6", kind: "paragraph", spans: [
+                { id: "s1", text: "Each document declares one. The five reserved vocabularies — core, memory, argument, spec, runefort — let the same six primitives carry meaning across very different domains without forking the format." },
+              ] },
+            ],
+            edges: [],
+          }),
+        },
+        {
+          id: "doc-edges",
+          name: "Typed edges & link marks",
+          source: bsDoc({
+            vocabulary: "core",
+            title: "Typed edges and inline link marks",
+            blocks: [
+              { id: "h1", kind: "heading", level: 1, spans: [{ id: "s1", text: "Typed edges and inline link marks" }] },
+              { id: "p1", kind: "paragraph", spans: [
+                { id: "s1", text: "There are two ways to put an edge into a BendScript document: write it explicitly into the " },
+                { id: "s2", text: "edges", marks: ["code"] },
+                { id: "s3", text: " array, or attach a link mark with a predicate to a span. Both produce the same kind of typed triple." },
+              ] },
+              { id: "h2-1", kind: "heading", level: 2, spans: [{ id: "s1", text: "Nine core predicates" }] },
+              { id: "ul1", kind: "list", ordered: false, items: [
+                { id: "li-cites", kind: "list-item", blocks: [{ id: "p", kind: "paragraph", spans: [
+                  { id: "s1", text: "cites", marks: ["code"] },
+                  { id: "s2", text: " — references this thing as evidence." },
+                ] }] },
+                { id: "li-supports", kind: "list-item", blocks: [{ id: "p", kind: "paragraph", spans: [
+                  { id: "s1", text: "supports", marks: ["code"] },
+                  { id: "s2", text: " — agrees with or strengthens it." },
+                ] }] },
+                { id: "li-contra", kind: "list-item", blocks: [{ id: "p", kind: "paragraph", spans: [
+                  { id: "s1", text: "contradicts", marks: ["code"] },
+                  { id: "s2", text: " — denies or weakens it." },
+                ] }] },
+                { id: "li-derives", kind: "list-item", blocks: [{ id: "p", kind: "paragraph", spans: [
+                  { id: "s1", text: "derives-from", marks: ["code"] },
+                  { id: "s2", text: " — was produced from it (transformation, paraphrase, abstraction)." },
+                ] }] },
+                { id: "li-supers", kind: "list-item", blocks: [{ id: "p", kind: "paragraph", spans: [
+                  { id: "s1", text: "supersedes", marks: ["code"] },
+                  { id: "s2", text: " — replaces an earlier version." },
+                ] }] },
+                { id: "li-trans", kind: "list-item", blocks: [{ id: "p", kind: "paragraph", spans: [
+                  { id: "s1", text: "transcludes", marks: ["code"] },
+                  { id: "s2", text: " — embeds the target inline by reference." },
+                ] }] },
+                { id: "li-resp", kind: "list-item", blocks: [{ id: "p", kind: "paragraph", spans: [
+                  { id: "s1", text: "responds-to", marks: ["code"] },
+                  { id: "s2", text: " — answers, replies, follows up on it." },
+                ] }] },
+                { id: "li-defs", kind: "list-item", blocks: [{ id: "p", kind: "paragraph", spans: [
+                  { id: "s1", text: "defines", marks: ["code"] },
+                  { id: "s2", text: " — gives the meaning of a term or concept." },
+                ] }] },
+                { id: "li-exem", kind: "list-item", blocks: [{ id: "p", kind: "paragraph", spans: [
+                  { id: "s1", text: "exemplifies", marks: ["code"] },
+                  { id: "s2", text: " — is an instance of it." },
+                ] }] },
+              ] },
+              { id: "h2-2", kind: "heading", level: 2, spans: [{ id: "s1", text: "Link-mark expansion (§2.5.1)" }] },
+              { id: "p2", kind: "paragraph", spans: [
+                { id: "s1", text: "When a parser normalizes a document, every link mark with a predicate becomes an edge whose subject is " },
+                { id: "s2", text: "bend:<doc-id>#<block-id>.<span-id>", marks: ["code"] },
+                { id: "s3", text: ". Untyped links (no predicate) are kept as marks but do not emit edges. Expansion is idempotent: re-running it never duplicates." },
+              ] },
+              { id: "p3", kind: "paragraph", spans: [
+                { id: "s1", text: "Try this in the inspector: open " },
+                { id: "s2", text: "Examples › 04 typed inline link mark", marks: ["italic"] },
+                { id: "s3", text: " and switch to the " },
+                { id: "s4", text: "edges", marks: ["code"] },
+                { id: "s5", text: " tab. The single inline mark expands into one edge whose subject is the span itself." },
+              ] },
+            ],
+            edges: [],
+          }),
+        },
+        {
+          id: "doc-id",
+          name: "Content-addressable ids",
+          source: bsDoc({
+            vocabulary: "core",
+            title: "Content-addressable document ids",
+            blocks: [
+              { id: "h1", kind: "heading", level: 1, spans: [{ id: "s1", text: "Content-addressable document ids" }] },
+              { id: "p1", kind: "paragraph", spans: [
+                { id: "s1", text: "Every BendScript document carries an " },
+                { id: "s2", text: "id", marks: ["code"] },
+                { id: "s3", text: " field. The id is computed deterministically from the document's content and is a CIDv1 wrapping a sha2-256 digest under the json multicodec (" },
+                { id: "s4", text: "0x0200", marks: ["code"] },
+                { id: "s5", text: ")." },
+              ] },
+              { id: "h2-1", kind: "heading", level: 2, spans: [{ id: "s1", text: "Hash input" }] },
+              { id: "p2", kind: "paragraph", spans: [
+                { id: "s1", text: "The hash is taken over the JCS (RFC 8785) canonicalization of " },
+                { id: "s2", text: "{ blocks, edges }", marks: ["code"] },
+                { id: "s3", text: ". Notably, " },
+                { id: "s4", text: "id", marks: ["code"] },
+                { id: "s5", text: " and " },
+                { id: "s6", text: "meta", marks: ["code"] },
+                { id: "s7", text: " are excluded — so editing metadata never invalidates the id (§5.1)." },
+              ] },
+              { id: "h2-2", kind: "heading", level: 2, spans: [{ id: "s1", text: "Trade-offs" }] },
+              { id: "p3", kind: "paragraph", spans: [
+                { id: "s1", text: "Editing block or span text changes the id. Reordering keys does not (JCS sorts keys). Reordering blocks does. This makes the id a useful primary key for document graphs while keeping metadata edits cheap." },
+              ] },
+              { id: "h2-3", kind: "heading", level: 2, spans: [{ id: "s1", text: "Self-reference caveat" }] },
+              { id: "p4", kind: "paragraph", spans: [
+                { id: "s1", text: "Documents that contain link marks have a subtle self-reference: link-mark-derived edges include the document id in their subject (" },
+                { id: "s2", text: "bend:<id>#...", marks: ["code"] },
+                { id: "s3", text: "), so stamping the id changes the canonical form. The id stabilizes at a fixed point: in practice you stamp once, the document's edges are derived from that id, and any further structural change requires a re-stamp." },
+              ] },
+              { id: "p5", kind: "paragraph", spans: [
+                { id: "s1", text: "You can observe this directly by switching to the " },
+                { id: "s2", text: "document id", marks: ["italic"] },
+                { id: "s3", text: " tab in the inspector and clicking " },
+                { id: "s4", text: "stamp computed id", marks: ["italic"] },
+                { id: "s5", text: " on a script that uses inline link marks." },
+              ] },
+            ],
+            edges: [],
+          }),
+        },
+        {
+          id: "doc-vocabs",
+          name: "The five reserved vocabularies",
+          source: bsDoc({
+            vocabulary: "core",
+            title: "The five reserved vocabularies",
+            blocks: [
+              { id: "h1", kind: "heading", level: 1, spans: [{ id: "s1", text: "The five reserved vocabularies" }] },
+              { id: "p0", kind: "paragraph", spans: [{ id: "s1", text: "BendScript ships with five reserved vocabularies. Each adds typed predicates and (sometimes) block kinds on top of the core six primitives, so the same format can carry domain-specific meaning without forking." }] },
+              { id: "h2-core", kind: "heading", level: 2, spans: [{ id: "s1", text: "core" }] },
+              { id: "p-core", kind: "paragraph", spans: [{ id: "s1", text: "The default. Provides the nine core predicates and the eight core block kinds. Use this when a document has no domain-specific structure." }] },
+              { id: "h2-mem", kind: "heading", level: 2, spans: [{ id: "s1", text: "bendscript.memory.v1" }] },
+              { id: "p-mem", kind: "paragraph", spans: [
+                { id: "s1", text: "For graphonomous-style memory nodes. Adds " },
+                { id: "s2", text: "consolidated-from, supports-recall-of, contradicts-belief", marks: ["code"] },
+                { id: "s3", text: " and recognizes " },
+                { id: "s4", text: "meta.confidence, meta.recall_count, meta.last_consolidated_at", marks: ["code"] },
+                { id: "s5", text: "." },
+              ] },
+              { id: "h2-arg", kind: "heading", level: 2, spans: [{ id: "s1", text: "bendscript.argument.v1" }] },
+              { id: "p-arg", kind: "paragraph", spans: [
+                { id: "s1", text: "For argumentation. Adds " },
+                { id: "s2", text: "claim, premise, rebuttal", marks: ["code"] },
+                { id: "s3", text: " block kinds and " },
+                { id: "s4", text: "attacks, defends, undercuts", marks: ["code"] },
+                { id: "s5", text: " predicates — enough to encode an argument graph." },
+              ] },
+              { id: "h2-spec", kind: "heading", level: 2, spans: [{ id: "s1", text: "bendscript.spec.v1" }] },
+              { id: "p-spec", kind: "paragraph", spans: [
+                { id: "s1", text: "For RFC-style specifications. Adds " },
+                { id: "s2", text: "requirement, normative-quote", marks: ["code"] },
+                { id: "s3", text: " kinds, " },
+                { id: "s4", text: "must, should, may", marks: ["code"] },
+                { id: "s5", text: " modality predicates, and " },
+                { id: "s6", text: "implements, satisfies, conflicts-with", marks: ["code"] },
+                { id: "s7", text: " across-document predicates." },
+              ] },
+              { id: "h2-rune", kind: "heading", level: 2, spans: [{ id: "s1", text: "bendscript.runefort.v1" }] },
+              { id: "p-rune", kind: "paragraph", spans: [
+                { id: "s1", text: "For runefort.com layout protocol surfaces. Adds " },
+                { id: "s2", text: "tile, panel", marks: ["code"] },
+                { id: "s3", text: " block kinds and " },
+                { id: "s4", text: "anchors-to, occupies, derives-layout-from", marks: ["code"] },
+                { id: "s5", text: " predicates — enough to describe a tiled file-backed UI." },
+              ] },
+            ],
+            edges: [],
+          }),
+        },
+        {
+          id: "doc-roundtrip",
+          name: "The round-trip claim",
+          source: bsDoc({
+            vocabulary: "core",
+            title: "The round-trip claim",
+            blocks: [
+              { id: "h1", kind: "heading", level: 1, spans: [{ id: "s1", text: "The round-trip claim" }] },
+              { id: "p1", kind: "paragraph", spans: [
+                { id: "s1", text: "BendScript v0.1 makes one load-bearing empirical claim: a document " },
+                { id: "s2", text: "round-trips losslessly through any frontier LLM", marks: ["bold"] },
+                { id: "s3", text: ". This is what an \"agent-native\" format actually buys you. If it doesn't hold, the format isn't earning its complexity." },
+              ] },
+              { id: "h2-1", kind: "heading", level: 2, spans: [{ id: "s1", text: "Two flavors" }] },
+              { id: "p2", kind: "paragraph", spans: [
+                { id: "s1", text: "§8.1.1 — " },
+                { id: "s2", text: "parser round-trip", marks: ["italic"] },
+                { id: "s3", text: ": " },
+                { id: "s4", text: "parse(serialize(parse(d))) === parse(d)", marks: ["code"] },
+                { id: "s5", text: ". Verified for all 20 corpus documents (96 tests passing as of 2026-04-27)." },
+              ] },
+              { id: "p3", kind: "paragraph", spans: [
+                { id: "s1", text: "§8.1.2 — " },
+                { id: "s2", text: "LLM round-trip", marks: ["italic"] },
+                { id: "s3", text: ": after asking a frontier model to read and re-emit the document, the parsed result agrees with the original within drift thresholds. Not yet run against real models." },
+              ] },
+              { id: "h2-2", kind: "heading", level: 2, spans: [{ id: "s1", text: "How drift is measured" }] },
+              { id: "p4", kind: "paragraph", spans: [{ id: "s1", text: "Five components, each in [0, 1], reduced to a total via weighted sum:" }] },
+              { id: "ul1", kind: "list", ordered: false, items: [
+                { id: "li1", kind: "list-item", blocks: [{ id: "p", kind: "paragraph", spans: [
+                  { id: "s1", text: "block_structure", marks: ["code"] },
+                  { id: "s2", text: " — block kind/order/nesting changes." },
+                ] }] },
+                { id: "li2", kind: "list-item", blocks: [{ id: "p", kind: "paragraph", spans: [
+                  { id: "s1", text: "edge_preservation", marks: ["code"] },
+                  { id: "s2", text: " — edges added or dropped." },
+                ] }] },
+                { id: "li3", kind: "list-item", blocks: [{ id: "p", kind: "paragraph", spans: [
+                  { id: "s1", text: "span_coverage", marks: ["code"] },
+                  { id: "s2", text: " — fraction of original text retained." },
+                ] }] },
+                { id: "li4", kind: "list-item", blocks: [{ id: "p", kind: "paragraph", spans: [
+                  { id: "s1", text: "mark_fidelity", marks: ["code"] },
+                  { id: "s2", text: " — bold/italic/code/link marks preserved." },
+                ] }] },
+                { id: "li5", kind: "list-item", blocks: [{ id: "p", kind: "paragraph", spans: [
+                  { id: "s1", text: "vocabulary_integrity", marks: ["code"] },
+                  { id: "s2", text: " — vocabulary changes." },
+                ] }] },
+              ] },
+              { id: "h2-3", kind: "heading", level: 2, spans: [{ id: "s1", text: "Acceptance" }] },
+              { id: "p5", kind: "paragraph", spans: [{ id: "s1", text: "v0.1 final ships once the harness clears median total drift below 0.05 and P95 below 0.20 across 20 docs × 3 classes × 3 frontier models. Estimated cost: $5–20 per gating run." }] },
+            ],
+            edges: [],
+          }),
+        },
+      ];
+
+      // ── Self-explanatory walkthrough examples. Each one is a complete
+      // bent .bend.json document that *describes* the feature it demonstrates,
+      // so opening it in Reader mode is the explanation.
+      const EXAMPLE_PRESETS = [
+        {
+          id: "ex-01",
+          name: "01 · prose + headings",
+          source: `{
+  "bendscript": "0.1",
+  "id": "PLACEHOLDER",
+  "vocabulary": "core",
+  "title": "Example 01 — prose + headings",
+  "blocks": [
+    {
+      "id": "blk-h1",
+      "kind": "heading",
+      "level": 1,
+      "spans": [{ "id": "spn-1", "text": "Plain prose + headings" }]
+    },
+    {
+      "id": "blk-intro",
+      "kind": "paragraph",
+      "spans": [
+        { "id": "spn-1", "text": "This is the simplest possible BendScript document: a heading and two paragraphs of prose, no marks, no edges, no special vocabulary." }
+      ]
+    },
+    {
+      "id": "blk-h2",
+      "kind": "heading",
+      "level": 2,
+      "spans": [{ "id": "spn-1", "text": "What to look at" }]
+    },
+    {
+      "id": "blk-look",
+      "kind": "paragraph",
+      "spans": [
+        { "id": "spn-1", "text": "Switch to the Source tab to see the JSON shape — every block has a stable id, every span has a stable id, and the document gets a content-addressable id (top-right of the toolbar) computed from its canonicalized JSON." }
+      ]
+    },
+    {
+      "id": "blk-tip",
+      "kind": "paragraph",
+      "spans": [
+        { "id": "spn-1", "text": "Try editing this paragraph in Source mode — the doc id will change. Then edit only meta (after adding one) and the id will stay the same. That's the §5.1 trade-off in action." }
+      ]
+    }
+  ],
+  "edges": []
+}`,
+        },
+        {
+          id: "ex-02",
+          name: "02 · inline marks (bold / italic / code)",
+          source: `{
+  "bendscript": "0.1",
+  "id": "PLACEHOLDER",
+  "vocabulary": "core",
+  "title": "Example 02 — inline marks",
+  "blocks": [
+    {
+      "id": "blk-h1",
+      "kind": "heading",
+      "level": 1,
+      "spans": [{ "id": "spn-1", "text": "Inline marks: bold, italic, code" }]
+    },
+    {
+      "id": "blk-intro",
+      "kind": "paragraph",
+      "spans": [
+        { "id": "spn-1", "text": "In BendScript, formatting lives on spans, not on the text. Each span carries an optional " },
+        { "id": "spn-2", "text": "marks", "marks": ["code"] },
+        { "id": "spn-3", "text": " array. Look at this paragraph in Reader mode and you'll see " },
+        { "id": "spn-4", "text": "bold text", "marks": ["bold"] },
+        { "id": "spn-5", "text": ", " },
+        { "id": "spn-6", "text": "italic text", "marks": ["italic"] },
+        { "id": "spn-7", "text": ", and " },
+        { "id": "spn-8", "text": "inline_code()", "marks": ["code"] },
+        { "id": "spn-9", "text": " all rendered correctly." }
+      ]
+    },
+    {
+      "id": "blk-h2",
+      "kind": "heading",
+      "level": 2,
+      "spans": [{ "id": "spn-1", "text": "Why it matters" }]
+    },
+    {
+      "id": "blk-why",
+      "kind": "paragraph",
+      "spans": [
+        { "id": "spn-1", "text": "Because formatting is on spans, an LLM round-trip can preserve formatting without parsing markdown. Switch to Source mode to see exactly which span carries which mark — the renderer just walks the spans array in order." }
+      ]
+    }
+  ],
+  "edges": []
+}`,
+        },
+        {
+          id: "ex-03",
+          name: "03 · typed inline link → auto edge",
+          source: `{
+  "bendscript": "0.1",
+  "id": "PLACEHOLDER",
+  "vocabulary": "core",
+  "title": "Example 03 — typed inline link",
+  "blocks": [
+    {
+      "id": "blk-h1",
+      "kind": "heading",
+      "level": 1,
+      "spans": [{ "id": "spn-1", "text": "Typed inline link marks" }]
+    },
+    {
+      "id": "blk-intro",
+      "kind": "paragraph",
+      "spans": [
+        { "id": "spn-1", "text": "The phrase " },
+        {
+          "id": "spn-2",
+          "text": "memory loop",
+          "marks": [
+            { "kind": "link", "target": "bend:bafyfaketarget123", "predicate": "defines" }
+          ]
+        },
+        { "id": "spn-3", "text": " in this paragraph carries a typed link mark with predicate \\"defines\\". Switch to Reader mode and you'll see it rendered as a link with a small predicate tag next to it." }
+      ]
+    },
+    {
+      "id": "blk-h2",
+      "kind": "heading",
+      "level": 2,
+      "spans": [{ "id": "spn-1", "text": "The magic: §2.5.1 link-mark expansion" }]
+    },
+    {
+      "id": "blk-magic",
+      "kind": "paragraph",
+      "spans": [
+        { "id": "spn-1", "text": "Notice the edges array is empty in Source. But open the Inspector's edges tab — there is one edge. The parser deterministically expands every typed link mark into a graph edge with subject pointing at the span (\\"bend:<doc-id>#<block-id>.<span-id>\\"). This is idempotent: running the parser again does not duplicate edges." }
+      ]
+    },
+    {
+      "id": "blk-h3",
+      "kind": "heading",
+      "level": 2,
+      "spans": [{ "id": "spn-1", "text": "Untyped links don't expand" }]
+    },
+    {
+      "id": "blk-untyped",
+      "kind": "paragraph",
+      "spans": [
+        { "id": "spn-1", "text": "A " },
+        {
+          "id": "spn-2",
+          "text": "plain link",
+          "marks": [
+            { "kind": "link", "target": "https://example.com" }
+          ]
+        },
+        { "id": "spn-3", "text": " with no predicate is just navigation — it stays out of the graph." }
+      ]
+    }
+  ],
+  "edges": []
+}`,
+        },
+        {
+          id: "ex-04",
+          name: "04 · lists, quotes, code blocks",
+          source: `{
+  "bendscript": "0.1",
+  "id": "PLACEHOLDER",
+  "vocabulary": "core",
+  "title": "Example 04 — block kinds beyond paragraph",
+  "blocks": [
+    {
+      "id": "blk-h1",
+      "kind": "heading",
+      "level": 1,
+      "spans": [{ "id": "spn-1", "text": "Block kinds: list, quote, code" }]
+    },
+    {
+      "id": "blk-intro",
+      "kind": "paragraph",
+      "spans": [
+        { "id": "spn-1", "text": "Beyond paragraph and heading, the core vocabulary defines a few more block kinds. Each of the next three blocks demonstrates one." }
+      ]
+    },
+    {
+      "id": "blk-list",
+      "kind": "list",
+      "ordered": false,
+      "items": [
+        { "id": "li-1", "kind": "list-item", "blocks": [
+          { "id": "li-1-p", "kind": "paragraph", "spans": [{ "id": "spn-1", "text": "Lists are list blocks whose items are list-item blocks." }] }
+        ]},
+        { "id": "li-2", "kind": "list-item", "blocks": [
+          { "id": "li-2-p", "kind": "paragraph", "spans": [{ "id": "spn-1", "text": "Each list-item wraps inner blocks (usually a paragraph)." }] }
+        ]},
+        { "id": "li-3", "kind": "list-item", "blocks": [
+          { "id": "li-3-p", "kind": "paragraph", "spans": [{ "id": "spn-1", "text": "Set ordered: true on the list block for numbered lists." }] }
+        ]}
+      ]
+    },
+    {
+      "id": "blk-quote",
+      "kind": "quote",
+      "blocks": [
+        { "id": "blk-quote-p", "kind": "paragraph", "spans": [
+          { "id": "spn-1", "text": "Quote blocks contain inner blocks (not spans directly). Same span/mark rules as paragraphs apply inside." }
+        ]}
+      ]
+    },
+    {
+      "id": "blk-code",
+      "kind": "code",
+      "language": "javascript",
+      "text": "// Code blocks have a 'text' field instead of spans.\\n// They preserve whitespace and never expand link marks.\\nfunction hello() { return 'world'; }"
+    },
+    {
+      "id": "blk-end",
+      "kind": "paragraph",
+      "spans": [
+        { "id": "spn-1", "text": "Switch to Source to see the JSON shape of each kind — they share an id and a kind discriminator, then specialize." }
+      ]
+    }
+  ],
+  "edges": []
+}`,
+        },
+        {
+          id: "ex-05",
+          name: "05 · all nine core predicates",
+          source: `{
+  "bendscript": "0.1",
+  "id": "PLACEHOLDER",
+  "vocabulary": "core",
+  "title": "Example 05 — the nine core predicates",
+  "blocks": [
+    {
+      "id": "blk-h1",
+      "kind": "heading",
+      "level": 1,
+      "spans": [{ "id": "spn-1", "text": "The nine core predicates" }]
+    },
+    {
+      "id": "blk-intro",
+      "kind": "paragraph",
+      "spans": [
+        { "id": "spn-1", "text": "The core vocabulary reserves nine predicates, listed below. Open the Inspector's edges tab to see this paragraph wired up with all nine — one edge per predicate, all anchored to this block." }
+      ]
+    },
+    {
+      "id": "blk-list",
+      "kind": "list",
+      "ordered": true,
+      "items": [
+        { "id": "li-1", "kind": "list-item", "blocks": [{ "id": "li-1-p", "kind": "paragraph", "spans": [{ "id": "spn-1", "text": "cites — references another work" }]}]},
+        { "id": "li-2", "kind": "list-item", "blocks": [{ "id": "li-2-p", "kind": "paragraph", "spans": [{ "id": "spn-1", "text": "supports — agrees with / provides evidence for" }]}]},
+        { "id": "li-3", "kind": "list-item", "blocks": [{ "id": "li-3-p", "kind": "paragraph", "spans": [{ "id": "spn-1", "text": "contradicts — disagrees with" }]}]},
+        { "id": "li-4", "kind": "list-item", "blocks": [{ "id": "li-4-p", "kind": "paragraph", "spans": [{ "id": "spn-1", "text": "derives-from — was produced by transforming" }]}]},
+        { "id": "li-5", "kind": "list-item", "blocks": [{ "id": "li-5-p", "kind": "paragraph", "spans": [{ "id": "spn-1", "text": "supersedes — replaces an earlier version" }]}]},
+        { "id": "li-6", "kind": "list-item", "blocks": [{ "id": "li-6-p", "kind": "paragraph", "spans": [{ "id": "spn-1", "text": "transcludes — embeds another doc by reference" }]}]},
+        { "id": "li-7", "kind": "list-item", "blocks": [{ "id": "li-7-p", "kind": "paragraph", "spans": [{ "id": "spn-1", "text": "responds-to — answers / replies to" }]}]},
+        { "id": "li-8", "kind": "list-item", "blocks": [{ "id": "li-8-p", "kind": "paragraph", "spans": [{ "id": "spn-1", "text": "defines — provides the canonical definition of" }]}]},
+        { "id": "li-9", "kind": "list-item", "blocks": [{ "id": "li-9-p", "kind": "paragraph", "spans": [{ "id": "spn-1", "text": "exemplifies — is an instance of" }]}]}
+      ]
+    },
+    {
+      "id": "blk-end",
+      "kind": "paragraph",
+      "spans": [
+        { "id": "spn-1", "text": "Reserved vocabularies (memory.v1, argument.v1, spec.v1, runefort.v1) add their own predicates, namespaced like \\"bendscript.memory.v1:consolidated-from\\"." }
+      ]
+    }
+  ],
+  "edges": [
+    { "subject": "bend:PLACEHOLDER#blk-intro", "predicate": "cites", "object": "bend:bafyfake01" },
+    { "subject": "bend:PLACEHOLDER#blk-intro", "predicate": "supports", "object": "bend:bafyfake02" },
+    { "subject": "bend:PLACEHOLDER#blk-intro", "predicate": "contradicts", "object": "bend:bafyfake03" },
+    { "subject": "bend:PLACEHOLDER#blk-intro", "predicate": "derives-from", "object": "bend:bafyfake04" },
+    { "subject": "bend:PLACEHOLDER#blk-intro", "predicate": "supersedes", "object": "bend:bafyfake05" },
+    { "subject": "bend:PLACEHOLDER#blk-intro", "predicate": "transcludes", "object": "bend:bafyfake06" },
+    { "subject": "bend:PLACEHOLDER#blk-intro", "predicate": "responds-to", "object": "bend:bafyfake07" },
+    { "subject": "bend:PLACEHOLDER#blk-intro", "predicate": "defines", "object": "bend:bafyfake08" },
+    { "subject": "bend:PLACEHOLDER#blk-intro", "predicate": "exemplifies", "object": "bend:bafyfake09" }
+  ]
+}`,
+        },
+        {
+          id: "ex-06",
+          name: "06 · memory vocab (graphonomous)",
+          source: `{
+  "bendscript": "0.1",
+  "id": "PLACEHOLDER",
+  "vocabulary": "bendscript.memory.v1",
+  "title": "Example 06 — graphonomous memory node",
+  "meta": {
+    "confidence": 0.85,
+    "provenance": ["bend:bafyfakesource#blk-1"],
+    "recall_count": 7,
+    "last_consolidated_at": "2026-04-27T10:00:00Z"
+  },
+  "blocks": [
+    {
+      "id": "blk-h1",
+      "kind": "heading",
+      "level": 1,
+      "spans": [{ "id": "spn-1", "text": "A document in the memory vocabulary" }]
+    },
+    {
+      "id": "blk-intro",
+      "kind": "paragraph",
+      "spans": [
+        { "id": "spn-1", "text": "This document declares vocabulary \\"bendscript.memory.v1\\" — the reserved vocabulary used by Graphonomous to store consolidated knowledge nodes. The vocabulary brings extra meta fields and namespaced predicates." }
+      ]
+    },
+    {
+      "id": "blk-h2",
+      "kind": "heading",
+      "level": 2,
+      "spans": [{ "id": "spn-1", "text": "What's different here" }]
+    },
+    {
+      "id": "blk-list",
+      "kind": "list",
+      "ordered": false,
+      "items": [
+        { "id": "li-1", "kind": "list-item", "blocks": [{ "id": "li-1-p", "kind": "paragraph", "spans": [{ "id": "spn-1", "text": "meta.confidence — calibrated belief strength (0..1)" }]}]},
+        { "id": "li-2", "kind": "list-item", "blocks": [{ "id": "li-2-p", "kind": "paragraph", "spans": [{ "id": "spn-1", "text": "meta.provenance — list of source doc ids this was consolidated from" }]}]},
+        { "id": "li-3", "kind": "list-item", "blocks": [{ "id": "li-3-p", "kind": "paragraph", "spans": [{ "id": "spn-1", "text": "meta.recall_count — how often this node has been retrieved" }]}]},
+        { "id": "li-4", "kind": "list-item", "blocks": [{ "id": "li-4-p", "kind": "paragraph", "spans": [{ "id": "spn-1", "text": "meta.last_consolidated_at — ISO timestamp of last consolidation" }]}]}
+      ]
+    },
+    {
+      "id": "blk-claim",
+      "kind": "paragraph",
+      "spans": [
+        { "id": "spn-1", "text": "The actual claim being remembered: \\"the memory loop closes when consolidation completes.\\" Below this paragraph, an edge in the inspector wires it to the source it was consolidated from." }
+      ]
+    },
+    {
+      "id": "blk-end",
+      "kind": "paragraph",
+      "spans": [
+        { "id": "spn-1", "text": "Open the Inspector's edges tab — you'll see one edge with the namespaced predicate \\"bendscript.memory.v1:consolidated-from\\". Editing meta does not change the document id, so a memory node can be re-consolidated without invalidating its identity." }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "subject": "bend:PLACEHOLDER#blk-claim",
+      "predicate": "bendscript.memory.v1:consolidated-from",
+      "object": "bend:bafyfakesource#blk-1",
+      "meta": { "confidence": 0.9 }
+    }
+  ]
+}`,
+        },
+        {
+          id: "ex-07",
+          name: "07 · argument vocab (claims + warrants)",
+          source: `{
+  "bendscript": "0.1",
+  "id": "PLACEHOLDER",
+  "vocabulary": "bendscript.argument.v1",
+  "title": "Example 07 — argument structure",
+  "blocks": [
+    {
+      "id": "blk-h1",
+      "kind": "heading",
+      "level": 1,
+      "spans": [{ "id": "spn-1", "text": "An argument expressed as a graph" }]
+    },
+    {
+      "id": "blk-intro",
+      "kind": "paragraph",
+      "spans": [
+        { "id": "spn-1", "text": "The argument vocabulary models claims, evidence, warrants, and rebuttals as typed nodes wired by predicates. Each block below plays a role in a small Toulmin-style argument." }
+      ]
+    },
+    {
+      "id": "blk-claim",
+      "kind": "paragraph",
+      "spans": [
+        { "id": "spn-1", "text": "Claim: BendScript is the right format for agent-native knowledge." }
+      ]
+    },
+    {
+      "id": "blk-evidence",
+      "kind": "paragraph",
+      "spans": [
+        { "id": "spn-1", "text": "Evidence: round-trip fidelity over 20 corpus documents was verified across parse/serialize cycles." }
+      ]
+    },
+    {
+      "id": "blk-warrant",
+      "kind": "paragraph",
+      "spans": [
+        { "id": "spn-1", "text": "Warrant: a format that round-trips losslessly preserves graph structure under LLM editing." }
+      ]
+    },
+    {
+      "id": "blk-rebuttal",
+      "kind": "paragraph",
+      "spans": [
+        { "id": "spn-1", "text": "Rebuttal: round-trip fidelity is necessary but not sufficient — semantic preservation under §8.1.2 is still being measured." }
+      ]
+    },
+    {
+      "id": "blk-end",
+      "kind": "paragraph",
+      "spans": [
+        { "id": "spn-1", "text": "Open the Inspector's edges tab to see how the four blocks above are wired with namespaced predicates: supports, warranted-by, rebuts." }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "subject": "bend:PLACEHOLDER#blk-evidence",
+      "predicate": "bendscript.argument.v1:supports",
+      "object": "bend:PLACEHOLDER#blk-claim",
+      "meta": { "confidence": 0.8 }
+    },
+    {
+      "subject": "bend:PLACEHOLDER#blk-claim",
+      "predicate": "bendscript.argument.v1:warranted-by",
+      "object": "bend:PLACEHOLDER#blk-warrant"
+    },
+    {
+      "subject": "bend:PLACEHOLDER#blk-rebuttal",
+      "predicate": "bendscript.argument.v1:rebuts",
+      "object": "bend:PLACEHOLDER#blk-claim",
+      "meta": { "confidence": 0.6 }
+    }
+  ]
+}`,
+        },
+      ];
+
+      const STARTER_DOC = `{
+  "bendscript": "0.1",
+  "id": "PLACEHOLDER",
+  "vocabulary": "core",
+  "title": "Untitled",
+  "blocks": [
+    {
+      "id": "blk-1",
+      "kind": "heading",
+      "level": 1,
+      "spans": [{ "id": "spn-1", "text": "Untitled" }]
+    },
+    {
+      "id": "blk-2",
+      "kind": "paragraph",
+      "spans": [{ "id": "spn-1", "text": "Start writing here. Switch to the source tab to edit JSON directly." }]
+    }
+  ],
+  "edges": []
+}`;
+
+      function defaultState() {
+        const now = Date.now();
+        return {
+          v: 1,
+          activeWorkspaceId: "ws-protocol",
+          activeScriptId: "doc-what",
+          workspaces: [
+            {
+              id: "ws-protocol",
+              name: "Protocol Docs",
+              builtin: true,
+              collapsed: false,
+              scripts: PROTOCOL_DOCS.map((d) => ({
+                id: d.id, name: d.name, visibility: "public",
+                source: d.source, builtin: true, updatedAt: now,
+              })),
+            },
+            {
+              id: "ws-examples",
+              name: "Examples",
+              builtin: true,
+              collapsed: false,
+              scripts: EXAMPLE_PRESETS.map((d) => ({
+                id: d.id, name: d.name, visibility: "public",
+                source: d.source, builtin: true, updatedAt: now,
+              })),
+            },
+            {
+              id: "ws-mine",
+              name: "My Workspace",
+              builtin: false,
+              collapsed: false,
+              scripts: [],
+            },
+          ],
+        };
+      }
+
+
+      // ─────────────────────────────────────────────────────────────
+      // Reader renderer — turns a parsed BendScript document into prose.
+      // ─────────────────────────────────────────────────────────────
+      function renderReader(doc) {
+        const reader = $("reader");
+        if (!doc || typeof doc !== "object" || !Array.isArray(doc.blocks)) {
+          reader.innerHTML = `<div class="reader-empty">no document to render.</div>`;
+          return;
+        }
+        const parts = [];
+        if (typeof doc.title === "string" && doc.title) {
+          // Title is a doc-level attribute; if blocks already start with an h1, skip.
+          const firstBlock = doc.blocks[0];
+          const startsWithH1 = firstBlock && firstBlock.kind === "heading" && firstBlock.level === 1;
+          if (!startsWithH1) parts.push(`<h1>${escapeHtml(doc.title)}</h1>`);
+        }
+        // Doc meta strip
+        const metaBits = [];
+        if (typeof doc.vocabulary === "string") metaBits.push(`<span><span class="k">vocabulary:</span><span class="v">${escapeHtml(doc.vocabulary)}</span></span>`);
+        if (typeof doc.id === "string" && doc.id !== "PLACEHOLDER") {
+          const shortId = doc.id.length > 20 ? doc.id.slice(0, 12) + "…" + doc.id.slice(-6) : doc.id;
+          metaBits.push(`<span><span class="k">id:</span><span class="v" title="${escapeHtml(doc.id)}">${escapeHtml(shortId)}</span></span>`);
+        }
+        if (Array.isArray(doc.edges)) metaBits.push(`<span><span class="k">edges:</span><span class="v">${doc.edges.length}</span></span>`);
+        if (metaBits.length) parts.push(`<div class="doc-meta">${metaBits.join("")}</div>`);
+        // Build numbered edge list + per-block citation indices once. Both the
+        // inline citations and the graph section share this numbering.
+        const edgeNumbering = buildEdgeNumbering(doc);
+        for (const block of doc.blocks) parts.push(renderBlockReader(block, doc, edgeNumbering));
+        const graphSection = renderGraphSection(doc, edgeNumbering);
+        if (graphSection) parts.push(graphSection);
+        reader.innerHTML = parts.join("\n") || `<div class="reader-empty">empty document.</div>`;
+      }
+      // Compute a stable 1-based edge numbering and a blockId → [edgeNum,...] map.
+      // A block "participates" in an edge if it's the subject OR the object of a
+      // local-doc reference. Link-mark-derived edges are included.
+      function buildEdgeNumbering(doc) {
+        let edges = [];
+        try { edges = expandLinkMarks(doc); } catch { edges = Array.isArray(doc.edges) ? doc.edges : []; }
+        const myDocId = doc.id;
+        const isLocal = (ref) => ref && (ref.docId === myDocId || ref.docId === "PLACEHOLDER") && !!ref.blockId;
+        const numbered = edges.map((e, i) => ({ edge: e, num: i + 1 }));
+        const byBlock = new Map();
+        for (const { edge, num } of numbered) {
+          const sRef = parseBendRef(edge.subject);
+          const oRef = parseBendRef(edge.object);
+          if (isLocal(sRef)) {
+            const arr = byBlock.get(sRef.blockId) || [];
+            if (!arr.includes(num)) arr.push(num);
+            byBlock.set(sRef.blockId, arr);
+          }
+          if (isLocal(oRef)) {
+            const arr = byBlock.get(oRef.blockId) || [];
+            if (!arr.includes(num)) arr.push(num);
+            byBlock.set(oRef.blockId, arr);
+          }
+        }
+        return { numbered, byBlock };
+      }
+      // Format a list of edge numbers into a compact citation string,
+      // collapsing 3+ consecutive runs to "a–b" (e.g., [1,2,3,5,7,8,9] → "1–3, 5, 7–9").
+      function formatCitationNumbers(nums) {
+        if (!nums.length) return "";
+        const sorted = [...nums].sort((a, b) => a - b);
+        const out = [];
+        let runStart = sorted[0], prev = sorted[0];
+        for (let i = 1; i <= sorted.length; i++) {
+          const cur = sorted[i];
+          if (cur === prev + 1) { prev = cur; continue; }
+          if (prev - runStart >= 2) out.push(`${runStart}–${prev}`);
+          else if (prev === runStart) out.push(String(runStart));
+          else out.push(`${runStart}, ${prev}`);
+          runStart = cur; prev = cur;
+        }
+        return out.join(", ");
+      }
+      // Build a "[1, 3–5]" superscript anchor that links to the first cited edge.
+      function renderCitation(blockId, edgeNumbering) {
+        if (!blockId || !edgeNumbering) return "";
+        const nums = edgeNumbering.byBlock.get(blockId);
+        if (!nums || nums.length === 0) return "";
+        const label = formatCitationNumbers(nums);
+        const first = Math.min(...nums);
+        const tip = nums.length === 1
+          ? `edge ${nums[0]} in graph below`
+          : `${nums.length} edges (${label}) in graph below`;
+        return `<a href="#bs-edge-${first}" class="citation" title="${escapeHtml(tip)}" data-edges="${nums.join(",")}">[${escapeHtml(label)}]</a>`;
+      }
+      // Parse a "bend:<docId>[#<blockId>[.<spanId>]]" URI into its parts.
+      function parseBendRef(uri) {
+        if (typeof uri !== "string" || !uri.startsWith("bend:")) return null;
+        const after = uri.slice(5);
+        const hashIdx = after.indexOf("#");
+        if (hashIdx === -1) return { docId: after, blockId: null, spanId: null };
+        const dId = after.slice(0, hashIdx);
+        const rest = after.slice(hashIdx + 1);
+        const dot = rest.indexOf(".");
+        if (dot === -1) return { docId: dId, blockId: rest, spanId: null };
+        return { docId: dId, blockId: rest.slice(0, dot), spanId: rest.slice(dot + 1) };
+      }
+      // Walk a doc's block tree and return the first text snippet for `blockId`.
+      function findBlockTextSnippet(doc, blockId) {
+        function textOf(b) {
+          if (!b || typeof b !== "object") return "";
+          if (Array.isArray(b.spans)) return b.spans.map((s) => (s && typeof s.text === "string" ? s.text : "")).join("");
+          if (typeof b.text === "string") return b.text;
+          if (Array.isArray(b.blocks)) {
+            for (const bb of b.blocks) {
+              const t = textOf(bb);
+              if (t) return t;
+            }
+          }
+          return "";
+        }
+        function walk(b) {
+          if (!b || typeof b !== "object") return null;
+          if (b.id === blockId) return textOf(b).trim();
+          if (Array.isArray(b.blocks)) {
+            for (const bb of b.blocks) { const r = walk(bb); if (r !== null) return r; }
+          }
+          if (Array.isArray(b.items)) {
+            for (const bb of b.items) { const r = walk(bb); if (r !== null) return r; }
+          }
+          return null;
+        }
+        for (const blk of doc.blocks || []) {
+          const r = walk(blk);
+          if (r !== null) return r;
+        }
+        return null;
+      }
+      // Render either a quoted snippet (if the ref points inside this doc and we
+      // can resolve the block text) or a truncated bend: URI for external refs.
+      function describeEdgeRef(ref, raw, doc) {
+        if (!ref) return `<code title="${escapeHtml(String(raw || ""))}">${escapeHtml(String(raw || ""))}</code>`;
+        const myDocId = doc.id;
+        const isLocal = (ref.docId === myDocId || ref.docId === "PLACEHOLDER") && !!ref.blockId;
+        if (isLocal) {
+          const snip = findBlockTextSnippet(doc, ref.blockId);
+          if (snip) {
+            const trim = snip.length > 56 ? snip.slice(0, 56) + "…" : snip;
+            return `<span class="ref" title="#${escapeHtml(ref.blockId)}">“${escapeHtml(trim)}”</span>`;
+          }
+          return `<code title="${escapeHtml(String(raw || ""))}">#${escapeHtml(ref.blockId)}</code>`;
+        }
+        const shortDoc = ref.docId.length > 14 ? ref.docId.slice(0, 10) + "…" : ref.docId;
+        const suffix = ref.blockId ? "#" + (ref.blockId.length > 10 ? ref.blockId.slice(0, 10) + "…" : ref.blockId) : "";
+        return `<code class="ref external" title="${escapeHtml(String(raw || ""))}">bend:${escapeHtml(shortDoc)}${escapeHtml(suffix)}</code>`;
+      }
+      // Render a single grouped edge listing at the end of the Reader output.
+      // Edges are grouped by predicate and shown numbered to match inline citations.
+      // Includes both explicit doc.edges and link-mark-derived edges (§2.5.1).
+      function renderGraphSection(doc, edgeNumbering) {
+        const numbered = edgeNumbering ? edgeNumbering.numbered : [];
+        if (!numbered.length) return "";
+        const byPred = new Map();
+        for (const item of numbered) {
+          const arr = byPred.get(item.edge.predicate) || [];
+          arr.push(item);
+          byPred.set(item.edge.predicate, arr);
+        }
+        const groups = [];
+        for (const [pred, items] of byPred) {
+          const rows = items
+            .map(({ edge, num }) => {
+              const s = describeEdgeRef(parseBendRef(edge.subject), edge.subject, doc);
+              const o = describeEdgeRef(parseBendRef(edge.object), edge.object, doc);
+              return (
+                `<div class="gs-edge" id="bs-edge-${num}">` +
+                  `<span class="num">[${num}]</span>` +
+                  s + `<span class="arrow">→</span>` + o +
+                `</div>`
+              );
+            })
+            .join("");
+          groups.push(
+            `<div class="gs-group">` +
+              `<div class="gs-pred">${escapeHtml(pred || "")}</div>` +
+              rows +
+            `</div>`
+          );
+        }
+        return (
+          `<div class="graph-section">` +
+            `<div class="gs-head">graph (${numbered.length} edge${numbered.length === 1 ? "" : "s"})</div>` +
+            groups.join("") +
+          `</div>`
+        );
+      }
+      function renderBlockReader(b, doc, edgeNumbering) {
+        if (!b || typeof b !== "object") return "";
+        const cite = renderCitation(b.id, edgeNumbering);
+        switch (b.kind) {
+          case "paragraph":
+            return `<p>${renderSpansReader(b.spans, doc)}${cite}</p>`;
+          case "heading": {
+            const lvl = Math.max(1, Math.min(6, b.level || 2));
+            return `<h${lvl}>${renderSpansReader(b.spans, doc)}${cite}</h${lvl}>`;
+          }
+          case "list": {
+            const tag = b.ordered ? "ol" : "ul";
+            const items = (b.items || []).map((it) => renderBlockReader(it, doc, edgeNumbering)).join("");
+            // Citations on the list block itself (rare) are appended after the list.
+            return `<${tag}>${items}</${tag}>${cite}`;
+          }
+          case "list-item": {
+            const inner = (b.blocks || []).map((bb) => renderBlockReader(bb, doc, edgeNumbering)).join("");
+            return `<li>${inner}${cite}</li>`;
+          }
+          case "code": {
+            const lang = typeof b.language === "string" && b.language ? ` class="language-${escapeHtml(b.language)}"` : "";
+            return `<pre><code${lang}>${escapeHtml(b.text || "")}</code></pre>${cite}`;
+          }
+          case "quote": {
+            const inner = (b.blocks || []).map((bb) => renderBlockReader(bb, doc, edgeNumbering)).join("");
+            return `<blockquote>${inner}${cite}</blockquote>`;
+          }
+          case "embed":
+            return `<div class="embed"><div class="label">embed</div><div>${escapeHtml(b.target || "")}</div></div>${cite}`;
+          case "divider":
+            return `<hr/>`;
+          default: {
+            // Unknown / vocabulary-defined block kind — render as a labeled box.
+            if (Array.isArray(b.spans)) return `<p><em>[${escapeHtml(b.kind || "?")}]</em> ${renderSpansReader(b.spans, doc)}${cite}</p>`;
+            if (Array.isArray(b.blocks)) {
+              const inner = b.blocks.map((bb) => renderBlockReader(bb, doc, edgeNumbering)).join("");
+              return `<div class="embed"><div class="label">${escapeHtml(b.kind || "?")}</div>${inner}${cite}</div>`;
+            }
+            return `<div class="embed"><div class="label">${escapeHtml(b.kind || "?")}</div></div>${cite}`;
+          }
+        }
+      }
+      function renderSpansReader(spans, doc) {
+        if (!Array.isArray(spans)) return "";
+        return spans.map((s) => renderSpanReader(s, doc)).join("");
+      }
+      function renderSpanReader(s, doc) {
+        if (!s || typeof s !== "object") return "";
+        const text = typeof s.text === "string" ? escapeHtml(s.text) : "";
+        let html = text;
+        if (Array.isArray(s.marks)) {
+          // Apply marks in canonical order: link wraps, then code, then italic, then bold (outermost).
+          let linkMark = null;
+          let predBadge = "";
+          let hasBold = false, hasItalic = false, hasCode = false;
+          for (const m of s.marks) {
+            if (typeof m === "string") {
+              if (m === "bold") hasBold = true;
+              else if (m === "italic") hasItalic = true;
+              else if (m === "code") hasCode = true;
+            } else if (m && m.kind === "link") {
+              linkMark = m;
+            }
+          }
+          if (hasCode) html = `<code>${html}</code>`;
+          if (hasItalic) html = `<em>${html}</em>`;
+          if (hasBold) html = `<strong>${html}</strong>`;
+          if (linkMark) {
+            const target = escapeHtml(linkMark.target || "");
+            const isExternal = /^https?:/.test(linkMark.target || "");
+            const href = isExternal ? target : "#";
+            const cls = linkMark.predicate ? "typed-link" : "";
+            const title = linkMark.predicate ? `${linkMark.predicate} → ${linkMark.target}` : (linkMark.target || "");
+            if (linkMark.predicate) predBadge = `<span class="pred-badge">${escapeHtml(linkMark.predicate)}</span>`;
+            html = `<a href="${href}" class="${cls}" title="${escapeHtml(title)}"${isExternal ? ' target="_blank" rel="noopener"' : ' onclick="return false"'}>${html}</a>${predBadge}`;
+          }
+        }
+        return html;
+      }
+
+      // ─────────────────────────────────────────────────────────────
+      // State + persistence.
+      // ─────────────────────────────────────────────────────────────
+      let state = loadState();
+      let buffer = ""; // working source text for the active script
+      let dirty = false;
+
+      function loadState() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return defaultState();
+          const parsed = JSON.parse(raw);
+          if (parsed && parsed.v === 1 && Array.isArray(parsed.workspaces)) {
+            // Reconcile built-in workspaces (so updates to PROTOCOL_DOCS show up).
+            const fresh = defaultState();
+            for (const fws of fresh.workspaces) {
+              if (!fws.builtin) continue;
+              const existing = parsed.workspaces.find((w) => w.id === fws.id);
+              if (existing && typeof existing.collapsed === "boolean") fws.collapsed = existing.collapsed;
+            }
+            const userWs = parsed.workspaces.filter((w) => !w.builtin);
+            const merged = [...fresh.workspaces.filter((w) => w.builtin), ...userWs];
+            return {
+              v: 1,
+              activeWorkspaceId: parsed.activeWorkspaceId || fresh.activeWorkspaceId,
+              activeScriptId: parsed.activeScriptId || fresh.activeScriptId,
+              workspaces: merged,
+            };
+          }
+        } catch {}
+        return defaultState();
+      }
+      function saveState() {
+        try {
+          // Don't persist built-in script source — it's fixed by code.
+          const slim = {
+            v: 1,
+            activeWorkspaceId: state.activeWorkspaceId,
+            activeScriptId: state.activeScriptId,
+            workspaces: state.workspaces.map((ws) => {
+              if (ws.builtin) {
+                return { id: ws.id, name: ws.name, builtin: true, collapsed: ws.collapsed, scripts: [] };
+              }
+              return ws;
+            }),
+          };
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(slim));
+        } catch {}
+      }
+
+      function findWorkspace(id) { return state.workspaces.find((w) => w.id === id); }
+      function findScript(wsId, sid) {
+        const ws = findWorkspace(wsId); if (!ws) return null;
+        return ws.scripts.find((s) => s.id === sid) || null;
+      }
+      function activeWs() { return findWorkspace(state.activeWorkspaceId); }
+      function activeScript() {
+        const ws = activeWs(); if (!ws) return null;
+        return ws.scripts.find((s) => s.id === state.activeScriptId) || null;
+      }
+
+      // ─────────────────────────────────────────────────────────────
+      // Sidebar rendering.
+      // ─────────────────────────────────────────────────────────────
+      function renderSidebar() {
+        const ul = $("ws-list");
+        ul.innerHTML = "";
+        for (const ws of state.workspaces) {
+          const li = document.createElement("li");
+          li.className = "ws-item" + (ws.collapsed ? " collapsed" : "");
+          const row = document.createElement("div");
+          row.className = "ws-row" + (ws.collapsed ? " collapsed" : "");
+          row.innerHTML = `
+            <span class="chev">▾</span>
+            <span class="ws-name">${escapeHtml(ws.name)}</span>
+            ${ws.builtin ? '<span class="ws-tag">built-in</span>' : ''}
+            <button class="ws-add" title="New script in this workspace">+</button>
+          `;
+          row.querySelector(".chev").addEventListener("click", (e) => { e.stopPropagation(); toggleWs(ws.id); });
+          row.querySelector(".ws-name").addEventListener("click", () => toggleWs(ws.id));
+          row.querySelector(".ws-name").addEventListener("dblclick", () => { if (!ws.builtin) renameWorkspace(ws.id); });
+          row.querySelector(".ws-add").addEventListener("click", (e) => { e.stopPropagation(); newScript(ws.id); });
+          li.appendChild(row);
+
+          const scripts = document.createElement("ul");
+          scripts.className = "scripts";
+          if (ws.scripts.length === 0) {
+            const empty = document.createElement("li");
+            empty.className = "empty";
+            empty.textContent = ws.builtin ? "(empty)" : "no scripts yet — click + to add";
+            scripts.appendChild(empty);
+          } else {
+            for (const s of ws.scripts) {
+              const sli = document.createElement("li");
+              if (ws.id === state.activeWorkspaceId && s.id === state.activeScriptId) sli.className = "active";
+              sli.innerHTML = `
+                <span class="name">${escapeHtml(s.name)}</span>
+                <span class="vis ${s.visibility === "public" ? "public" : ""}">${s.visibility}</span>
+                <button class="menu" title="Actions">⋯</button>
+              `;
+              sli.addEventListener("click", (e) => {
+                if (e.target.classList.contains("menu")) return;
+                openScript(ws.id, s.id);
+              });
+              sli.querySelector(".menu").addEventListener("click", (e) => {
+                e.stopPropagation();
+                showScriptMenu(ws.id, s.id, e.target);
+              });
+              scripts.appendChild(sli);
+            }
+          }
+          li.appendChild(scripts);
+          ul.appendChild(li);
+        }
+      }
+
+      function toggleWs(id) {
+        const ws = findWorkspace(id); if (!ws) return;
+        ws.collapsed = !ws.collapsed;
+        renderSidebar(); saveState();
+      }
+
+      // ─────────────────────────────────────────────────────────────
+      // Modals.
+      // ─────────────────────────────────────────────────────────────
+      function showModal(html, onMount) {
+        const wrap = $("modal-wrap"), m = $("modal");
+        m.innerHTML = html;
+        wrap.classList.add("show");
+        if (onMount) onMount(m);
+        const closeOnEsc = (e) => { if (e.key === "Escape") closeModal(); };
+        wrap.addEventListener("click", (e) => { if (e.target === wrap) closeModal(); });
+        document.addEventListener("keydown", closeOnEsc, { once: false });
+        m.dataset.escListener = "1";
+      }
+      function closeModal() { $("modal-wrap").classList.remove("show"); $("modal").innerHTML = ""; }
+
+      function promptText({ title, body, label, value, ok, onOk }) {
+        showModal(`
+          <h3>${escapeHtml(title)}</h3>
+          ${body ? `<p>${body}</p>` : ""}
+          <p style="margin-top:6px"><span style="color:var(--td);font-size:11px;letter-spacing:.05em;text-transform:uppercase">${escapeHtml(label || "name")}</span></p>
+          <input type="text" id="m-input" value="${escapeHtml(value || "")}" />
+          <div class="row">
+            <button id="m-cancel">cancel</button>
+            <button id="m-ok" class="primary">${escapeHtml(ok || "ok")}</button>
+          </div>
+        `, (m) => {
+          const inp = m.querySelector("#m-input");
+          inp.focus(); inp.select();
+          const submit = () => { const v = inp.value.trim(); if (v) { closeModal(); onOk(v); } };
+          m.querySelector("#m-ok").addEventListener("click", submit);
+          m.querySelector("#m-cancel").addEventListener("click", closeModal);
+          inp.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
+        });
+      }
+      function confirmDialog({ title, body, danger, onOk }) {
+        showModal(`
+          <h3>${escapeHtml(title)}</h3>
+          <p>${body}</p>
+          <div class="row">
+            <button id="m-cancel">cancel</button>
+            <button id="m-ok" class="primary" style="${danger ? "background:var(--err);border-color:var(--err);color:var(--bg)" : ""}">${escapeHtml(danger ? "delete" : "ok")}</button>
+          </div>
+        `, (m) => {
+          m.querySelector("#m-ok").addEventListener("click", () => { closeModal(); onOk(); });
+          m.querySelector("#m-cancel").addEventListener("click", closeModal);
+        });
+      }
+
+      // ─────────────────────────────────────────────────────────────
+      // Workspace + script CRUD.
+      // ─────────────────────────────────────────────────────────────
+      function newWorkspace() {
+        promptText({
+          title: "New workspace",
+          label: "workspace name",
+          value: "Workspace " + (state.workspaces.filter((w) => !w.builtin).length + 1),
+          ok: "create",
+          onOk: (name) => {
+            const ws = { id: "ws-" + Date.now().toString(36), name, builtin: false, collapsed: false, scripts: [] };
+            state.workspaces.push(ws);
+            saveState(); renderSidebar();
+          },
+        });
+      }
+      function renameWorkspace(id) {
+        const ws = findWorkspace(id); if (!ws || ws.builtin) return;
+        promptText({
+          title: "Rename workspace", label: "name", value: ws.name, ok: "rename",
+          onOk: (name) => { ws.name = name; saveState(); renderSidebar(); },
+        });
+      }
+      function newScript(wsId, opts = {}) {
+        const ws = findWorkspace(wsId); if (!ws) return;
+        if (ws.builtin) {
+          // Built-ins can't accept new scripts; route to user workspace instead.
+          const userWs = state.workspaces.find((w) => !w.builtin) || ensureUserWorkspace();
+          newScript(userWs.id, opts);
+          return;
+        }
+        promptText({
+          title: "New script",
+          label: "script name",
+          value: opts.name || "Untitled " + (ws.scripts.length + 1),
+          ok: "create",
+          onOk: (name) => {
+            const s = {
+              id: "s-" + Date.now().toString(36),
+              name,
+              visibility: "private",
+              source: opts.source || STARTER_DOC.replace(/"title": "Untitled"/, `"title": ${JSON.stringify(name)}`),
+              builtin: false,
+              updatedAt: Date.now(),
+            };
+            ws.scripts.push(s);
+            ws.collapsed = false;
+            saveState();
+            openScript(ws.id, s.id);
+          },
+        });
+      }
+      function ensureUserWorkspace() {
+        let ws = state.workspaces.find((w) => !w.builtin);
+        if (!ws) {
+          ws = { id: "ws-mine", name: "My Workspace", builtin: false, collapsed: false, scripts: [] };
+          state.workspaces.push(ws);
+        }
+        return ws;
+      }
+      function deleteScript(wsId, sid) {
+        const ws = findWorkspace(wsId); if (!ws || ws.builtin) return;
+        const s = ws.scripts.find((x) => x.id === sid); if (!s) return;
+        confirmDialog({
+          title: "Delete script",
+          body: `Delete <strong>${escapeHtml(s.name)}</strong>? This cannot be undone.`,
+          danger: true,
+          onOk: () => {
+            ws.scripts = ws.scripts.filter((x) => x.id !== sid);
+            if (state.activeWorkspaceId === wsId && state.activeScriptId === sid) {
+              // Pick another script
+              const next = ws.scripts[0] || state.workspaces.flatMap((w) => w.scripts.map((x) => ({ wsId: w.id, sid: x.id })))[0];
+              if (next) {
+                if (next.wsId) openScript(next.wsId, next.sid);
+                else openScript(wsId, next.id);
+              } else { buffer = ""; renderAll(); }
+            }
+            saveState(); renderSidebar();
+          },
+        });
+      }
+      function renameScript(wsId, sid) {
+        const s = findScript(wsId, sid); const ws = findWorkspace(wsId);
+        if (!s || ws.builtin) return;
+        promptText({
+          title: "Rename script", label: "name", value: s.name, ok: "rename",
+          onOk: (name) => {
+            s.name = name; s.updatedAt = Date.now();
+            // Also update the title field in source if present
+            try {
+              const obj = JSON.parse(s.source);
+              if (typeof obj.title === "string") { obj.title = name; s.source = JSON.stringify(obj, null, 2); }
+            } catch {}
+            saveState(); renderSidebar();
+            if (state.activeScriptId === sid && state.activeWorkspaceId === wsId) {
+              buffer = s.source;
+              renderAll();
+            }
+          },
+        });
+      }
+      function forkScript(wsId, sid) {
+        const src = findScript(wsId, sid); if (!src) return;
+        const userWs = ensureUserWorkspace();
+        const copy = {
+          id: "s-" + Date.now().toString(36),
+          name: src.name + " (fork)",
+          visibility: "private",
+          source: src.source,
+          builtin: false,
+          updatedAt: Date.now(),
+        };
+        userWs.scripts.push(copy);
+        userWs.collapsed = false;
+        saveState();
+        openScript(userWs.id, copy.id);
+      }
+      function showScriptMenu(wsId, sid, anchor) {
+        const ws = findWorkspace(wsId);
+        const s = findScript(wsId, sid); if (!s) return;
+        const builtin = ws.builtin;
+        const items = [];
+        items.push({ label: "open", fn: () => openScript(wsId, sid) });
+        items.push({ label: "fork to my workspace", fn: () => forkScript(wsId, sid) });
+        if (!builtin) {
+          items.push({ label: "rename", fn: () => renameScript(wsId, sid) });
+          items.push({ label: s.visibility === "public" ? "make private" : "make public", fn: () => toggleVis(wsId, sid) });
+          items.push({ label: "delete", fn: () => deleteScript(wsId, sid), danger: true });
+        }
+        // Render a tiny inline modal
+        const html = items.map((it, i) =>
+          `<button id="m-${i}" style="display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--br);padding:10px 12px;background:transparent;color:${it.danger ? 'var(--err)' : 'var(--tx)'};cursor:pointer;font:inherit;font-size:12px">${escapeHtml(it.label)}</button>`
+        ).join("");
+        showModal(`
+          <h3>${escapeHtml(s.name)}</h3>
+          <div style="margin: 4px -20px -18px;border-top:1px solid var(--br)">${html}</div>
+        `, (m) => {
+          items.forEach((it, i) => {
+            m.querySelector(`#m-${i}`).addEventListener("click", () => { closeModal(); it.fn(); });
+          });
+        });
+      }
+      function toggleVis(wsId, sid) {
+        const ws = findWorkspace(wsId);
+        const s = findScript(wsId, sid); if (!s || ws.builtin) return;
+        s.visibility = s.visibility === "public" ? "private" : "public";
+        s.updatedAt = Date.now();
+        saveState(); renderSidebar(); renderToolbarFromActive();
+      }
+
+      // ─────────────────────────────────────────────────────────────
+      // Open / refresh script.
+      // ─────────────────────────────────────────────────────────────
+      function openScript(wsId, sid) {
+        if (dirty) flushBufferToActive();
+        state.activeWorkspaceId = wsId;
+        state.activeScriptId = sid;
+        const s = activeScript();
+        buffer = s ? s.source : "";
+        dirty = false;
+        saveState();
+        renderSidebar();
+        renderToolbarFromActive();
+        renderAll();
+        renderChat();
+      }
+      function flushBufferToActive() {
+        const s = activeScript(); if (!s || s.builtin) { dirty = false; return; }
+        s.source = buffer; s.updatedAt = Date.now(); dirty = false;
+        saveState();
+      }
+      function renderToolbarFromActive() {
+        const s = activeScript(); const ws = activeWs();
+        const titleEl = $("doc-title");
+        const visBtn = $("vis-btn");
+        const stWs = $("st-ws");
+        if (!s) {
+          titleEl.textContent = "—"; titleEl.contentEditable = "false";
+          titleEl.classList.add("builtin");
+          visBtn.textContent = "—"; visBtn.className = "vis-toggle disabled";
+          stWs.textContent = "—"; return;
+        }
+        titleEl.textContent = s.name;
+        titleEl.classList.toggle("builtin", !!s.builtin);
+        titleEl.contentEditable = s.builtin ? "false" : "true";
+        visBtn.textContent = s.visibility;
+        visBtn.className = "vis-toggle " + (s.visibility === "public" ? "public" : "") + (s.builtin ? " disabled" : "");
+        stWs.textContent = ws ? ws.name : "—";
+      }
+
+      // ─────────────────────────────────────────────────────────────
+      // Refresh: parse buffer, validate, render reader/editor/inspector.
+      // ─────────────────────────────────────────────────────────────
+      let lastDoc = null;
+      function setPill(el, text, cls) { el.textContent = text; el.className = "pill" + (cls ? " " + cls : ""); }
+
+      async function renderAll() {
+        const text = buffer || "";
+        $("editor").value = text;
+        const s = activeScript();
+        $("editor").readOnly = !!(s && s.builtin);
+        setPill($("pill-bytes"), `${text.length} bytes`);
+
+        let parsed = null, parseErr = null;
+        if (!text.trim()) {
+          setPill($("pill-json"), "—", "");
+          setPill($("pill-valid"), "—", "");
+          renderReader(null);
+          $("err-list").innerHTML = `<li class="ok-state">no document — pick a script.</li>`;
+          $("id-computed").textContent = "—"; $("id-stated").textContent = "—";
+          $("id-match").textContent = ""; $("id-match").className = "match";
+          $("edge-list").innerHTML = `<li class="empty">no edges.</li>`;
+          $("tree").innerHTML = `<em class="empty">no document parsed.</em>`;
+          $("canonical").textContent = "—";
+          $("st-vocab").textContent = "—"; $("st-blocks").textContent = "—";
+          $("st-edges").textContent = "—"; $("st-marks").textContent = "—";
+          lastDoc = null;
+          return;
+        }
+        try { parsed = JSON.parse(text); setPill($("pill-json"), "json ok", "ok"); }
+        catch (e) { parseErr = e; setPill($("pill-json"), "json error", "err"); }
+
+        if (parseErr) {
+          setPill($("pill-valid"), "—", "");
+          renderErrors([], parseErr);
+          renderReader(null);
+          $("id-computed").textContent = "—"; $("id-stated").textContent = "—";
+          $("id-match").textContent = ""; $("id-match").className = "match";
+          $("edge-list").innerHTML = `<li class="empty">JSON did not parse.</li>`;
+          $("tree").innerHTML = `<em class="empty">JSON did not parse.</em>`;
+          $("canonical").textContent = "—";
+          $("st-vocab").textContent = "—"; $("st-blocks").textContent = "—";
+          $("st-edges").textContent = "—"; $("st-marks").textContent = "—";
+          lastDoc = null;
+          return;
+        }
+
+        const errs = validate(parsed);
+        if (errs.length === 0) setPill($("pill-valid"), "structural ok", "ok");
+        else setPill($("pill-valid"), `${errs.length} error${errs.length === 1 ? "" : "s"}`, "err");
+        renderErrors(errs, null);
+
+        renderReader(parsed);
+
+        let edges = [], linkMarkCount = 0;
+        try { edges = expandLinkMarks(parsed); linkMarkCount = countLinkMarks(parsed); } catch {}
+        renderEdges(edges); renderTree(parsed);
+
+        $("st-vocab").textContent = typeof parsed.vocabulary === "string" ? parsed.vocabulary : "—";
+        $("st-blocks").textContent = Array.isArray(parsed.blocks) ? String(parsed.blocks.length) : "—";
+        $("st-edges").textContent = String(edges.length);
+        $("st-marks").textContent = String(linkMarkCount);
+
+        lastDoc = parsed;
+        try {
+          const cleanEdges = edges.map(({ _src, ...e }) => e);
+          const docForHash = { ...parsed, edges: cleanEdges };
+          const cid = await computeId(docForHash);
+          $("id-computed").textContent = cid;
+          $("canonical").textContent = jcs({ blocks: parsed.blocks, edges: cleanEdges });
+          const stated = typeof parsed.id === "string" ? parsed.id : "—";
+          $("id-stated").textContent = stated;
+          if (stated === cid) { $("id-match").textContent = "✓ stated id matches computed id"; $("id-match").className = "match ok"; }
+          else if (stated === "PLACEHOLDER" || stated === "—") { $("id-match").textContent = "stated id is a placeholder — click \"stamp computed id\" to fill it in"; $("id-match").className = "match"; }
+          else { $("id-match").textContent = "✗ stated id does NOT match computed id"; $("id-match").className = "match err"; }
+        } catch (e) {
+          $("id-computed").textContent = "(error: " + e.message + ")";
+          $("canonical").textContent = "(error: " + e.message + ")";
+        }
+      }
+
+      function renderErrors(errs, parseError) {
+        const errList = $("err-list");
+        errList.innerHTML = "";
+        if (parseError) {
+          const li = document.createElement("li");
+          li.innerHTML = `<strong>JSON parse error</strong> &mdash; ${escapeHtml(parseError.message || String(parseError))}`;
+          errList.appendChild(li); return;
+        }
+        if (!errs.length) {
+          const li = document.createElement("li"); li.className = "ok-state";
+          li.textContent = "structural validation passed (§2/§3)."; errList.appendChild(li); return;
+        }
+        for (const e of errs) {
+          const li = document.createElement("li");
+          li.innerHTML = `${escapeHtml(e.msg)}<span class="path">${escapeHtml(e.path)}</span>`;
+          errList.appendChild(li);
+        }
+      }
+      function renderEdges(edges) {
+        const edgeList = $("edge-list");
+        edgeList.innerHTML = "";
+        if (!edges.length) {
+          const li = document.createElement("li"); li.className = "empty";
+          li.textContent = "no edges. (links without predicates do not emit edges per §2.5.1.)";
+          edgeList.appendChild(li); return;
+        }
+        for (const e of edges) {
+          const li = document.createElement("li");
+          if (e._src === "mark") li.className = "from-mark";
+          li.innerHTML = `
+            <div><span class="uri">${escapeHtml(e.subject)}</span></div>
+            <div style="margin: 4px 0">
+              <span class="pred">${escapeHtml(e.predicate)}</span>
+              <span class="src-tag${e._src === "mark" ? " from-mark" : ""}">${e._src === "mark" ? "from link mark" : "in edges[]"}</span>
+            </div>
+            <div><span class="uri">${escapeHtml(e.object)}</span></div>
+          `;
+          edgeList.appendChild(li);
+        }
+      }
+      function renderTree(doc) {
+        const treeEl = $("tree");
+        if (!doc || typeof doc !== "object" || !Array.isArray(doc.blocks)) {
+          treeEl.innerHTML = '<em class="empty">no blocks.</em>'; return;
+        }
+        const root = document.createElement("ul");
+        for (const b of doc.blocks) root.appendChild(renderTreeBlock(b));
+        treeEl.replaceChildren(root);
+      }
+      function renderTreeBlock(b) {
+        const li = document.createElement("li");
+        const head = document.createElement("span");
+        head.innerHTML = `<span class="kind">${escapeHtml(b.kind || "?")}</span><span class="id">${escapeHtml(b.id || "")}</span>`;
+        li.appendChild(head);
+        if (b.kind === "code" && typeof b.text === "string") {
+          const sub = document.createElement("ul");
+          const sli = document.createElement("li");
+          sli.innerHTML = `<span class="text">${escapeHtml(b.text.slice(0, 80))}${b.text.length > 80 ? "…" : ""}</span>`;
+          sub.appendChild(sli); li.appendChild(sub);
+        }
+        if (Array.isArray(b.spans) && b.spans.length) {
+          const sub = document.createElement("ul");
+          for (const s of b.spans) sub.appendChild(renderTreeSpan(s));
+          li.appendChild(sub);
+        }
+        if (Array.isArray(b.blocks) && b.blocks.length) {
+          const sub = document.createElement("ul");
+          for (const bb of b.blocks) sub.appendChild(renderTreeBlock(bb));
+          li.appendChild(sub);
+        }
+        if (Array.isArray(b.items) && b.items.length) {
+          const sub = document.createElement("ul");
+          for (const bb of b.items) sub.appendChild(renderTreeBlock(bb));
+          li.appendChild(sub);
+        }
+        return li;
+      }
+      function renderTreeSpan(s) {
+        const li = document.createElement("li");
+        const text = typeof s.text === "string" ? (s.text.length > 60 ? s.text.slice(0, 60) + "…" : s.text) : "(null)";
+        let html = `<span class="kind">span</span><span class="id">${escapeHtml(s.id || "")}</span> <span class="text">"${escapeHtml(text)}"</span>`;
+        if (Array.isArray(s.marks)) {
+          for (const m of s.marks) {
+            if (typeof m === "string") html += ` <span class="mark">${escapeHtml(m)}</span>`;
+            else if (m && m.kind === "link") {
+              const pred = m.predicate ? `:${m.predicate}` : "";
+              html += ` <span class="mark link">link${escapeHtml(pred)}</span>`;
+            }
+          }
+        }
+        li.innerHTML = html; return li;
+      }
+
+      // ─────────────────────────────────────────────────────────────
+      // Mode switching (reader / source / inspect).
+      // ─────────────────────────────────────────────────────────────
+      function switchMode(mode) {
+        document.querySelectorAll(".modes button[data-mode]").forEach((b) => b.classList.toggle("active", b.dataset.mode === mode));
+        document.querySelectorAll(".mode-pane").forEach((p) => p.classList.toggle("active", p.dataset.mode === mode));
+      }
+      document.querySelectorAll(".modes button[data-mode]").forEach((b) => {
+        b.addEventListener("click", () => switchMode(b.dataset.mode));
+      });
+
+      // Inspector tabs
+      document.querySelectorAll(".tabs button[data-tab]").forEach((b) => {
+        b.addEventListener("click", () => {
+          const tab = b.dataset.tab;
+          document.querySelectorAll(".tabs button").forEach((x) => x.classList.toggle("active", x === b));
+          document.querySelectorAll(".tab-pane").forEach((p) => p.classList.toggle("active", p.dataset.tab === tab));
+        });
+      });
+
+      // ─────────────────────────────────────────────────────────────
+      // Editor wiring (debounced).
+      // ─────────────────────────────────────────────────────────────
+      let timer;
+      $("editor").addEventListener("input", () => {
+        const s = activeScript(); if (!s || s.builtin) { $("editor").value = buffer; return; }
+        buffer = $("editor").value;
+        dirty = true;
+        clearTimeout(timer);
+        timer = setTimeout(() => { flushBufferToActive(); renderAll(); }, 220);
+      });
+
+      // Title editing
+      $("doc-title").addEventListener("blur", () => {
+        const s = activeScript(); if (!s || s.builtin) { renderToolbarFromActive(); return; }
+        const newName = $("doc-title").textContent.trim();
+        if (newName && newName !== s.name) {
+          s.name = newName; s.updatedAt = Date.now();
+          // Update title in source too
+          try {
+            const obj = JSON.parse(buffer);
+            if (typeof obj.title === "string") { obj.title = newName; buffer = JSON.stringify(obj, null, 2); flushBufferToActive(); renderAll(); }
+          } catch {}
+          saveState(); renderSidebar();
+        } else renderToolbarFromActive();
+      });
+      $("doc-title").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("doc-title").blur(); } });
+
+      $("vis-btn").addEventListener("click", () => {
+        const s = activeScript(); if (!s || s.builtin) return;
+        toggleVis(state.activeWorkspaceId, state.activeScriptId);
+      });
+
+      $("btn-format").addEventListener("click", () => {
+        const s = activeScript(); if (!s || s.builtin) return;
+        try {
+          const obj = JSON.parse(buffer);
+          buffer = JSON.stringify(obj, null, 2);
+          flushBufferToActive(); renderAll();
+        } catch {}
+      });
+      $("btn-revert").addEventListener("click", () => {
+        const s = activeScript(); if (!s) return;
+        buffer = s.source; dirty = false; renderAll();
+      });
+      async function stampId() {
+        const s = activeScript(); if (!s || s.builtin) return;
+        try {
+          const obj = JSON.parse(buffer);
+          const edges = expandLinkMarks(obj).map(({ _src, ...e }) => e);
+          const id = await computeId({ ...obj, edges });
+          obj.id = id;
+          buffer = JSON.stringify(obj, null, 2);
+          flushBufferToActive(); renderAll();
+        } catch (e) { alert("could not stamp id: " + e.message); }
+      }
+      $("btn-stamp").addEventListener("click", stampId);
+      $("stamp-2").addEventListener("click", stampId);
+      $("btn-copy-canonical").addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText($("canonical").textContent);
+          const orig = $("btn-copy-canonical").textContent;
+          $("btn-copy-canonical").textContent = "copied ✓";
+          setTimeout(() => ($("btn-copy-canonical").textContent = orig), 1400);
+        } catch {}
+      });
+
+      // Sidebar: new workspace
+      $("sb-new-ws").addEventListener("click", newWorkspace);
+
+      // Fork button
+      $("btn-fork").addEventListener("click", () => {
+        const s = activeScript(); if (!s) return;
+        forkScript(state.activeWorkspaceId, state.activeScriptId);
+      });
+
+      // ─────────────────────────────────────────────────────────────
+      // Share via URL hash (#bend=<base64>).
+      // ─────────────────────────────────────────────────────────────
+      function b64encUtf8(s) {
+        const bytes = new TextEncoder().encode(s);
+        let bin = "";
+        for (const b of bytes) bin += String.fromCharCode(b);
+        return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+      }
+      function b64decUtf8(s) {
+        s = s.replace(/-/g, "+").replace(/_/g, "/");
+        while (s.length % 4) s += "=";
+        const bin = atob(s);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        return new TextDecoder().decode(bytes);
+      }
+      $("btn-share").addEventListener("click", () => {
+        const s = activeScript(); if (!s) return;
+        const payload = b64encUtf8(buffer);
+        const url = `${location.origin}${location.pathname}#bend=${payload}&name=${encodeURIComponent(s.name)}`;
+        showModal(`
+          <h3>Share</h3>
+          <p>Anyone with this URL can open this script in their playground (it loads client-side; no server involved).</p>
+          <textarea id="share-url" readonly>${escapeHtml(url)}</textarea>
+          <p style="margin-top:8px;font-size:11px;color:var(--td)">${s.visibility === "public" ? "Marked public — fine to distribute." : "Marked private locally; the URL still embeds the full document, so don't share it if it contains secrets."}</p>
+          <div class="row">
+            <button id="m-cancel">close</button>
+            <button id="m-copy" class="primary">copy URL</button>
+          </div>
+        `, (m) => {
+          const ta = m.querySelector("#share-url");
+          ta.focus(); ta.select();
+          m.querySelector("#m-cancel").addEventListener("click", closeModal);
+          m.querySelector("#m-copy").addEventListener("click", async () => {
+            try { await navigator.clipboard.writeText(url); m.querySelector("#m-copy").textContent = "copied ✓"; } catch {}
+          });
+        });
+      });
+
+      function tryImportFromHash() {
+        const h = location.hash || "";
+        const m = h.match(/[#&]bend=([^&]+)/);
+        if (!m) return false;
+        const nameMatch = h.match(/[#&]name=([^&]+)/);
+        let source;
+        try { source = b64decUtf8(m[1]); } catch { return false; }
+        const name = nameMatch ? decodeURIComponent(nameMatch[1]) : "Shared script";
+        // Clear hash
+        history.replaceState(null, "", location.pathname);
+        confirmDialog({
+          title: "Import shared script",
+          body: `Import <strong>${escapeHtml(name)}</strong> into your workspace?`,
+          onOk: () => {
+            const userWs = ensureUserWorkspace();
+            const s = {
+              id: "s-" + Date.now().toString(36),
+              name, visibility: "private",
+              source, builtin: false, updatedAt: Date.now(),
+            };
+            userWs.scripts.push(s); userWs.collapsed = false;
+            saveState();
+            openScript(userWs.id, s.id);
+          },
+        });
+        return true;
+      }
+
+      // ─────────────────────────────────────────────────────────────
+      // OpenRouter client (mirrors runefort.com pattern).
+      // ─────────────────────────────────────────────────────────────
+      const OR_KEYS = {
+        apiKey: "bendscript.openrouter.apiKey",
+        model: "bendscript.openrouter.model",
+        costSpent: "bendscript.openrouter.costSpent",
+        budgetUsd: "bendscript.openrouter.budgetUsd",
+        chatOpen: "bendscript.playground.chatOpen",
+      };
+      const orSettings = {
+        get apiKey() { return localStorage.getItem(OR_KEYS.apiKey) || ""; },
+        set apiKey(v) { v ? localStorage.setItem(OR_KEYS.apiKey, v) : localStorage.removeItem(OR_KEYS.apiKey); },
+        get model() { return localStorage.getItem(OR_KEYS.model) || "anthropic/claude-sonnet-4"; },
+        set model(v) { localStorage.setItem(OR_KEYS.model, v); },
+        get costSpent() { return parseFloat(localStorage.getItem(OR_KEYS.costSpent) || "0") || 0; },
+        set costSpent(v) { localStorage.setItem(OR_KEYS.costSpent, String(v)); },
+        addCost(usd) { this.costSpent = this.costSpent + usd; },
+        get budgetUsd() { return parseFloat(localStorage.getItem(OR_KEYS.budgetUsd) || "5") || 0; },
+        set budgetUsd(v) { localStorage.setItem(OR_KEYS.budgetUsd, String(v)); },
+        resetCost() { localStorage.setItem(OR_KEYS.costSpent, "0"); },
+      };
+      const RECOMMENDED_MODELS = [
+        { id: "anthropic/claude-sonnet-4", label: "Claude Sonnet 4 (recommended)", input: 3.0, output: 15.0 },
+        { id: "anthropic/claude-haiku-4-5", label: "Claude Haiku 4.5", input: 1.0, output: 5.0 },
+        { id: "anthropic/claude-opus-4", label: "Claude Opus 4", input: 15.0, output: 75.0 },
+        { id: "openai/gpt-4o", label: "GPT-4o", input: 2.5, output: 10.0 },
+        { id: "openai/gpt-4o-mini", label: "GPT-4o-mini", input: 0.15, output: 0.6 },
+        { id: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash", input: 0.075, output: 0.3 },
+      ];
+      const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+
+      async function callChat({ messages, signal }) {
+        const apiKey = orSettings.apiKey;
+        if (!apiKey) throw new Error("OpenRouter API key not set. Open ⚙ Settings.");
+        const m = orSettings.model;
+        if (orSettings.budgetUsd > 0 && orSettings.costSpent >= orSettings.budgetUsd) {
+          throw new Error(`Budget cap reached ($${orSettings.budgetUsd.toFixed(2)}). Reset in ⚙ Settings.`);
+        }
+        const res = await fetch(OPENROUTER_URL, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": window.location.origin,
+            "X-Title": "BendScript Playground",
+          },
+          body: JSON.stringify({ model: m, messages, max_tokens: 4000, temperature: 0.4, stream: false }),
+          signal,
+        });
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(`OpenRouter ${res.status}: ${text.slice(0, 300)}`);
+        }
+        const data = await res.json();
+        const content = data.choices?.[0]?.message?.content || "";
+        const usage = data.usage || {};
+        const info = RECOMMENDED_MODELS.find(rm => rm.id === m);
+        const costUsd = ((usage.prompt_tokens || 0) / 1e6) * (info?.input || 0) +
+                        ((usage.completion_tokens || 0) / 1e6) * (info?.output || 0);
+        orSettings.addCost(costUsd);
+        return { content, usage, model: m, costUsd };
+      }
+
+      function refreshChatPills() {
+        const m = orSettings.model.split("/").pop();
+        $("chat-model").textContent = orSettings.apiKey ? m : "no api key";
+        $("chat-model").style.color = orSettings.apiKey ? "var(--ac)" : "var(--td)";
+        $("chat-model").style.borderColor = orSettings.apiKey ? "var(--ac)" : "var(--br)";
+        $("chat-cost").textContent = "$" + orSettings.costSpent.toFixed(4);
+      }
+
+      // ─────────────────────────────────────────────────────────────
+      // BendScript-aware system prompt.
+      // ─────────────────────────────────────────────────────────────
+      const BENDSCRIPT_SYSTEM_PROMPT = `You are a BendScript editor. The user is authoring a BendScript v0.1 document — a graph-first JSON document format with typed inline link facets.
+
+# BendScript v0.1 in 60 seconds
+
+A document looks like:
+{
+  "bendscript": "0.1",
+  "id": "PLACEHOLDER",         // CIDv1 — leave as PLACEHOLDER, the playground stamps it
+  "vocabulary": "core",         // one of: core | bendscript.memory.v1 | bendscript.argument.v1 | bendscript.spec.v1 | bendscript.runefort.v1
+  "title": "Optional",
+  "meta": { ... },              // optional, excluded from id hash
+  "blocks": [ ... ],
+  "edges": [ ... ]
+}
+
+Block kinds (core):
+- paragraph: { id, kind:"paragraph", spans:[...] }
+- heading:   { id, kind:"heading", level:1..6, spans:[...] }
+- list:      { id, kind:"list", ordered:bool, items:[ list-item, ... ] }
+- list-item: { id, kind:"list-item", blocks:[ ...nested blocks... ] }
+- code:      { id, kind:"code", language:"lang", text:"..." }
+- quote:     { id, kind:"quote", blocks:[ ... ] }
+- embed:     { id, kind:"embed", target:"uri" }
+- divider:   { id, kind:"divider" }
+
+Span: { id, text:"string", marks?: [...] }
+Marks: string marks "bold"|"italic"|"code", OR an object link mark: { kind:"link", target:"bend:..." | "https://...", predicate?:"core-or-namespaced-predicate" }
+
+Edge: { subject, predicate, object, meta? } — predicates either core (cites, supports, contradicts, derives-from, supersedes, transcludes, responds-to, defines, exemplifies) or namespaced (e.g. bendscript.memory.v1:consolidated-from).
+
+Link-mark expansion: any link mark with a predicate auto-expands at parse time into an edge with subject "bend:<doc.id>#<block.id>.<span.id>". Don't write redundant edges for inline link marks.
+
+# Your task
+
+Modify the document according to the user's request. Output EXACTLY one of these formats and nothing else:
+
+1) If the request is satisfied by replacing the whole document, output a fenced JSON block:
+\`\`\`json
+{ "bendscript": "0.1", ...full document... }
+\`\`\`
+Followed (optional) by 1–3 sentences of brief explanation AFTER the block.
+
+2) If the request is unclear or you can't safely modify the document, ask a single clarifying question (no JSON).
+
+# Constraints
+
+- All ids (block.id, span.id) must be unique within their scope. Use stable kebab-case ids when adding new blocks/spans.
+- Do not invent edges that contradict the user's apparent intent. If unsure, omit them.
+- Preserve "bendscript": "0.1" and the existing "vocabulary" unless the user explicitly asks to change vocab.
+- Leave the "id" field as the existing string (or "PLACEHOLDER"). The playground re-stamps it.
+- Output JSON that is parseable as JSON (no comments, no trailing commas).
+`;
+
+      function buildChatMessages(history, userText, currentSource) {
+        const msgs = [
+          { role: "system", content: BENDSCRIPT_SYSTEM_PROMPT },
+          { role: "user", content: `Current document:\n\n\`\`\`json\n${currentSource}\n\`\`\`` },
+          { role: "assistant", content: "Got it. Tell me what change you'd like to make to this document." },
+        ];
+        for (const m of history) msgs.push({ role: m.role, content: m.content });
+        msgs.push({ role: "user", content: userText });
+        return msgs;
+      }
+
+      function extractJsonBlock(text) {
+        // Look for ```json ... ``` first, then any fenced block, then bare JSON.
+        const fenced = text.match(/```(?:json)?\s*\n([\s\S]*?)\n```/);
+        if (fenced) return { json: fenced[1].trim(), tail: text.replace(fenced[0], "").trim() };
+        // Bare JSON: look for first { with matching brace
+        const i = text.indexOf("{");
+        if (i < 0) return null;
+        let depth = 0, end = -1, inStr = false, esc = false;
+        for (let j = i; j < text.length; j++) {
+          const c = text[j];
+          if (esc) { esc = false; continue; }
+          if (c === "\\") { esc = true; continue; }
+          if (c === '"') { inStr = !inStr; continue; }
+          if (inStr) continue;
+          if (c === "{") depth++;
+          else if (c === "}") { depth--; if (depth === 0) { end = j; break; } }
+        }
+        if (end < 0) return null;
+        return { json: text.slice(i, end + 1), tail: text.slice(end + 1).trim() };
+      }
+
+      // ─────────────────────────────────────────────────────────────
+      // Chat state — kept in-memory per-script (not persisted by default).
+      // ─────────────────────────────────────────────────────────────
+      const chatHistories = new Map(); // key: `${wsId}:${sid}`, value: [{role, content}]
+      function chatKey() { return `${state.activeWorkspaceId}:${state.activeScriptId}`; }
+      function getHistory() {
+        const k = chatKey();
+        if (!chatHistories.has(k)) chatHistories.set(k, []);
+        return chatHistories.get(k);
+      }
+      function setHistory(h) { chatHistories.set(chatKey(), h); }
+
+      const HINTS = [
+        "rewrite the intro paragraph to be one sentence",
+        "add a list of three caveats",
+        "convert this to bendscript.argument.v1 vocabulary",
+        "add a typed link mark on \"foo\" pointing to bend:bafyfake with predicate \"defines\"",
+        "split the long paragraph into a heading + 2 paragraphs",
+      ];
+
+      function renderChat() {
+        const log = $("chat-log");
+        log.innerHTML = "";
+        const h = getHistory();
+        if (h.length === 0) {
+          const empty = document.createElement("div");
+          empty.className = "chat-empty";
+          const noKey = !orSettings.apiKey;
+          empty.innerHTML = `
+            <div>${noKey ? "set an OpenRouter API key in ⚙ to start" : "ask the model to bend this script"}</div>
+            <div class="hints">
+              ${HINTS.map(h => `<div class="h-row" data-hint="${escapeHtml(h)}">${escapeHtml(h)}</div>`).join("")}
+            </div>
+          `;
+          log.appendChild(empty);
+          empty.querySelectorAll(".h-row").forEach(el => {
+            el.addEventListener("click", () => { $("chat-input").value = el.dataset.hint; $("chat-input").focus(); });
+          });
+          return;
+        }
+        for (const m of h) {
+          const div = document.createElement("div");
+          div.className = "chat-msg " + m.role + (m.error ? " error" : "");
+          const role = m.role === "assistant" ? (m.model ? `assistant · ${m.model.split("/").pop()}` : "assistant") : m.role;
+          let body = "";
+          if (m.role === "assistant" && m.proposal) {
+            // Show proposal: tail text + apply/reject buttons
+            const tail = m.tail ? escapeHtml(m.tail) : "";
+            const status = m.applied ? `<span class="ok">✓ applied</span>` : (m.rejected ? `<span class="err">✗ rejected</span>` : "");
+            const summary = m.proposal.summary ? `<div class="diff-summary">${escapeHtml(m.proposal.summary)} ${status}</div>` : (status ? `<div class="diff-summary">${status}</div>` : "");
+            const actions = (!m.applied && !m.rejected) ? `
+              <div class="actions">
+                <button class="primary" data-act="apply" data-i="${h.indexOf(m)}">apply changes</button>
+                <button data-act="reject" data-i="${h.indexOf(m)}">reject</button>
+                <button data-act="diff" data-i="${h.indexOf(m)}">view source</button>
+              </div>` : "";
+            body = `<div class="role">${escapeHtml(role)}</div><div>${tail || "<em style='color:var(--td)'>(no commentary — proposal below)</em>"}</div>${summary}${actions}`;
+          } else {
+            body = `<div class="role">${escapeHtml(role)}${m.costUsd ? ` · $${m.costUsd.toFixed(4)}` : ""}</div><div>${escapeHtml(m.content)}</div>`;
+          }
+          div.innerHTML = body;
+          log.appendChild(div);
+        }
+        log.scrollTop = log.scrollHeight;
+        // Wire proposal action buttons
+        log.querySelectorAll("button[data-act]").forEach(btn => {
+          btn.addEventListener("click", () => {
+            const i = parseInt(btn.dataset.i, 10);
+            const msg = getHistory()[i];
+            if (!msg) return;
+            if (btn.dataset.act === "apply") applyProposal(msg);
+            else if (btn.dataset.act === "reject") { msg.rejected = true; renderChat(); }
+            else if (btn.dataset.act === "diff") showProposalSource(msg);
+          });
+        });
+      }
+
+      function applyProposal(msg) {
+        if (!msg.proposal || !msg.proposal.json) return;
+        const s = activeScript();
+        if (!s) return;
+        if (s.builtin) {
+          // Auto-fork
+          forkScript(state.activeWorkspaceId, state.activeScriptId);
+          // After fork, active script is the new one — apply to it
+          setTimeout(() => applyProposal(msg), 50);
+          return;
+        }
+        buffer = msg.proposal.json;
+        flushBufferToActive();
+        msg.applied = true;
+        renderChat();
+        renderAll();
+      }
+
+      function showProposalSource(msg) {
+        if (!msg.proposal) return;
+        showModal(`
+          <h3>Proposed document</h3>
+          <textarea readonly style="width:100%;min-height:300px;font-family:var(--ff);font-size:12px;background:var(--bg);color:var(--tx);border:1px solid var(--br);padding:10px">${escapeHtml(msg.proposal.json)}</textarea>
+          <div class="row">
+            <button id="m-cancel">close</button>
+            <button id="m-apply" class="primary">apply</button>
+          </div>
+        `, (m) => {
+          m.querySelector("#m-cancel").addEventListener("click", closeModal);
+          m.querySelector("#m-apply").addEventListener("click", () => { closeModal(); applyProposal(msg); });
+        });
+      }
+
+      async function sendChat() {
+        const text = $("chat-input").value.trim();
+        if (!text) return;
+        const s = activeScript();
+        if (!s) { alert("Open a script first."); return; }
+        if (!orSettings.apiKey) { openSettingsModal(); return; }
+
+        const h = getHistory();
+        h.push({ role: "user", content: text });
+        $("chat-input").value = "";
+        // Add an in-flight assistant placeholder
+        const placeholder = { role: "assistant", content: "thinking…", inFlight: true };
+        h.push(placeholder);
+        renderChat();
+        $("chat-send").disabled = true;
+        try {
+          const messages = buildChatMessages(h.slice(0, -1).filter(m => !m.inFlight), text, buffer);
+          // Remove placeholder before sending; include only the priors that aren't in-flight
+          const result = await callChat({ messages });
+          // Remove the in-flight placeholder
+          const idx = h.indexOf(placeholder);
+          if (idx >= 0) h.splice(idx, 1);
+
+          // Try to extract JSON proposal
+          const block = extractJsonBlock(result.content);
+          let assistantMsg;
+          if (block) {
+            // Validate parseable + bendscript shape
+            let summary = "";
+            try {
+              const obj = JSON.parse(block.json);
+              const errs = validate(obj);
+              const blockN = Array.isArray(obj.blocks) ? obj.blocks.length : "?";
+              const edgeN = Array.isArray(obj.edges) ? obj.edges.length : "?";
+              if (errs.length === 0) summary = `valid · ${blockN} blocks, ${edgeN} edges, vocab ${obj.vocabulary || "?"}`;
+              else summary = `${errs.length} validation error${errs.length === 1 ? "" : "s"} — ${blockN} blocks, ${edgeN} edges`;
+              // Pretty-print so apply produces tidy source
+              block.json = JSON.stringify(obj, null, 2);
+            } catch (e) {
+              summary = "JSON parse error: " + e.message;
+            }
+            assistantMsg = {
+              role: "assistant",
+              content: result.content,
+              tail: block.tail,
+              proposal: { json: block.json, summary },
+              model: result.model,
+              costUsd: result.costUsd,
+            };
+          } else {
+            assistantMsg = {
+              role: "assistant",
+              content: result.content,
+              model: result.model,
+              costUsd: result.costUsd,
+            };
+          }
+          h.push(assistantMsg);
+        } catch (e) {
+          const idx = h.indexOf(placeholder);
+          if (idx >= 0) h.splice(idx, 1);
+          h.push({ role: "assistant", content: "Error: " + e.message, error: true });
+        }
+        $("chat-send").disabled = false;
+        refreshChatPills();
+        renderChat();
+      }
+
+      // ─────────────────────────────────────────────────────────────
+      // Settings modal.
+      // ─────────────────────────────────────────────────────────────
+      function openSettingsModal() {
+        const opts = RECOMMENDED_MODELS.map(m =>
+          `<option value="${m.id}" ${m.id === orSettings.model ? "selected" : ""}>${escapeHtml(m.label)} ($${m.input}/$${m.output} per 1M)</option>`
+        ).join("");
+        showModal(`
+          <h3>OpenRouter</h3>
+          <p>BendScript Playground talks to LLMs via <a href="https://openrouter.ai" target="_blank" rel="noopener">openrouter.ai</a>. Your key is stored in <code>localStorage</code> on this device. Any script on this page can read it.</p>
+          <p style="margin-top:10px;color:var(--td);font-size:11px;letter-spacing:.05em;text-transform:uppercase">api key</p>
+          <input type="text" id="m-key" placeholder="sk-or-v1-..." value="${escapeHtml(orSettings.apiKey)}" />
+          <p style="margin-top:10px;color:var(--td);font-size:11px;letter-spacing:.05em;text-transform:uppercase">model</p>
+          <select id="m-model" style="width:100%;font:inherit;font-size:12px;background:var(--bg);color:var(--tx);border:1px solid var(--br);padding:7px 10px">${opts}</select>
+          <p style="margin-top:10px;color:var(--td);font-size:11px;letter-spacing:.05em;text-transform:uppercase">budget cap (USD; 0 = no cap)</p>
+          <input type="text" id="m-budget" value="${orSettings.budgetUsd}" />
+          <p style="margin-top:8px;font-size:11px;color:var(--tm)">spent: <span style="color:var(--warn)">$${orSettings.costSpent.toFixed(4)}</span> <button id="m-reset" style="margin-left:8px;font:inherit;font-size:10px;padding:3px 8px;background:transparent;color:var(--tm);border:1px solid var(--br);cursor:pointer">reset</button></p>
+          <div class="row">
+            <button id="m-cancel">cancel</button>
+            <button id="m-save" class="primary">save</button>
+          </div>
+        `, (m) => {
+          m.querySelector("#m-cancel").addEventListener("click", closeModal);
+          m.querySelector("#m-reset").addEventListener("click", () => {
+            orSettings.resetCost();
+            m.querySelector("#m-reset").parentElement.querySelector("span").textContent = "$0.0000";
+            refreshChatPills();
+          });
+          m.querySelector("#m-save").addEventListener("click", () => {
+            orSettings.apiKey = m.querySelector("#m-key").value.trim();
+            orSettings.model = m.querySelector("#m-model").value;
+            const b = parseFloat(m.querySelector("#m-budget").value);
+            if (!isNaN(b) && b >= 0) orSettings.budgetUsd = b;
+            refreshChatPills();
+            renderChat();
+            closeModal();
+          });
+        });
+      }
+
+      // Open / close chat panel
+      function setChatOpen(open) {
+        document.querySelector(".app").classList.toggle("chat-open", open);
+        try { localStorage.setItem(OR_KEYS.chatOpen, open ? "1" : "0"); } catch {}
+      }
+      $("btn-chat").addEventListener("click", () => {
+        setChatOpen(!document.querySelector(".app").classList.contains("chat-open"));
+      });
+      $("btn-settings").addEventListener("click", openSettingsModal);
+      $("chat-send").addEventListener("click", sendChat);
+      $("chat-clear").addEventListener("click", () => { setHistory([]); renderChat(); });
+      $("chat-input").addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); sendChat(); }
+      });
+      // Ctrl+L toggles chat
+      document.addEventListener("keydown", (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === "l") {
+          e.preventDefault();
+          setChatOpen(!document.querySelector(".app").classList.contains("chat-open"));
+        }
+      });
+
+      // ─────────────────────────────────────────────────────────────
+      // Boot.
+      // ─────────────────────────────────────────────────────────────
+      renderSidebar();
+      // Make sure the active script still exists; otherwise pick the first.
+      let cur = activeScript();
+      if (!cur) {
+        outer: for (const ws of state.workspaces) {
+          for (const s of ws.scripts) {
+            state.activeWorkspaceId = ws.id;
+            state.activeScriptId = s.id;
+            cur = s;
+            break outer;
+          }
+        }
+      }
+      buffer = cur ? cur.source : "";
+      renderToolbarFromActive();
+      renderAll();
+      // Chat boot
+      try { if (localStorage.getItem(OR_KEYS.chatOpen) === "1") setChatOpen(true); } catch {}
+      refreshChatPills();
+      renderChat();
+      tryImportFromHash();
+
+    </script>
+  </body>
+</html>

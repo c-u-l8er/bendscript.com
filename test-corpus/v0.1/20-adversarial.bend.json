@@ -1,0 +1,84 @@
+{
+  "bendscript": "0.1",
+  "id": "PLACEHOLDER",
+  "vocabulary": "core",
+  "title": "Adversarial: edge cases in canonicalization",
+  "blocks": [
+    {
+      "id": "blk-1",
+      "kind": "paragraph",
+      "spans": [
+        { "id": "spn-1", "text": "" },
+        { "id": "spn-2", "text": "Empty span above. " },
+        { "id": "spn-3", "text": "Trailing whitespace.   " },
+        { "id": "spn-4", "text": "\tTab-prefixed." },
+        { "id": "spn-5", "text": "\nNewline-prefixed." }
+      ]
+    },
+    {
+      "id": "blk-2",
+      "kind": "paragraph",
+      "spans": [
+        { "id": "spn-6", "text": "Numbers in text: 1, 1.0, 1e0, 1.0e0, 0.0001, 1.7976931348623157e308." },
+        { "id": "spn-7", "text": " Quotes: \"escaped\" and 'apostrophe'." },
+        { "id": "spn-8", "text": " Backslash: \\\\ and \\n literal." }
+      ]
+    },
+    {
+      "id": "blk-3",
+      "kind": "list",
+      "ordered": false,
+      "items": [
+        {
+          "id": "blk-4",
+          "kind": "list-item",
+          "blocks": [
+            {
+              "id": "blk-5",
+              "kind": "list",
+              "ordered": false,
+              "items": [
+                {
+                  "id": "blk-6",
+                  "kind": "list-item",
+                  "blocks": [
+                    {
+                      "id": "blk-7",
+                      "kind": "list",
+                      "ordered": true,
+                      "items": [
+                        {
+                          "id": "blk-8",
+                          "kind": "list-item",
+                          "blocks": [
+                            {
+                              "id": "blk-9",
+                              "kind": "paragraph",
+                              "spans": [{ "id": "spn-deep", "text": "Three levels deep." }]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "subject": "bend:PLACEHOLDER#blk-1.spn-1",
+      "predicate": "cites",
+      "object": "bend:PLACEHOLDER#blk-1.spn-2",
+      "meta": {
+        "weight": 0.0,
+        "confidence": 1.0,
+        "nested": { "deep": { "deeper": { "deepest": "value" } } }
+      }
+    }
+  ]
+}

@@ -1,62 +1,64 @@
 {
-  "name": "bendscript-web",
-  "version": "0.1.0",
-  "private": true,
+  "name": "bendscript-core",
+  "version": "0.1.0-alpha.0",
+  "description": "Reference parser, validator, and round-trip harness for the BendScript Protocol v0.1 — a graph-first document format with typed inline link facets, for agent-native systems.",
   "type": "module",
-  "scripts": {
-    "postinstall": "svelte-kit sync",
-    "predev": "svelte-kit sync",
-    "dev": "vite dev",
-    "dev:local": "supabase start && vite dev",
-    "build": "vite build",
-    "build:cf": "vite build",
-    "preview": "vite preview",
-    "check": "svelte-kit sync && svelte-check --tsconfig ./jsconfig.json",
-    "typecheck": "svelte-kit sync && svelte-check --tsconfig ./jsconfig.json",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
-    "test": "npm run test:unit && npm run test:integration",
-    "test:unit": "vitest run tests/unit",
-    "test:integration": "vitest run tests/integration",
-    "test:e2e": "playwright test",
-    "test:watch": "vitest",
-    "supabase:start": "supabase start",
-    "supabase:stop": "supabase stop",
-    "supabase:status": "supabase status",
-    "supabase:db:reset": "supabase db reset",
-    "cf:pages:build": "npm run build:cf"
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./harness": {
+      "types": "./dist/harness/index.d.ts",
+      "import": "./dist/harness/index.js"
+    }
   },
-  "devDependencies": {
-    "@playwright/test": "^1.54.1",
-    "@sveltejs/adapter-cloudflare": "^4.7.0",
-    "@sveltejs/kit": "^2.5.27",
-    "@sveltejs/vite-plugin-svelte": "^4.0.0-next.6",
-    "@testing-library/jest-dom": "^6.5.0",
-    "@testing-library/svelte": "^5.2.1",
-    "@vitest/coverage-v8": "^2.1.1",
-    "eslint": "^9.10.0",
-    "eslint-config-prettier": "^9.1.0",
-    "eslint-plugin-svelte": "^2.44.0",
-    "jsdom": "^24.1.1",
-    "prettier": "^3.3.3",
-    "prettier-plugin-svelte": "^3.2.6",
-    "svelte": "^5.0.0",
-    "svelte-check": "^3.8.6",
-    "vite": "^5.4.2",
-    "vitest": "^2.1.1"
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run clean && npm run build && npm test"
+  },
+  "keywords": [
+    "bendscript",
+    "graph",
+    "knowledge-graph",
+    "document",
+    "parser",
+    "validator",
+    "agent",
+    "ampersand"
+  ],
+  "license": "MIT",
+  "author": "Travis Burandt",
+  "homepage": "https://bendscript.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/c-u-l8er/bendscript.com.git"
+  },
+  "bugs": {
+    "url": "https://github.com/c-u-l8er/bendscript.com/issues"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.35.0",
-    "@modelcontextprotocol/sdk": "^1.13.3",
-    "@supabase/ssr": "^0.5.2",
-    "@supabase/supabase-js": "^2.45.4",
-    "ajv": "^8.18.0",
-    "ajv-formats": "^3.0.1",
-    "dompurify": "^3.1.7",
-    "marked": "^12.0.2",
-    "monaco-editor": "^0.55.1",
-    "zod": "^3.23.8"
+    "canonicalize": "^2.0.0",
+    "multiformats": "^13.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.4",
+    "tsup": "^8.3.0",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.2"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

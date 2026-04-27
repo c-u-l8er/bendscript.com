@@ -1,0 +1,22 @@
+{
+  "bendscript": "0.1",
+  "id": "PLACEHOLDER",
+  "vocabulary": "core",
+  "title": "On the Memory Loop",
+  "blocks": [
+    {
+      "id": "blk-1",
+      "kind": "heading",
+      "level": 1,
+      "spans": [{ "id": "spn-1", "text": "On the Memory Loop" }]
+    },
+    {
+      "id": "blk-2",
+      "kind": "paragraph",
+      "spans": [
+        { "id": "spn-2", "text": "The loop is closed when consolidation completes." }
+      ]
+    }
+  ],
+  "edges": []
+}

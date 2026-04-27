@@ -1,0 +1,20 @@
+{
+  "bendscript": "0.1",
+  "id": "PLACEHOLDER",
+  "vocabulary": "core",
+  "title": "Multiple marks per span",
+  "blocks": [
+    {
+      "id": "blk-1",
+      "kind": "paragraph",
+      "spans": [
+        { "id": "spn-1", "text": "This is " },
+        { "id": "spn-2", "text": "bold and italic", "marks": ["bold", "italic"] },
+        { "id": "spn-3", "text": " and this is " },
+        { "id": "spn-4", "text": "bold code", "marks": ["bold", "code"] },
+        { "id": "spn-5", "text": "." }
+      ]
+    }
+  ],
+  "edges": []
+}

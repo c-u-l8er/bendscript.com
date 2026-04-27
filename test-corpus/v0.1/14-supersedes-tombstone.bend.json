@@ -1,0 +1,27 @@
+{
+  "bendscript": "0.1",
+  "id": "PLACEHOLDER",
+  "vocabulary": "core",
+  "title": "Span supersession with tombstone",
+  "blocks": [
+    {
+      "id": "blk-1",
+      "kind": "paragraph",
+      "spans": [
+        { "id": "spn-old", "text": null },
+        {
+          "id": "spn-new",
+          "text": "The corrected statement supersedes the prior one."
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "subject": "bend:PLACEHOLDER#blk-1.spn-new",
+      "predicate": "supersedes",
+      "object": "bend:PLACEHOLDER#blk-1.spn-old",
+      "meta": { "edited_at": "2026-04-27T11:00:00Z", "reason": "factual correction" }
+    }
+  ]
+}

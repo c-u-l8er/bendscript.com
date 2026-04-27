@@ -1,0 +1,21 @@
+{
+  "bendscript": "0.1",
+  "id": "PLACEHOLDER",
+  "vocabulary": "core",
+  "title": "Document-level edges",
+  "blocks": [
+    {
+      "id": "blk-1",
+      "kind": "paragraph",
+      "spans": [{ "id": "spn-1", "text": "This paragraph supports another." }]
+    }
+  ],
+  "edges": [
+    {
+      "subject": "bend:PLACEHOLDER#blk-1",
+      "predicate": "supports",
+      "object": "bend:bafyfaketarget#blk-99",
+      "meta": { "weight": 0.8, "confidence": 0.9 }
+    }
+  ]
+}

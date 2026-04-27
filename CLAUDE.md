@@ -1,65 +1,73 @@
-# BendScript — Knowledge Graph Editor + KAG Server
+# BendScript Protocol
 
-Multi-tenant, AI-powered knowledge graph editor built on SvelteKit + Supabase. The only non-Elixir product in the [&] Protocol ecosystem.
+A graph-first document format with typed inline link facets, for agent-native systems.
+
+**Status:** v0.1 draft (sections 0–6). Pre-implementation.
+
+## Direction
+
+bendscript.com is being rebuilt as a **protocol spec + reference framework**, not a canvas/KAG SaaS. The previous direction (SvelteKit canvas editor + KAG server on Supabase) is archived under `old_scrap/v1/` and is not being extended.
+
+The new product is:
+- A JSON document format (`bend:` URI scheme, content-addressable ids, span-addressable graph edges)
+- A reference parser/validator/edge-extractor (`bendscript-core`, not yet written)
+- An LLM round-trip test harness (the load-bearing claim of v0.1)
+- Five reserved vocabularies that integrate with the rest of the [&] portfolio
 
 ## Source-of-truth spec
 
-- `docs/spec/README.md` — BendScript technical specification
+- `docs/spec/README.md` — BendScript Protocol v0.1 draft (sections 0–6)
 
-## Implementation prompts
+## What's archived
 
-- `prompts/BUILD.md` — SvelteKit + Supabase migration spec (~1,600 lines)
-- `prompts/MIGRATION_PROMPT.md` — engine extraction from prototype (~800 lines)
-- `prompts/CODEX_COMPLETION_PROMPT.md` — current-state completion guide for Codex (~900 lines)
+`old_scrap/v1/` contains the entire previous product — SvelteKit app, Supabase migrations integration, AGENTS.md, prompts, the v1.0 canvas-and-KAG spec (`old_scrap/v1/docs/spec/README.md`), and all build configs. It is historical; do not extend it.
 
-These document how BendScript was built and serve as templates for Codex-driven development.
-
-## [&] Capability provided
-
-BendScript provides `&memory.graph` as a KAG (Knowledge Augmented Generation) server — complementary to Graphonomous's agent-side continual learning graph.
-
-- Graphonomous = agent-built knowledge (continual learning)
-- BendScript = human-built knowledge (interactive canvas)
-
-## Build and develop
+## Build
 
 ```
 npm install
-npm run dev
+npm test            # run all unit tests (vitest)
+npm run typecheck   # tsc --noEmit
 ```
 
-## Shared Supabase data layer
+Reference framework: `bendscript-core` (TypeScript, Node 20+).
 
-BendScript uses the **shared ecosystem Supabase** at the repo root (`/ampersand-supabase/`), not a local supabase directory. Its tables live in the `kag.*` PostgreSQL schema.
+- `src/types.ts` — Document, Block, Span, Edge, Mark types
+- `src/parse.ts` — `parse(text) → Document`, `normalize(doc)` (link-mark expansion), `parseAndNormalize`
+- `src/validate.ts` — structural validator per §2/§3 (throws `ValidationError` with JSON path)
+- `src/canonicalize.ts` — RFC 8785 (JCS) wrapper for canonical serialization
+- `src/hash.ts` — content-addressable document id (`computeDocumentId`) using sha2-256 + json multicodec → CIDv1 multibase string
+- `src/expand-marks.ts` — §2.5.1 link-mark → edge expansion (idempotent, dedup'd)
+- `src/serialize.ts` — pretty-print and canonical serializers
 
-- Schema: `/ampersand-supabase/migrations/010_kag_schema.sql`
-- RLS: `/ampersand-supabase/migrations/011_kag_rls.sql`
-- Edge Function: `/ampersand-supabase/functions/kag-ai-proxy/`
-- Architecture: `/ampersand-supabase/ARCHITECTURE.md`
+`test/round-trip.test.ts` exercises the §8.1.1 strict round-trip claim against `test-corpus/v0.1/*.bend.json`.
 
-Run `supabase start` from the repo root to start the full ecosystem DB. Use `.schema('kag')` in the Supabase JS client to target BendScript tables.
+## Verification status
 
-## Stack
+**§8.1.1 parser round-trip — verified.** 96 tests passing as of 2026-04-27 against the full 20-document corpus:
 
-- SvelteKit 2.x + TypeScript
-- Supabase (PostgreSQL 15+, Auth, Realtime) — shared ecosystem instance
-- pgvector for embeddings (in `kag.*` schema)
-- HTML5 Canvas for force-directed graph rendering
-- Anthropic Claude API for AI synthesis
-- Custom CSS (no Tailwind)
+- `parse(serialize(parse(d))) === parse(d)` holds for all 20 corpus documents (Unicode, ZWJ emoji, deeply nested lists, all five reserved vocabularies, supersedes/tombstones, untyped links)
+- Document id is stable across parse/serialize cycles
+- Editing span text changes the id; editing `meta` does NOT (§5.1 trade-off works as designed)
+- RFC 8785 canonicalization is field-order independent
+- Link-mark expansion is deterministic and idempotent
+- Untyped link marks (no `predicate`) do NOT emit edges (per §2.5.1)
 
-## MCP machines (v0.2.0)
+**§8 harness mechanics — verified with mock LLMs.** No paid API calls yet:
 
-BendScript MCP uses a machine architecture matching Graphonomous's PULSE loop phases. Two machines, each accepting an `action` parameter:
+- Drift metric implemented (5 components per §8.4: block_structure, edge_preservation, span_coverage, mark_fidelity, vocabulary_integrity), zero-drift on identical docs
+- Identity / small-edit / lossy / garbage mock models exercise each failure mode
+- Median + P95 aggregation per §8.5
+- Threshold checking emits `pass` / `fail` verdict with failing thresholds enumerated
+- `MockModel` with `lossy` mode confirmed: harness correctly enforces spec invariant that link-mark edges always re-expand on parse, so dropping the `edges` array doesn't lose link-mark-derived edges
 
-**`retrieve`** — "What's in the graph?"
-- `search` — semantic/text node search
-- `subgraph` — N-hop neighborhood from a seed node
-- `traverse` — shortest path between two nodes
-- `query` — natural language graph query
-- `list_planes` — enumerate graph planes
+**§8.1.2 LLM round-trip — not yet run against real models.** Implementing a `ModelClient` against OpenRouter is the next step. Estimated cost: $5–20 per gating run (180 calls = 20 docs × 3 classes × 3 models).
 
-**`act`** — "Mutate the graph"
-- `build_from_text` — ingest text, extract entities, create nodes/edges
+**§14.3.1 Graphonomous adoption — not yet implemented.** This is the other gating commitment for v0.1 final.
 
-See AGENTS.md for full agent interface specification.
+## Conventions
+
+- Spec uses RFC discipline (MUST / SHOULD / MAY)
+- Canonical document form is JSON; text projection deferred to v0.2
+- `.bend` files are not hand-authored — produced by editors that emit JSON
+- No host coupling: the protocol must work in TypeScript, Elixir, Rust, plain HTML

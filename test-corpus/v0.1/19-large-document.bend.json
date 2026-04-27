@@ -1,0 +1,169 @@
+{
+  "bendscript": "0.1",
+  "id": "PLACEHOLDER",
+  "vocabulary": "core",
+  "title": "Larger structured document",
+  "blocks": [
+    {
+      "id": "blk-h1",
+      "kind": "heading",
+      "level": 1,
+      "spans": [{ "id": "spn-h1", "text": "On the Closed Memory Loop" }]
+    },
+    {
+      "id": "blk-1",
+      "kind": "paragraph",
+      "spans": [
+        { "id": "spn-1a", "text": "The " },
+        {
+          "id": "spn-1b",
+          "text": "memory loop",
+          "marks": [
+            { "kind": "link", "target": "bend:bafyfakeloopdoc", "predicate": "defines" }
+          ]
+        },
+        { "id": "spn-1c", "text": " closes when consolidation completes." }
+      ]
+    },
+    {
+      "id": "blk-h2",
+      "kind": "heading",
+      "level": 2,
+      "spans": [{ "id": "spn-h2", "text": "The five phases" }]
+    },
+    {
+      "id": "blk-list",
+      "kind": "list",
+      "ordered": true,
+      "items": [
+        {
+          "id": "blk-li-1",
+          "kind": "list-item",
+          "blocks": [
+            {
+              "id": "blk-li-1p",
+              "kind": "paragraph",
+              "spans": [
+                { "id": "spn-li-1", "text": "Retrieve — query before reasoning." }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "blk-li-2",
+          "kind": "list-item",
+          "blocks": [
+            {
+              "id": "blk-li-2p",
+              "kind": "paragraph",
+              "spans": [
+                { "id": "spn-li-2", "text": "Route — choose between act and deliberate." }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "blk-li-3",
+          "kind": "list-item",
+          "blocks": [
+            {
+              "id": "blk-li-3p",
+              "kind": "paragraph",
+              "spans": [
+                { "id": "spn-li-3", "text": "Act — mutate the graph." }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "blk-li-4",
+          "kind": "list-item",
+          "blocks": [
+            {
+              "id": "blk-li-4p",
+              "kind": "paragraph",
+              "spans": [
+                { "id": "spn-li-4", "text": "Learn — close the feedback loop." }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "blk-li-5",
+          "kind": "list-item",
+          "blocks": [
+            {
+              "id": "blk-li-5p",
+              "kind": "paragraph",
+              "spans": [
+                { "id": "spn-li-5", "text": "Consolidate — at session boundaries." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "blk-h3",
+      "kind": "heading",
+      "level": 2,
+      "spans": [{ "id": "spn-h3", "text": "A worked example" }]
+    },
+    {
+      "id": "blk-quote",
+      "kind": "quote",
+      "blocks": [
+        {
+          "id": "blk-q1",
+          "kind": "paragraph",
+          "spans": [
+            { "id": "spn-q1", "text": "Treat memory as the state, not the log." }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "blk-2",
+      "kind": "paragraph",
+      "spans": [
+        { "id": "spn-2a", "text": "The state framing matters because " },
+        { "id": "spn-2b", "text": "logs grow without bound", "marks": ["italic"] },
+        { "id": "spn-2c", "text": " while state can be consolidated." }
+      ]
+    },
+    { "id": "blk-div", "kind": "divider" },
+    {
+      "id": "blk-code",
+      "kind": "code",
+      "language": "elixir",
+      "text": "defmodule Loop do\n  def close(state), do: consolidate(state)\nend"
+    },
+    {
+      "id": "blk-3",
+      "kind": "paragraph",
+      "spans": [
+        { "id": "spn-3a", "text": "This document " },
+        {
+          "id": "spn-3b",
+          "text": "supersedes",
+          "marks": [
+            {
+              "kind": "link",
+              "target": "bend:bafyfakeolddoc",
+              "predicate": "supersedes"
+            }
+          ]
+        },
+        { "id": "spn-3c", "text": " an earlier draft." }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "subject": "bend:PLACEHOLDER",
+      "predicate": "derives-from",
+      "object": "bend:bafyfakegraphonomous#blk-7",
+      "meta": { "weight": 0.6, "confidence": 0.8 }
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "bendscript": "0.1",
+  "id": "PLACEHOLDER",
+  "vocabulary": "bendscript.argument.v1",
+  "title": "Deliberatic-style argumentation",
+  "blocks": [
+    {
+      "id": "blk-1",
+      "kind": "argument-position",
+      "spans": [
+        { "id": "spn-1", "text": "Memory consolidation must be lossy to be useful." }
+      ]
+    },
+    {
+      "id": "blk-2",
+      "kind": "argument-attack",
+      "spans": [
+        {
+          "id": "spn-2",
+          "text": "Lossless consolidation preserves audit trails that lossy consolidation discards."
+        }
+      ]
+    },
+    {
+      "id": "blk-3",
+      "kind": "argument-support",
+      "spans": [
+        {
+          "id": "spn-3",
+          "text": "Working memory has finite capacity; lossless storage is computationally infeasible at scale."
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "subject": "bend:PLACEHOLDER#blk-2",
+      "predicate": "bendscript.argument.v1:rebuts",
+      "object": "bend:PLACEHOLDER#blk-1",
+      "meta": { "attack_strength": 0.7, "dialectical_status": "in" }
+    },
+    {
+      "subject": "bend:PLACEHOLDER#blk-3",
+      "predicate": "supports",
+      "object": "bend:PLACEHOLDER#blk-1",
+      "meta": { "weight": 0.85 }
+    }
+  ]
+}

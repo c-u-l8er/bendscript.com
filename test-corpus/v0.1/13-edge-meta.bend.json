@@ -1,0 +1,32 @@
+{
+  "bendscript": "0.1",
+  "id": "PLACEHOLDER",
+  "vocabulary": "core",
+  "title": "Edges with weight and confidence",
+  "blocks": [
+    {
+      "id": "blk-1",
+      "kind": "paragraph",
+      "spans": [{ "id": "spn-1", "text": "Strongly supports the claim." }]
+    },
+    {
+      "id": "blk-2",
+      "kind": "paragraph",
+      "spans": [{ "id": "spn-2", "text": "Weakly contradicts a counter-claim." }]
+    }
+  ],
+  "edges": [
+    {
+      "subject": "bend:PLACEHOLDER#blk-1",
+      "predicate": "supports",
+      "object": "bend:bafyfaketarget#blk-9",
+      "meta": { "weight": 0.95, "confidence": 0.99 }
+    },
+    {
+      "subject": "bend:PLACEHOLDER#blk-2",
+      "predicate": "contradicts",
+      "object": "bend:bafyfaketarget#blk-10",
+      "meta": { "weight": 0.2, "confidence": 0.4 }
+    }
+  ]
+}

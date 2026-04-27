@@ -1,0 +1,67 @@
+{
+  "bendscript": "0.1",
+  "id": "PLACEHOLDER",
+  "vocabulary": "core",
+  "title": "Nested ordered lists",
+  "blocks": [
+    {
+      "id": "blk-1",
+      "kind": "list",
+      "ordered": true,
+      "items": [
+        {
+          "id": "blk-2",
+          "kind": "list-item",
+          "blocks": [
+            {
+              "id": "blk-3",
+              "kind": "paragraph",
+              "spans": [{ "id": "spn-1", "text": "Outer one." }]
+            },
+            {
+              "id": "blk-4",
+              "kind": "list",
+              "ordered": false,
+              "items": [
+                {
+                  "id": "blk-5",
+                  "kind": "list-item",
+                  "blocks": [
+                    {
+                      "id": "blk-6",
+                      "kind": "paragraph",
+                      "spans": [{ "id": "spn-2", "text": "Inner a." }]
+                    }
+                  ]
+                },
+                {
+                  "id": "blk-7",
+                  "kind": "list-item",
+                  "blocks": [
+                    {
+                      "id": "blk-8",
+                      "kind": "paragraph",
+                      "spans": [{ "id": "spn-3", "text": "Inner b." }]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "blk-9",
+          "kind": "list-item",
+          "blocks": [
+            {
+              "id": "blk-10",
+              "kind": "paragraph",
+              "spans": [{ "id": "spn-4", "text": "Outer two." }]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "edges": []
+}

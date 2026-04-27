@@ -1,0 +1,29 @@
+{
+  "bendscript": "0.1",
+  "id": "PLACEHOLDER",
+  "vocabulary": "bendscript.memory.v1",
+  "title": "Graphonomous memory node",
+  "meta": {
+    "confidence": 0.85,
+    "provenance": ["bend:bafyfaketarget#blk-1"],
+    "recall_count": 7,
+    "last_consolidated_at": "2026-04-27T10:00:00Z"
+  },
+  "blocks": [
+    {
+      "id": "blk-1",
+      "kind": "paragraph",
+      "spans": [
+        { "id": "spn-1", "text": "The memory loop closes when consolidation completes." }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "subject": "bend:PLACEHOLDER#blk-1",
+      "predicate": "bendscript.memory.v1:consolidated-from",
+      "object": "bend:bafyfakeold#blk-3",
+      "meta": { "confidence": 0.9 }
+    }
+  ]
+}

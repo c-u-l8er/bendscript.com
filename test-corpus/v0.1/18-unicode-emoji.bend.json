@@ -1,0 +1,32 @@
+{
+  "bendscript": "0.1",
+  "id": "PLACEHOLDER",
+  "vocabulary": "core",
+  "title": "Unicode and emoji",
+  "blocks": [
+    {
+      "id": "blk-1",
+      "kind": "heading",
+      "level": 1,
+      "spans": [
+        { "id": "spn-1", "text": "记忆环路 — La boucle de mémoire — メモリループ" }
+      ]
+    },
+    {
+      "id": "blk-2",
+      "kind": "paragraph",
+      "spans": [
+        { "id": "spn-2", "text": "Mathematical: ∀x ∈ ℕ, ∃y > x. Greek: αβγδε." },
+        { "id": "spn-3", "text": " Emoji run: 🧠 ↻ 📚 → ✨." },
+        { "id": "spn-4", "text": " ZWJ family: 👨‍👩‍👧‍👦." }
+      ]
+    },
+    {
+      "id": "blk-3",
+      "kind": "code",
+      "language": "json",
+      "text": "{\"key\": \"value with \\u0000 null byte and \\\"quotes\\\"\"}"
+    }
+  ],
+  "edges": []
+}

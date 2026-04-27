@@ -1,0 +1,56 @@
+{
+  "bendscript": "0.1",
+  "id": "PLACEHOLDER",
+  "vocabulary": "core",
+  "title": "Lists, quotes, code",
+  "blocks": [
+    {
+      "id": "blk-1",
+      "kind": "list",
+      "ordered": false,
+      "items": [
+        {
+          "id": "blk-2",
+          "kind": "list-item",
+          "blocks": [
+            {
+              "id": "blk-3",
+              "kind": "paragraph",
+              "spans": [{ "id": "spn-1", "text": "First item." }]
+            }
+          ]
+        },
+        {
+          "id": "blk-4",
+          "kind": "list-item",
+          "blocks": [
+            {
+              "id": "blk-5",
+              "kind": "paragraph",
+              "spans": [{ "id": "spn-2", "text": "Second item." }]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "blk-6",
+      "kind": "quote",
+      "blocks": [
+        {
+          "id": "blk-7",
+          "kind": "paragraph",
+          "spans": [{ "id": "spn-3", "text": "Quoted text." }]
+        }
+      ]
+    },
+    {
+      "id": "blk-8",
+      "kind": "code",
+      "language": "javascript",
+      "text": "const x = 42;\nreturn x;"
+    },
+    { "id": "blk-9", "kind": "divider" }
+  ],
+  "edges": []
+}

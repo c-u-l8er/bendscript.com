@@ -1,0 +1,26 @@
+{
+  "bendscript": "0.1",
+  "id": "PLACEHOLDER",
+  "vocabulary": "core",
+  "title": "Embed and divider",
+  "blocks": [
+    {
+      "id": "blk-1",
+      "kind": "paragraph",
+      "spans": [{ "id": "spn-1", "text": "Section one." }]
+    },
+    { "id": "blk-2", "kind": "divider" },
+    {
+      "id": "blk-3",
+      "kind": "embed",
+      "target": "bend:bafyfaketarget#blk-7"
+    },
+    { "id": "blk-4", "kind": "divider" },
+    {
+      "id": "blk-5",
+      "kind": "paragraph",
+      "spans": [{ "id": "spn-2", "text": "Section two." }]
+    }
+  ],
+  "edges": []
+}

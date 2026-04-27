@@ -1,0 +1,36 @@
+{
+  "bendscript": "0.1",
+  "id": "PLACEHOLDER",
+  "vocabulary": "core",
+  "title": "Many cross-document edges",
+  "blocks": [
+    {
+      "id": "blk-1",
+      "kind": "heading",
+      "level": 2,
+      "spans": [{ "id": "spn-h", "text": "Synthesis" }]
+    },
+    {
+      "id": "blk-2",
+      "kind": "paragraph",
+      "spans": [
+        { "id": "spn-p1", "text": "This document derives from three prior sources, cites two more, and supersedes one earlier draft." }
+      ]
+    },
+    {
+      "id": "blk-3",
+      "kind": "paragraph",
+      "spans": [
+        { "id": "spn-p2", "text": "Block-level granularity is sufficient here; spans are not the subjects of these edges." }
+      ]
+    }
+  ],
+  "edges": [
+    { "subject": "bend:PLACEHOLDER#blk-2", "predicate": "derives-from", "object": "bend:bafyfakeA" },
+    { "subject": "bend:PLACEHOLDER#blk-2", "predicate": "derives-from", "object": "bend:bafyfakeB" },
+    { "subject": "bend:PLACEHOLDER#blk-2", "predicate": "derives-from", "object": "bend:bafyfakeC" },
+    { "subject": "bend:PLACEHOLDER#blk-3", "predicate": "cites", "object": "bend:bafyfakeD" },
+    { "subject": "bend:PLACEHOLDER#blk-3", "predicate": "cites", "object": "bend:bafyfakeE" },
+    { "subject": "bend:PLACEHOLDER", "predicate": "supersedes", "object": "bend:bafyfakeOld" }
+  ]
+}

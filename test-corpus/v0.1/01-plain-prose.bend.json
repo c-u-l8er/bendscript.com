@@ -1,0 +1,16 @@
+{
+  "bendscript": "0.1",
+  "id": "PLACEHOLDER",
+  "vocabulary": "core",
+  "title": "Plain prose",
+  "blocks": [
+    {
+      "id": "blk-1",
+      "kind": "paragraph",
+      "spans": [
+        { "id": "spn-1", "text": "The quick brown fox jumps over the lazy dog." }
+      ]
+    }
+  ],
+  "edges": []
+}

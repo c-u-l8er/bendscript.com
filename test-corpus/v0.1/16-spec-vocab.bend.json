@@ -1,0 +1,53 @@
+{
+  "bendscript": "0.1",
+  "id": "PLACEHOLDER",
+  "vocabulary": "bendscript.spec.v1",
+  "title": "Capability: continual-learning memory store",
+  "meta": {
+    "capability_id": "amp.memory.continual-learning",
+    "version": "0.3.1"
+  },
+  "blocks": [
+    {
+      "id": "blk-1",
+      "kind": "capability",
+      "meta": { "capability_id": "amp.memory.continual-learning" },
+      "spans": [
+        { "id": "spn-1", "text": "Provides incrementally-learned knowledge graph storage." }
+      ]
+    },
+    {
+      "id": "blk-2",
+      "kind": "requirement",
+      "spans": [
+        { "id": "spn-2", "text": "MUST persist nodes across restart." }
+      ]
+    },
+    {
+      "id": "blk-3",
+      "kind": "claim",
+      "spans": [
+        { "id": "spn-3", "text": "Confidence updates converge under repeated reinforcement." }
+      ]
+    },
+    {
+      "id": "blk-4",
+      "kind": "example",
+      "spans": [
+        { "id": "spn-4", "text": "Graphonomous v0.4 satisfies this capability." }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "subject": "bend:PLACEHOLDER#blk-4",
+      "predicate": "bendscript.spec.v1:satisfies",
+      "object": "bend:PLACEHOLDER#blk-1"
+    },
+    {
+      "subject": "bend:PLACEHOLDER#blk-2",
+      "predicate": "bendscript.spec.v1:requires",
+      "object": "bend:PLACEHOLDER#blk-1"
+    }
+  ]
+}
