@@ -836,10 +836,10 @@
                     <pre
                         id="install-pre"
                     ><span class="c">// 1. install the reference framework</span>
-<span class="k">npm install</span> <span class="s">bendscript-core</span>
+<span class="k">npm install</span> <span class="s">@bendscript/core</span>
 
 <span class="c">// 2. parse, validate, hash a document</span>
-<span class="k">import</span> { parseAndNormalize, computeDocumentId } <span class="k">from</span> <span class="s">"bendscript-core"</span>;
+<span class="k">import</span> { parseAndNormalize, computeDocumentId } <span class="k">from</span> <span class="s">"@bendscript/core"</span>;
 
 <span class="k">const</span> doc = parseAndNormalize(<span class="n">readFileSync</span>(<span class="s">"note.bend.json"</span>, <span class="s">"utf8"</span>));
 <span class="k">const</span> id  = <span class="k">await</span> computeDocumentId(doc);
@@ -1204,7 +1204,7 @@
                 <h2 class="section-title">an open protocol underneath.</h2>
                 <p class="section-sub">
                     BendScript is a small declarative protocol. The reference
-                    framework <code>bendscript-core</code> is TypeScript on
+                    framework <code>@bendscript/core</code> is TypeScript on
                     Node 20+. Documents are JSON; canonicalization is RFC 8785
                     (JCS); ids are CIDv1 with the json multicodec. Independent
                     of the rest of the [&amp;] stack &mdash; usable by them,
@@ -1240,7 +1240,7 @@
             <p>
                 Open the playground. Paste a document. Watch link marks expand
                 into edges. Copy the canonical form. Then reach for
-                <code>bendscript-core</code> and start round-tripping your own.
+                <code>@bendscript/core</code> and start round-tripping your own.
             </p>
             <div class="actions">
                 <a

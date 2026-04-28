@@ -1,4 +1,4 @@
-// bendscript-core — public API
+// @bendscript/core — public API
 export type {
   Block,
   Document,

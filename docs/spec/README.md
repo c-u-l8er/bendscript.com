@@ -657,7 +657,7 @@ WebHost.Systems is the deployment substrate for portfolio sites. It does not pro
 Three invariants govern how BendScript composes with the rest of the portfolio. These are normative.
 
 1. **No portfolio product is required to use BendScript.** Adoption is opt-in at the product level. A product that does not adopt BendScript is fully conformant with the [&] portfolio.
-2. **BendScript does not require any portfolio product.** A `.bend` JSON document is meaningful without [&], without PULSE, without PRISM, without Graphonomous. The reference framework `bendscript-core` (§13) has no portfolio dependencies.
+2. **BendScript does not require any portfolio product.** A `.bend` JSON document is meaningful without [&], without PULSE, without PRISM, without Graphonomous. The reference framework `@bendscript/core` (§13) has no portfolio dependencies.
 3. **Vocabularies are owned by their adopting product, not by BendScript.** The `bendscript.memory.v1` vocabulary lives wherever Graphonomous decides — likely in `graphonomous/priv/bendscript-vocab/` — and Graphonomous owns its evolution. The BendScript spec only reserves the *name* and the namespace; it does not freeze the vocabulary's contents.
 
 ### 14.6 Cross-product references

@@ -1,5 +1,5 @@
 {
-  "name": "bendscript-core",
+  "name": "@bendscript/core",
   "version": "0.1.0-alpha.0",
   "description": "Reference parser, validator, and round-trip harness for the BendScript Protocol v0.1 — a graph-first document format with typed inline link facets, for agent-native systems.",
   "type": "module",

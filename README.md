@@ -1,4 +1,4 @@
-# bendscript-core
+# @bendscript/core
 
 Reference parser, validator, and round-trip harness for the **BendScript Protocol v0.1** — a graph-first document format with typed inline link facets, for agent-native systems.
 
@@ -18,7 +18,7 @@ The full spec lives at <https://bendscript.com> and in [docs/spec/](https://gith
 ## Install
 
 ```bash
-npm install bendscript-core
+npm install @bendscript/core
 ```
 
 Requires Node 20+.
@@ -34,7 +34,7 @@ import {
   validate,
   expandLinkMarks,
   computeDocumentId,
-} from "bendscript-core";
+} from "@bendscript/core";
 
 const text = `{
   "version": "bendscript/0.1",
@@ -64,14 +64,14 @@ import {
   computeDrift,
   median,
   p95,
-} from "bendscript-core/harness";
+} from "@bendscript/core/harness";
 ```
 
 Bring your own `ModelClient` to evaluate any model against the BendScript corpus, or use `MockModel` for harness-mechanic tests with no API costs.
 
 ## API surface
 
-**Main entry (`bendscript-core`)**
+**Main entry (`@bendscript/core`)**
 - `parse(text)`, `normalize(doc)`, `parseAndNormalize(text)`
 - `serialize(doc)`, `serializeCanonical(doc)`
 - `canonicalize(value)` — RFC 8785 (JCS) wrapper
@@ -80,7 +80,7 @@ Bring your own `ModelClient` to evaluate any model against the BendScript corpus
 - `validate(doc)`, `ValidationError`, `isBendUri(s)`
 - Types: `Document`, `NormalizedDocument`, `Block`, `Span`, `Edge`, `Mark`, `LinkMark`, `MarkKind`, `Predicate`, `ProtocolVersion`
 
-**Harness subpath (`bendscript-core/harness`)**
+**Harness subpath (`@bendscript/core/harness`)**
 - `runHarness({ corpus, models, classes })`, `runOne(...)`
 - `loadCorpus(dir)`, `buildPrompt(...)`
 - `computeDrift(before, after)`, `median(arr)`, `p95(arr)`, `aggregate(...)`

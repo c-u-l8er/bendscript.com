@@ -10,7 +10,7 @@ bendscript.com is being rebuilt as a **protocol spec + reference framework**, no
 
 The new product is:
 - A JSON document format (`bend:` URI scheme, content-addressable ids, span-addressable graph edges)
-- A reference parser/validator/edge-extractor (`bendscript-core`, not yet written)
+- A reference parser/validator/edge-extractor (`@bendscript/core`, not yet written)
 - An LLM round-trip test harness (the load-bearing claim of v0.1)
 - Five reserved vocabularies that integrate with the rest of the [&] portfolio
 
@@ -30,7 +30,7 @@ npm test            # run all unit tests (vitest)
 npm run typecheck   # tsc --noEmit
 ```
 
-Reference framework: `bendscript-core` (TypeScript, Node 20+).
+Reference framework: `@bendscript/core` (TypeScript, Node 20+).
 
 - `src/types.ts` — Document, Block, Span, Edge, Mark types
 - `src/parse.ts` — `parse(text) → Document`, `normalize(doc)` (link-mark expansion), `parseAndNormalize`
