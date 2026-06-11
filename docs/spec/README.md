@@ -2,6 +2,8 @@
 
 **A graph-first document format with typed inline link facets, for agent-native systems.**
 
+> **Part of the [&] Protocol stack** · [Ecosystem overview](../../../ECOSYSTEM.md) · [Three-protocol stack](../../../PULSE/docs/THREE_PROTOCOL_STACK.md) · [Stack status](../../../STACK_COMPLETION.md)
+
 Status: draft v0.1 (sections 0–6)
 Owner: bendscript.com
 Date: 2026-04-27
