@@ -168,6 +168,30 @@ function band() {
     return `<div class="band" data-tier="${surface.tier}"><span class="where">${where}</span>${rung(surface.surface_rung)}<span class="covers">That rung covers ${esc(surface.surface_rung_covers)}.</span></div>`;
 }
 
+/* THE SHARED PORTFOLIO NAV. Ruled by Travis 2026-08-17 — "the ampersand-nav
+   needs to be on each website!" — after this surface and four siblings each
+   dropped it independently on adopting the shell.
+
+   Emitted from the record rather than typed into the template, so the property
+   key has one home. An unknown key is the dangerous failure: amp-nav renders
+   an EMPTY bar for a property it does not know, which looks like a styling
+   problem and not like a wrong string, so the build refuses it here instead.
+
+   The vendored ./amp-nav.js is written by ampersand-nav/sync-nav.sh and is NOT
+   this repo's to edit; it has been present and unreferenced all along. It is
+   deliberately not treated as a build input — sync-nav.sh rewrites it across
+   ~21 repos and lane N runs it last, so fingerprinting it would make this gate
+   refuse "stale artifact" for a file this repo may not change. */
+function navChrome() {
+    const key = surface.nav_property;
+    if (!key) throw new Error("BUILD REFUSED — records/surface.json declares no nav_property, so the page cannot say which property the shared nav should render.");
+    if (!existsSync("./amp-nav.js")) throw new Error("BUILD REFUSED — ./amp-nav.js is not in this tree; the page would load the nav from a 404. Run ampersand-nav/sync-nav.sh.");
+    if (!new RegExp(`^\\s*${key}:\\s*\\{`, "m").test(read("./amp-nav.js"))) {
+        throw new Error(`BUILD REFUSED — the vendored amp-nav.js has no "${key}" property. An unknown key renders an empty nav bar rather than an error.`);
+    }
+    return `<script type="module" src="/amp-nav.js"></script>\n<amp-nav property="${key}"></amp-nav>`;
+}
+
 function statusBlock() {
     const s = surface.status;
     return `<dl class="status">
@@ -339,6 +363,7 @@ const YEAR = new Date(surface.verified_at).getUTCFullYear();
 const landing = fill(read("./src/landing.html"), {
     CSS,
     BAND: band(),
+    NAV: navChrome(),
     STAMP,
     APP_PATH,
     ORIGIN: surface.origin,
@@ -407,6 +432,6 @@ writeFileSync("./index.html", landing);
 writeFileSync("./graph.js", ANIM + "\n");
 writeFileSync("./contact.js", CONTACT + "\n");
 
-console.log(`wrote index.html   ${landing.length.toLocaleString()} bytes`);
-console.log(`wrote graph.js     ${ANIM.length.toLocaleString()} bytes  (decoration; the page's content does not depend on it)`);
-console.log(`wrote contact.js    ${CONTACT.length.toLocaleString()} bytes  (progressive enhancement; the form posts without it)`);
+console.log(`wrote index.html   ${Buffer.byteLength(landing).toLocaleString()} bytes`);
+console.log(`wrote graph.js     ${Buffer.byteLength(ANIM).toLocaleString()} bytes  (decoration; the page's content does not depend on it)`);
+console.log(`wrote contact.js    ${Buffer.byteLength(CONTACT).toLocaleString()} bytes  (progressive enhancement; the form posts without it)`);
