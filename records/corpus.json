@@ -1,0 +1,148 @@
+{
+  "schema": "bendscript-corpus-v1",
+  "_comment": "Frozen by build-site.mjs on first run. Every value here is recomputed from ./dist/index.js on every subsequent build and the build refuses on any disagreement. Do not hand-edit: if the library changes what a document hashes to, that is a protocol event, not a typo.",
+  "corpus": "test-corpus/v0.1",
+  "frozen_at": "2026-08-16",
+  "documents": [
+    {
+      "file": "01-plain-prose.bend.json",
+      "blocks": 1,
+      "edges": 0,
+      "vocabulary": "core",
+      "id": "bagaaiera2r4gqoyqnoqmwdlsu6xnjvi5ney5wywtliyqy6r73zi6il244uca"
+    },
+    {
+      "file": "02-heading-paragraph.bend.json",
+      "blocks": 2,
+      "edges": 0,
+      "vocabulary": "core",
+      "id": "bagaaieraiim2khmj2cwp2ksuapfi2ir3cgg75aybu7q2ihtd64jwpkpqyzvq"
+    },
+    {
+      "file": "03-marks.bend.json",
+      "blocks": 1,
+      "edges": 0,
+      "vocabulary": "core",
+      "id": "bagaaierafmp7ebm2svksve3jjn5oj6ygcbyiyutvnmjdmlkxbz6gkjv26umq"
+    },
+    {
+      "file": "04-typed-link.bend.json",
+      "blocks": 1,
+      "edges": 1,
+      "vocabulary": "core",
+      "id": "bagaaiera32ml6rat5sqdaxkcn7xgtxgko4v7jl4jjxaw4jghevtk76wmux6q"
+    },
+    {
+      "file": "05-document-edges.bend.json",
+      "blocks": 1,
+      "edges": 1,
+      "vocabulary": "core",
+      "id": "bagaaieraqap4kuslufcrm6pes65oklewm3dl6oyeetdka7r6td2u4ks4pkba"
+    },
+    {
+      "file": "06-list-quote-code.bend.json",
+      "blocks": 4,
+      "edges": 0,
+      "vocabulary": "core",
+      "id": "bagaaieratq54d4wuiz2ln2sowdiyttudxqc5z72wrww6buixf3vngq6w6h5a"
+    },
+    {
+      "file": "07-memory-vocab.bend.json",
+      "blocks": 1,
+      "edges": 1,
+      "vocabulary": "bendscript.memory.v1",
+      "id": "bagaaierac2zyr2473k7eaiyzgbdqayjygkpw367gogbteeo3rya6bm5bfqgq"
+    },
+    {
+      "file": "08-nested-lists.bend.json",
+      "blocks": 1,
+      "edges": 0,
+      "vocabulary": "core",
+      "id": "bagaaiera6tbxyy25nl4vvniqdjkvaqywevdrxlsnav2f6qpqgbehexaccd2q"
+    },
+    {
+      "file": "09-embed-divider.bend.json",
+      "blocks": 5,
+      "edges": 0,
+      "vocabulary": "core",
+      "id": "bagaaierawepfijfqdskngazha4zlcqljat6wbeivxy5h2mo5jqckx5z5w42a"
+    },
+    {
+      "file": "10-multi-mark-span.bend.json",
+      "blocks": 1,
+      "edges": 0,
+      "vocabulary": "core",
+      "id": "bagaaierapwrgybul23z2fcdyacwsreuv7mvmv5vzpaifjijiko7oonkob74a"
+    },
+    {
+      "file": "11-untyped-link.bend.json",
+      "blocks": 1,
+      "edges": 0,
+      "vocabulary": "core",
+      "id": "bagaaiera4v4pqmr6hft3rqsxjme73f3hig6ydydagj4ye2vxlp5mv2hgrvcq"
+    },
+    {
+      "file": "12-all-core-predicates.bend.json",
+      "blocks": 1,
+      "edges": 9,
+      "vocabulary": "core",
+      "id": "bagaaierao57xbtz5sftwdjbebqwibr2mvyphfoqgitzgg7u2zapybq2rxasa"
+    },
+    {
+      "file": "13-edge-meta.bend.json",
+      "blocks": 2,
+      "edges": 2,
+      "vocabulary": "core",
+      "id": "bagaaieraedf5g6fxovfcu7tntj6luaogdsnxfgkn3wtp7736cwvnreh4nr4q"
+    },
+    {
+      "file": "14-supersedes-tombstone.bend.json",
+      "blocks": 1,
+      "edges": 1,
+      "vocabulary": "core",
+      "id": "bagaaieraioih54rw6lslw3tlbnjdm3peaubgc6doksablcftbvnufhfqefea"
+    },
+    {
+      "file": "15-argument-vocab.bend.json",
+      "blocks": 3,
+      "edges": 2,
+      "vocabulary": "bendscript.argument.v1",
+      "id": "bagaaierazgxlyz2ny6qeqx7lgydflsfcx5uaxygc4k4frhgpssqzrd553pwa"
+    },
+    {
+      "file": "16-spec-vocab.bend.json",
+      "blocks": 4,
+      "edges": 2,
+      "vocabulary": "bendscript.spec.v1",
+      "id": "bagaaieraxh4hhtg7fgb6k6mm46avsc6waesgcd5uke7nlur6bg5jl6zffx3a"
+    },
+    {
+      "file": "17-cross-doc-edges.bend.json",
+      "blocks": 3,
+      "edges": 6,
+      "vocabulary": "core",
+      "id": "bagaaieravie4fk37o5wsudcy3vy7op66cymiekcr4nxavrnm3gariwayhana"
+    },
+    {
+      "file": "18-unicode-emoji.bend.json",
+      "blocks": 3,
+      "edges": 0,
+      "vocabulary": "core",
+      "id": "bagaaieraqb3y54k6ciew5idcbsq2buloipstw3nw2z45usgzv2brwsl7vcba"
+    },
+    {
+      "file": "19-large-document.bend.json",
+      "blocks": 10,
+      "edges": 3,
+      "vocabulary": "core",
+      "id": "bagaaieraqryv6avv3c66ygpweuo2dqlicpukim4earoq5m3its7mlqeztfsq"
+    },
+    {
+      "file": "20-adversarial.bend.json",
+      "blocks": 3,
+      "edges": 1,
+      "vocabulary": "core",
+      "id": "bagaaierayubxtbbx5tvt43x52ov6yni4ww7kvddzyf4ao2z7dsxa742xuqga"
+    }
+  ]
+}

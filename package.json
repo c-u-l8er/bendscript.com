@@ -1,7 +1,7 @@
 {
   "name": "@bendscript/core",
   "version": "0.1.0-alpha.0",
-  "description": "Reference parser, validator, and round-trip harness for the BendScript Protocol v0.1 — a graph-first document format with typed inline link facets, for agent-native systems.",
+  "description": "Reference parser, validator, and round-trip harness for the BendScript Protocol v0.1 \u2014 a graph-first document format with typed inline link facets, for agent-native systems.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -26,7 +26,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run clean && npm run build && npm test"
+    "prepublishOnly": "npm run clean && npm run build && npm test",
+    "build:site": "node build-site.mjs",
+    "gate": "node launch-gate.mjs",
+    "test:launch": "npm run build && npm test && node build-site.mjs && node launch-gate.mjs"
   },
   "keywords": [
     "bendscript",

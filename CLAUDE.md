@@ -22,7 +22,35 @@ The new product is:
 
 `old_scrap/v1/` contains the entire previous product — SvelteKit app, Supabase migrations integration, AGENTS.md, prompts, the v1.0 canvas-and-KAG spec (`old_scrap/v1/docs/spec/README.md`), and all build configs. It is historical; do not extend it.
 
-## Build
+## The landing page is GENERATED. Do not hand-edit `index.html`.
+
+`/index.html` and `/graph.js` are emitted by `build-site.mjs` from
+`records/surface.json`, `records/corpus.json`, `src/landing.html`,
+`src/shell.css` and `src/graph.js`. **An edit to the served HTML is silently
+reverted by the next build.** Change the record or the template.
+
+```
+npm run test:launch   # build the library, run the tests, emit the site, run the gate
+```
+
+`launch-gate.mjs` reads the emitted artifact and refuses to publish when it and
+the records disagree — a retracted claim reinstated, a rung invented, a CTA the
+rung has not earned, an unrendered token, a `mailto:`, a text token below
+4.5:1, a same-origin link that resolves to nothing, an artifact that is not what
+its source compiles to, or an identifying-animation constant leaking into the
+copy. It has been made to refuse **16 times** deliberately. The whole shell is
+documented in `ProjectAmp2/agents/SHELL.md`; this surface is built against
+revision **`shell-r4`**, recorded as `shell_revision` in `records/surface.json`.
+
+`/app/` (the playground) is hand-authored, predates this shell, and is NOT
+generated. It is the surface's `live_deployed` artifact.
+
+**The band says "a specification in the ComputeDriven world", not "the document
+layer of ComputeDriven", and that is deliberate.** `ampersand-nav` records
+bendscript as `place: 3`, and its own `renderPlacement()` gives the layer
+sentence to `place: 2` only.
+
+## Build (the library)
 
 ```
 npm install

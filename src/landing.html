@@ -1,0 +1,87 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Can a document be its own graph? — BendScript</title>
+<meta name="description" content="BendScript is a JSON document format where a span of prose can carry a typed edge to another span. The parser round-trip and the content address are checked against a 20-document corpus and republished here from the library itself. The claim the format exists for — that the graph survives a language model — has not been measured, and this page says so.">
+<meta name="falsifiable-question" content="{{QUESTION}}">
+<link rel="canonical" href="{{ORIGIN}}/">
+<meta name="theme-color" content="#0a0a0c">
+<meta property="og:title" content="Can a document be its own graph? — BendScript">
+<meta property="og:description" content="A graph-first document format with typed inline link facets. What is checked is published with its witness; what is not is listed as not.">
+<meta property="og:type" content="website"><meta property="og:url" content="{{ORIGIN}}/">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,300..600;1,6..72,300..500&family=Roboto+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>{{CSS}}</style></head><body>
+{{BAND}}
+<div class="wrap">
+
+<div class="top"><a class="logo" href="/">bend<span>script</span></a>
+<nav><a href="#facet">The one idea</a><a href="#runs">What runs</a><a href="#evidence">Evidence</a><a href="#status">Status</a><a class="btn" href="{{APP_PATH}}">Open the playground</a></nav></div>
+
+<section class="hero">
+<div class="front">
+<div class="eyebrow">The question this site exists to answer</div>
+<h1>Can a document be its <em>own graph?</em></h1>
+<p class="lede">Most formats answer no by construction. Markdown puts a link inside a string and forgets it; RDF keeps the graph and loses the document. <strong>BendScript attaches the edge to the span</strong> — this exact phrase cites that exact phrase — so the prose and the graph are one object with one identity. Whether that survives contact with a language model is the interesting half, and it is the half nobody here has measured.</p>
+<p><a class="btn" href="{{APP_PATH}}">Open the playground</a>&nbsp;&nbsp;<a class="btn ghost" href="#evidence">See what was checked</a></p>
+</div>
+<!-- The identifying animation (SHELL.md §8). It comes AFTER the h1 in source
+     order and sits behind it, because the question comes first. It renders no
+     data and asserts nothing: /graph.js takes no input from this document and
+     writes nothing back into it. Delete the one script tag at the bottom of
+     this file and every word, figure, chip and row on this page is still here. -->
+<div class="idanim" aria-hidden="true"><canvas data-identity-animation></canvas></div>
+</section>
+
+{{PLATE}}
+
+<section id="facet">
+<div class="eyebrow">The one idea</div>
+<h2>A link that knows what it is doing.</h2>
+<p class="lede">A <strong>typed inline link facet</strong> is a mark on a span of text that carries a predicate and a target. It is not metadata about the document and it is not a footnote — it is part of the sentence, and it expands deterministically into an edge in the document's graph.</p>
+{{FACET}}
+</section>
+
+<section id="runs">
+<div class="eyebrow">What is running, and at which rung</div>
+<h2>Three things exist here. They are not at the same rung, so they are not in the same list.</h2>
+<p class="lede">A single status for this domain would be a lie in one direction or the other. One artifact answers on the deployed domain, one is a package with a test suite, and one is a draft document.</p>
+{{ARTIFACTS}}
+</section>
+
+<section id="open">
+<div class="eyebrow">What is not established</div>
+<h2>The claim this format exists for has never been run.</h2>
+<p class="lede">The spec distinguishes two round-trips sharply, and only one of them is a guarantee. §8.1.1 &mdash; that a parser returns the same structure it was handed &mdash; is deterministic, testable, and checked below. §8.1.2 &mdash; that a frontier model can edit a document and leave the graph intact &mdash; is <em>measured</em>, and the measurement has not happened.</p>
+{{OPEN_CARDS}}
+</section>
+
+<section id="evidence">
+<div class="eyebrow">Evidence, recomputed at build time</div>
+<h2>Every id below was produced by the library, not typed onto this page.</h2>
+<p class="lede">The corpus files are checked into this repository. This build imports the published package, parses each one, expands its link marks and computes its content address &mdash; and refuses to emit the page if any value disagrees with the frozen record beside it. <strong>A number cannot be hand-written onto this site.</strong> The ids are the fixture a second implementation has to reproduce.</p>
+{{CORPUS_TABLE}}
+<p class="lede sm">{{METHOD_NOTE}}</p>
+</section>
+
+<section id="status">
+<div class="eyebrow">Status</div>
+<h2>Where this stands, and what would move it.</h2>
+{{STATUS}}
+{{ZEROS}}
+{{RETRACTION}}
+</section>
+
+<section id="do">
+<div class="eyebrow">What you can actually do here</div>
+<h2>Three rungs, three lists. Nothing asks you to use what is not built.</h2>
+{{CTA}}
+</section>
+
+</div>
+<footer><div class="in">
+<span class="stamp">{{STAMP}}</span>
+<span class="links"><a href="{{APP_PATH}}">Playground</a><a href="{{REPO}}">Source</a><a href="{{SPEC_URL}}">Spec</a><a href="{{CONTACT}}">File a correction</a></span>
+</div>
+<div class="attrib">This page is generated from <code>records/surface.json</code> and the corpus, and <code>launch-gate.mjs</code> refuses to publish it when the artifact and the records disagree. Its whole content ships with zero JavaScript &mdash; the one script below is the identifying animation, which reads nothing from this page and writes nothing to it. &copy; {{YEAR}} BendScript.</div>
+</footer>
+<script src="/graph.js" defer></script>
+</body></html>

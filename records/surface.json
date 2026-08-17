@@ -1,0 +1,158 @@
+{
+  "schema": "computedriven-surface-v1",
+  "_comment": "The frozen record this landing page is GENERATED from. Nothing on the emitted page may state a rung, a status or a count that is not derived here or recomputed by build-site.mjs from the library itself. launch-gate.mjs reads the emitted index.html and refuses to publish when the two disagree.",
+
+  "shell_revision": "shell-r4",
+  "version": "0.1.0-alpha.0",
+  "origin": "https://bendscript.com",
+  "repo": "https://github.com/c-u-l8er/bendscript.com",
+  "surface": "BendScript",
+  "layer": "document",
+  "parent": "ComputeDriven",
+
+  "tier": 3,
+  "_tier_comment": "READ THE NAV, NOT THE TEMPLATE. ampersand-nav/src/amp-nav.js records bendscript as { place: 3 }, and its own renderPlacement() at line 1690 emits the layer sentence ONLY for place 2 — place 3 gets 'a specification in the ComputeDriven world'. SHELL.md §1 documents two band variants (standard-with-layer, and the tier-4 attribution variant) and does not mention this third one, so applying the standard band here would have put the page's own band in direct contradiction with the nav rendered underneath it. That is the GPSCoord tier-4 defect one rung up. Checked 2026-08-16 by reading amp-nav.js; the nav source is lane N's and was NOT edited.",
+  "_nav_rung_disagreement": "amp-nav also records bendscript { rung: 'spec' }. This surface measures live_deployed, because the playground was loaded from this domain and made to compute a content address. The nav value is older than the measurement, not wrong on purpose. Only lane N may change it. Flagged in the lane report.",
+
+  "question": "Can a document be its own graph?",
+
+  "surface_rung": "live_deployed",
+  "surface_rung_covers": "the playground at /app/, which parses, validates and content-addresses a document in your browser on this domain — and nothing else here. There is no server, no account and no storage, and the LLM round-trip the spec is gated on has never been run against a real model",
+  "verified_at": "2026-08-16",
+
+  "status": {
+    "statement": "The playground at /app/ was loaded from this domain and made to compute a CIDv1 document id in the browser. The reference library it mirrors is published, and its parser round-trip holds for the whole v0.1 corpus.",
+    "source": "Two measurements on 2026-08-16. (1) npm test — vitest, 96 tests across test/round-trip.test.ts and test/harness.test.ts. (2) https://bendscript.com/app/ opened in a browser, INSPECT then \"document id\": it returned bagaaieraow7l4hfhdhrpljlcidagibztg3dln5thmvxgkdxjedf34iox2w3a for its built-in document, and the same page served from a local server returned the identical id.",
+    "limit": "This establishes that the parser is deterministic and that one page on this domain runs. It does not establish the protocol's own load-bearing claim — §8.1.2, that a document survives a round trip through a real language model — which has been exercised only against mock models inside this repository. It does not establish that any implementation other than this one produces the same id for the same document, and §14.3 adoption by a portfolio product has not started."
+  },
+
+  "advance": {
+    "next_rung": "external",
+    "requires": "A second implementation, written by someone who is not us, that produces the same document id as the table below for the same corpus file — or a corpus document this parser gets wrong. Either would move this off self-report; nothing else will."
+  },
+
+  "artifacts": [
+    {
+      "id": "playground",
+      "name": "The playground",
+      "where": "/app/",
+      "rung": "live_deployed",
+      "detail": "Paste a .bend.json document; it parses, validates against §2/§3, expands link marks into edges and computes the content address. All of it client-side — no request leaves the browser and there is nothing to sign in to.",
+      "witness": "Opened from https://bendscript.com/app/ on 2026-08-16 and made to print a CIDv1 for its built-in document."
+    },
+    {
+      "id": "library",
+      "name": "@bendscript/core",
+      "where": "npm",
+      "rung": "in_tree",
+      "detail": "The reference parser, validator, canonicaliser, link-mark expander and content-address function, plus the §8 drift harness. TypeScript, two runtime dependencies, Node 20+.",
+      "witness": "96 tests pass — 85 round-trip, 11 harness. The version on npm is 0.1.0-alpha.0, which is also the version this page is stamped with."
+    },
+    {
+      "id": "spec",
+      "name": "The protocol",
+      "where": "docs/spec/README.md",
+      "rung": "spec",
+      "detail": "v0.1 draft. Six primitives, one strict round-trip guarantee (§8.1.1), one measured round-trip property (§8.1.2), five reserved vocabularies and a gating adoption section (§14).",
+      "witness": "A document. Nothing about a draft spec is running anywhere, and §14 says v0.1 is not final until a portfolio product ships a vocabulary."
+    }
+  ],
+
+  "unmeasured": [
+    {
+      "id": "llm_roundtrip",
+      "name": "§8.1.2 — the LLM round-trip",
+      "rung": "spec",
+      "detail": "The claim the whole format is built for: that a frontier model can modify a .bend document and leave the graph intact. The harness, the drift metric and the thresholds are written and tested; what has never happened is a run against a real model.",
+      "needs": "60 modification tasks across 20 documents and 3 models — roughly 180 API calls. The harness prints its own verdict.",
+      "built": "harness yes, run no"
+    },
+    {
+      "id": "second_impl",
+      "name": "A second implementation",
+      "rung": "spec",
+      "detail": "The spec says an Elixir, Rust or plain-HTML implementation MUST produce the same id for the same document. One TypeScript implementation cannot demonstrate that; it can only fail to contradict it.",
+      "needs": "Anyone. The id is sha2-256 over JCS-canonical bytes wrapped as a CIDv1 with the json multicodec — the table below is the fixture to check against.",
+      "built": "no"
+    },
+    {
+      "id": "adoption",
+      "name": "§14.3 — a portfolio product that actually uses it",
+      "rung": "spec",
+      "detail": "§14 is gating: v0.1 is not final until at least one product has committed to bend: URIs and shipped a vocabulary implementation. Graphonomous is the named first adopter and has not started.",
+      "needs": "A vocabulary implementation in a product, not a promise in a spec.",
+      "built": "no"
+    },
+    {
+      "id": "text_projection",
+      "name": "§4 — the text projection",
+      "rung": "spec",
+      "detail": "There is no .bend text syntax. The canonical form is JSON and it is meant to be produced by editors, not typed. A projection is deferred to v0.2 and the spec does not pretend otherwise.",
+      "needs": "A grammar, and a reason to have one.",
+      "built": "no, and deliberately deferred"
+    }
+  ],
+
+  "zero_counts": [
+    {
+      "label": "Servers your document touches",
+      "value": "0",
+      "witness": "The playground is one HTML file with one inline module. Parsing, validation, link-mark expansion and the sha2-256 are all done in the page; the only network calls it can make are to a model endpoint you supply a key for."
+    },
+    {
+      "label": "Models the round-trip has been measured against",
+      "value": "0",
+      "witness": "§8.1.2 is the spec's own gating claim and has been exercised against mock models only. The mocks are in src/harness/mock-model.ts and they are named identity, small-edit, lossy and garbage."
+    }
+  ],
+
+  "contact": {
+    "kind": "github_issues",
+    "url": "https://github.com/c-u-l8er/bendscript.com/issues",
+    "_comment": "Deliberately not a mailto: — Travis's call, 2026-08-11 — and deliberately not another surface's Formspree endpoint. No Formspree endpoint exists for this domain; a live issues URL is the honest correction channel until one is ruled. Flagged [TRAVIS]."
+  },
+
+  "gates": {
+    "_comment": "A gate may not read approved without its evidence, reviewer and date fields, and launch-gate.mjs enforces that.",
+    "parser_round_trip": {
+      "label": "§8.1.1 — parse(serialize(parse(d))) === parse(d) over the whole corpus",
+      "status": "approved",
+      "description": "The strict round-trip guarantee, over all 20 v0.1 corpus documents including Unicode, ZWJ emoji, nested lists, all five reserved vocabularies and the adversarial document.",
+      "evidence": "npm test — 96 tests, 0 failures.",
+      "reviewer": "vitest 2.1.9, run in this repository",
+      "date": "2026-08-16"
+    },
+    "deployed_route_check": {
+      "label": "The playground answers on bendscript.com and computes an id there",
+      "status": "approved",
+      "description": "https://bendscript.com/app/ loaded in a browser, INSPECT opened, \"document id\" clicked, and a CIDv1 printed. The domain answers every path with the landing page, so this had to be checked rather than assumed.",
+      "evidence": "Computed id bagaaieraow7l4hfhdhrpljlcidagibztg3dln5thmvxgkdxjedf34iox2w3a, identical to the id the same page produced from a local server.",
+      "reviewer": "agent-browser, session bendrune, against https://bendscript.com/app/",
+      "date": "2026-08-16"
+    },
+    "llm_round_trip": {
+      "label": "§8.1.2 — the drift bound against real frontier models",
+      "status": "pending",
+      "description": "The gating claim of v0.1. The harness, the five drift components, the median/P95 aggregation and the threshold check are all written and unit-tested; no run against a real model has happened.",
+      "evidence": null,
+      "reviewer": null,
+      "date": null
+    },
+    "second_implementation": {
+      "label": "A processor we did not write produces the same document id",
+      "status": "pending",
+      "description": "§5.1 says the id is a function of the canonical bytes, so any conforming implementation must agree. One implementation cannot demonstrate that.",
+      "evidence": null,
+      "reviewer": null,
+      "date": null
+    },
+    "portfolio_adoption": {
+      "label": "§14.3 — a product has shipped a vocabulary",
+      "status": "pending",
+      "description": "§14 is gating on v0.1 being final. Nothing has adopted bend: URIs yet.",
+      "evidence": null,
+      "reviewer": null,
+      "date": null
+    }
+  }
+}

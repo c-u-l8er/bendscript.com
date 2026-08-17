@@ -37,12 +37,13 @@ import {
 } from "@bendscript/core";
 
 const text = `{
-  "version": "bendscript/0.1",
-  "id": "bafy...",
+  "bendscript": "0.1",
+  "id": "PLACEHOLDER",
   "vocabulary": "core",
   "blocks": [
     { "id": "blk-1", "kind": "paragraph", "spans": [{ "id": "spn-1", "text": "Hello." }] }
-  ]
+  ],
+  "edges": []
 }`;
 
 const doc = parseAndNormalize(text);
