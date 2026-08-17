@@ -2,7 +2,7 @@
   "schema": "computedriven-surface-v1",
   "_comment": "The frozen record this landing page is GENERATED from. Nothing on the emitted page may state a rung, a status or a count that is not derived here or recomputed by build-site.mjs from the library itself. launch-gate.mjs reads the emitted index.html and refuses to publish when the two disagree.",
 
-  "shell_revision": "shell-r4",
+  "shell_revision": "shell-r5",
   "version": "0.1.0-alpha.0",
   "origin": "https://bendscript.com",
   "repo": "https://github.com/c-u-l8er/bendscript.com",
@@ -15,8 +15,11 @@
   "_nav_rung_disagreement": "amp-nav also records bendscript { rung: 'spec' }. This surface measures live_deployed, because the playground was loaded from this domain and made to compute a content address. The nav value is older than the measurement, not wrong on purpose. Only lane N may change it. Flagged in the lane report.",
 
   "question": "Can a document be its own graph?",
+  "spec_file": "docs/spec/README.md",
 
   "surface_rung": "live_deployed",
+  "rung_witness": "deployed_route_check",
+  "_rung_witness_comment": "SHELL.md r5. GPSCoord's rule \"any pending gate blocks live_deployed\" is too blunt: independent_use and second_implementation are pending FOREVER by construction, so a surface could never advance. This names the ONE gate that witnesses the rung; the others stay pending without blocking it, and launch-gate.mjs refuses if the named gate is not approved.",
   "surface_rung_covers": "the playground at /app/, which parses, validates and content-addresses a document in your browser on this domain — and nothing else here. There is no server, no account and no storage, and the LLM round-trip the spec is gated on has never been run against a real model",
   "verified_at": "2026-08-16",
 

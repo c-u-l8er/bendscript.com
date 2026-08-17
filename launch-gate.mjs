@@ -164,6 +164,67 @@ if (surface.tier === 3) {
 }
 T("the placement band bounds what its rung covers", landing.includes(surface.surface_rung_covers));
 
+/* ---------- r5a. the band must refuse in BOTH directions ----------
+   Refusing a layer claim a place has not earned is only half of it: a place-2
+   band that quietly DROPS its layer word is the same defect inverted, and it
+   passed until someone tried it. So assert the sentence this place must carry
+   and the absence of every sentence it must not. SHELL.md r5 §4. */
+{
+    const SENTENCES = {
+        2: `is the <b>${surface.layer}</b> layer of ${surface.parent}`,
+        3: `a <b>specification</b> in the ${surface.parent} world`,
+        4: `A <b>${surface.parent}</b> project`,
+    };
+    const mine = SENTENCES[surface.tier];
+    T(`/ band carries the sentence place ${surface.tier} requires`, !!mine && landing.includes(mine),
+        mine || "no sentence defined for this place");
+    const wrong = Object.entries(SENTENCES)
+        .filter(([p]) => Number(p) !== surface.tier && landing.includes(SENTENCES[p]))
+        .map(([p]) => `place ${p}`);
+    T("/ band carries no OTHER place's sentence", wrong.length === 0, wrong.join(", ") || "only its own");
+}
+
+/* ---------- r5b. every §N on the page resolves in the spec it cites ----------
+   Cheap, and it catches a citation that drifted when a spec was rewritten.
+   FENCES ARE STRIPPED FIRST: a markdown heading inside a fenced code block is
+   not a heading, and reading one as a section has already bitten a lane.
+   A citation resolves if the spec has a heading with that number, or if the
+   spec itself uses the same §N — sub-clauses like §8.1.1 are bold text under a
+   §8.1 heading rather than headings of their own, and that is legitimate. */
+{
+    const specPath = "./" + surface.spec_file;
+    T("the spec file this surface cites exists", existsSync(specPath), surface.spec_file);
+    if (existsSync(specPath)) {
+        const md = read(specPath).replace(/^```[\s\S]*?^```/gm, "");
+        const heads = new Set([...md.matchAll(/^#{1,6}\s+(\d+(?:\.\d+)*)\.?\s/gm)].map((m) => m[1]));
+        const used = new Set([...md.matchAll(/§\s?(\d+(?:\.\d+)*)/g)].map((m) => m[1]));
+        /* Only RENDERED text counts. The SHELL.md §8 reference in this page's
+           own HTML comment is not a citation of the protocol spec, and it
+           passed by coincidence because the protocol happens to have a §8. */
+        const visible = landing
+            .replace(/<!--[\s\S]*?-->/g, " ")
+            .replace(/<script[\s\S]*?<\/script>/gi, " ")
+            .replace(/<style[\s\S]*?<\/style>/gi, " ");
+        const cited = [...new Set([...visible.matchAll(/§\s?(\d+(?:\.\d+)*)/g)].map((m) => m[1]))];
+        const dangling = cited.filter((c) => !heads.has(c) && !used.has(c));
+        T("every § citation on the page resolves in the spec it cites", dangling.length === 0,
+            dangling.length ? `DANGLING: ${dangling.map((d) => "§" + d).join(", ")} — ${heads.size} headings, ${used.size} § uses in ${surface.spec_file}`
+                            : `${cited.length} citations, all resolved against ${heads.size} headings`);
+    }
+}
+
+/* ---------- r5c. the rung has a NAMED witness, and it is approved ----------
+   "Any pending gate blocks live_deployed" is too blunt: independent_use is
+   pending forever by construction, so a surface could never advance. The
+   record names which gate witnesses the rung; the rest stay pending. */
+T("the surface names the gate that witnesses its rung",
+    !!surface.rung_witness && !!surface.gates[surface.rung_witness], surface.rung_witness);
+T("the witnessing gate is approved, with its evidence",
+    surface.gates[surface.rung_witness] &&
+    surface.gates[surface.rung_witness].status === "approved" &&
+    ["evidence", "reviewer", "date"].every((f) => surface.gates[surface.rung_witness][f]),
+    surface.rung_witness);
+
 /* ---------- 7. §0.7 — the rung gates the call to action ---------- */
 const VERBS = {
     spec: ["Read", "Challenge", "Implement"],
@@ -206,8 +267,6 @@ T("review ledger: no approval without its evidence",
     gates.every(([, g]) => g.status !== "approved" || NEED.every((f) => g[f])));
 T("review ledger: the external rung is not self-awarded",
     surface.surface_rung !== "external" || surface.gates.second_implementation.status === "approved");
-T("review ledger: live_deployed requires the deployed route check to be approved",
-    surface.surface_rung !== "live_deployed" || surface.gates.deployed_route_check.status === "approved");
 
 /* ---------- 9. the published table is the one that was checked ----------
    Every frozen document id must actually appear on the page, and every id on

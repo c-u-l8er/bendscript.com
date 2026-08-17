@@ -1,5 +1,5 @@
 /* ==========================================================================
-   The ComputeDriven page shell, revision shell-r4.
+   The ComputeDriven page shell, revision shell-r5.
 
    Everything between TOKENS-START and TOKENS-END is this site's own character
    and is the only part a sibling surface replaces. Everything after
@@ -70,6 +70,14 @@ img,canvas,svg{max-width:100%}
 .btn{display:inline-block;background:var(--acc);color:#150402;font-weight:700;border-radius:var(--r);padding:11px 20px;text-decoration:none;font-size:var(--sm)}
 .btn.ghost{background:transparent;color:var(--fg);border:1px solid var(--line2);font-weight:500}
 .btn:hover{filter:brightness(1.1)}
+/* SHELL.md r5: when the nav links wrap onto a second row,
+   justify-content:space-between drops the logo into the middle of it.
+   MEASURED, not copied: r5 gives the breakpoint as 430px, and on this surface
+   the defect is still present at 700px (logo 45px down, against a two-row nav)
+   and gone by 790px. Six nav items wrap later than four. So the breakpoint is
+   780px here, which subsumes 430. Reported back as an r6 candidate: the value
+   belongs to the surface's own nav width, not to the shell. */
+@media(max-width:780px){.top{flex-direction:column;align-items:flex-start;gap:11px}.top nav{width:100%}}
 
 /* --- the identifying animation (SHELL.md §8) ---
    Absolutely positioned so it cannot move or delay the h1; the section clips
