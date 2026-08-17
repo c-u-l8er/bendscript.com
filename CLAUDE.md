@@ -38,9 +38,30 @@ the records disagree — a retracted claim reinstated, a rung invented, a CTA th
 rung has not earned, an unrendered token, a `mailto:`, a text token below
 4.5:1, a same-origin link that resolves to nothing, an artifact that is not what
 its source compiles to, or an identifying-animation constant leaking into the
-copy. It has been made to refuse **16 times** deliberately. The whole shell is
-documented in `ProjectAmp2/agents/SHELL.md`; this surface is built against
-revision **`shell-r4`**, recorded as `shell_revision` in `records/surface.json`.
+copy. **128 checks.** The whole shell is documented in
+`ProjectAmp2/agents/SHELL.md`; this surface is built against revision
+**`shell-r9`**, recorded as `shell_revision` in `records/surface.json`.
+
+**Do not hand-type a check count anywhere.** The gate prints its own total; the
+number above is the one it printed on 2026-08-17, and it is the only kind of
+figure on this surface that is not derived. It went 92 → 128 in one session,
+which is what makes a typed count a liability.
+
+Two checks in it are newer than the rest and are the ones to understand first:
+
+- **The computed-colour resolver.** Every contrast check reads a *declared*
+  token, and r7's header-CTA defect — `.top nav a` (0,2,1) beating `.btn` (0,1,0),
+  so the button painted `--fg2` on the accent at **1.19:1** — passed all of them
+  for as long as it shipped. The gate now resolves the cascade over the emitted
+  artifact (specificity, source order, `!important`, `@media` at 1600/1280/800/390,
+  `var()`, inheritance) against each `.btn`'s real ancestor chain, and refuses
+  when a button's colour is decided by a non-button rule. Its verdicts were
+  cross-checked against the browser's own computed styles and agreed on all four
+  buttons. A selector it cannot parse is a REFUSAL, not a skip; finding zero
+  buttons is a REFUSAL too.
+- **The correction form's shape** (SHELL.md r9): the `action` must equal the
+  endpoint the record declares, and `_gotcha` must be present — a honeypot
+  dropped in a refactor fails silently, which is exactly what a gate is for.
 
 `/app/` (the playground) is hand-authored, predates this shell, and is NOT
 generated. It is the surface's `live_deployed` artifact.

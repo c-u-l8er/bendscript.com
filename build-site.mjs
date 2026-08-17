@@ -321,6 +321,19 @@ const ANIM = read("./src/graph.js")
     .replace(/\n{2,}/g, "\n")
     .trim();
 
+/* The correction form's inline reply (SHELL.md r9). Emitted as its own artifact
+   for the same reason the animation is: the landing markup stays content-only,
+   and "the form still posts with JavaScript off" is verifiable by deleting one
+   line. NEWLINES ARE KEPT — joining JavaScript lines the way the CSS is joined
+   is a semicolon-insertion bug waiting to happen. */
+const CONTACT = read("./src/contact.js")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^[ \t]*\/\/.*$/gm, "")
+    .replace(/^[ \t]+/gm, "")
+    .replace(/[ \t]+$/gm, "")
+    .replace(/\n{2,}/g, "\n")
+    .trim();
+
 const YEAR = new Date(surface.verified_at).getUTCFullYear();
 
 const landing = fill(read("./src/landing.html"), {
@@ -332,6 +345,7 @@ const landing = fill(read("./src/landing.html"), {
     REPO: surface.repo,
     SPEC_URL,
     CONTACT: surface.contact.url,
+    FORM_ENDPOINT: surface.contact.endpoint,
     QUESTION: esc(surface.question),
     YEAR: String(YEAR),
     PLATE: plate(),
@@ -391,6 +405,8 @@ function fill(tpl, vars) {
 
 writeFileSync("./index.html", landing);
 writeFileSync("./graph.js", ANIM + "\n");
+writeFileSync("./contact.js", CONTACT + "\n");
 
 console.log(`wrote index.html   ${landing.length.toLocaleString()} bytes`);
 console.log(`wrote graph.js     ${ANIM.length.toLocaleString()} bytes  (decoration; the page's content does not depend on it)`);
+console.log(`wrote contact.js    ${CONTACT.length.toLocaleString()} bytes  (progressive enhancement; the form posts without it)`);

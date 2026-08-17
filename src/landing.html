@@ -76,12 +76,33 @@
 {{CTA}}
 </section>
 
+<section id="say">
+<div class="eyebrow">A correction is worth more than a compliment</div>
+<h2>Tell us a figure on this page is wrong.</h2>
+<p class="lede">Every number here is a measurement with a date on it, and measurements go stale. The form below is a real <code>form</code> with a real <code>action</code>: it posts to <code>formspree.io</code> when <b>you</b> press the button, and it works with JavaScript off. The script that upgrades it to an inline reply prints &ldquo;sent&rdquo; only when the endpoint actually answers 2xx &mdash; a form that says thank-you on submit and drops the message is the exact failure this page argues against. If you would rather leave a public trail, <a href="{{CONTACT}}">open an issue</a> instead.</p>
+<form class="say" action="{{FORM_ENDPOINT}}" method="POST" novalidate>
+<div class="say-row">
+<label class="say-f"><span>Your email</span>
+<input type="email" name="email" autocomplete="email" placeholder="so a reply can reach you" required></label>
+<label class="say-f"><span>Message</span>
+<textarea name="message" rows="3" placeholder="a question, a correction, a number of ours you think is wrong" required></textarea></label>
+</div>
+<!-- Formspree's honeypot: a bot fills it, a person never sees it. -->
+<input type="text" name="_gotcha" tabindex="-1" autocomplete="off" aria-hidden="true">
+<div class="say-act">
+<button type="submit" class="btn">Send</button>
+<p class="say-msg" role="status" aria-live="polite"></p>
+</div>
+</form>
+</section>
+
 </div>
 <footer><div class="in">
 <span class="stamp">{{STAMP}}</span>
 <span class="links"><a href="{{APP_PATH}}">Playground</a><a href="{{REPO}}">Source</a><a href="{{SPEC_URL}}">Spec</a><a href="{{CONTACT}}">File a correction</a></span>
 </div>
-<div class="attrib">This page is generated from <code>records/surface.json</code> and the corpus, and <code>launch-gate.mjs</code> refuses to publish it when the artifact and the records disagree. Its whole content ships with zero JavaScript &mdash; the one script below is the identifying animation, which reads nothing from this page and writes nothing to it. &copy; {{YEAR}} BendScript.</div>
+<div class="attrib">This page is generated from <code>records/surface.json</code> and the corpus, and <code>launch-gate.mjs</code> refuses to publish it when the artifact and the records disagree. Its whole content ships with zero JavaScript &mdash; the two scripts below are the identifying animation, which reads nothing from this page and writes nothing to it, and the correction form's inline reply, without which the form still posts. &copy; {{YEAR}} BendScript.</div>
 </footer>
 <script src="/graph.js" defer></script>
+<script src="/contact.js" defer></script>
 </body></html>

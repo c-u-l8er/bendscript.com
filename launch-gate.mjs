@@ -58,6 +58,13 @@ T("the surface records the shell revision it was built against",
         .replace(/\/\*[\s\S]*?\*\//g, "").replace(/^[ \t]*\/\/.*$/gm, "")
         .replace(/^[ \t]+/gm, "").replace(/[ \t]+$/gm, "").replace(/\n{2,}/g, "\n").trim();
     T("/graph.js is what src/graph.js compiles to", read("./graph.js").trim() === emitAnim);
+    /* Same proof for the correction form's inline reply (SHELL.md r9): it is
+       a second emitted artifact, so it is a second way for a stale build to
+       go unnoticed. Same transform the emitter applies. */
+    const emitContact = read("./src/contact.js")
+        .replace(/\/\*[\s\S]*?\*\//g, "").replace(/^[ \t]*\/\/.*$/gm, "")
+        .replace(/^[ \t]+/gm, "").replace(/[ \t]+$/gm, "").replace(/\n{2,}/g, "\n").trim();
+    T("/contact.js is what src/contact.js compiles to", read("./contact.js").trim() === emitContact);
 }
 T("/ has no unrendered build token", !/\{\{\w+\}\}/.test(landing));
 T("/ declares its canonical URL", landing.includes(`<link rel="canonical" href="${surface.origin}/">`));
@@ -68,7 +75,16 @@ T("/ declares the surface's falsifiable question",
    SHELL.md §5: split the landing from the app, so the landing can legitimately
    ship zero JavaScript. The app at /app/ is a separate 150 KB artifact and is
    deliberately NOT gated here — it is hand-authored and predates this shell. */
-T("the landing page is not the playground", !landing.includes("<textarea"));
+/* This used to be `!landing.includes("<textarea")`, a proxy for "the editor is
+   not on this page". SHELL.md r9 puts a correction form here, which legitimately
+   owns one textarea, so the proxy has to become the real statement: exactly one
+   textarea, and it is the form's message field. A proxy that has to be deleted
+   the first time it is inconvenient was never the check. */
+{
+    const areas = [...landing.matchAll(/<textarea\b([^>]*)>/gi)].map((m) => m[1]);
+    T("the landing page is not the playground", areas.length === 1 && /name="message"/.test(areas[0]),
+        `${areas.length} textarea(s): ${areas.join(" | ").slice(0, 120)}`);
+}
 T("the landing page links the playground", landing.includes(`href="${APP}"`));
 T("the playground exists in the tree", existsSync("./app/index.html"));
 
@@ -79,9 +95,19 @@ T("the playground exists in the tree", existsSync("./app/index.html"));
 {
     const tags = [...landing.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)];
     T("the landing page ships no inline JavaScript", tags.every((t) => t[2].trim() === ""));
-    T("the landing page loads exactly one script, and it is the identity animation",
-        tags.length === 1 && /\bsrc="\/graph\.js"/.test(tags[0][1]) && /\bdefer\b/.test(tags[0][1]),
-        `${tags.length} script tag(s)`);
+    /* Two scripts now, and BOTH are named here rather than counted loosely.
+       SHELL.md r9 adds the correction form's inline reply. A count on its own
+       ("at most two") would let a third-party tag in unnoticed, which is the
+       whole reason the original check named its one script. Neither may be
+       inline, neither may be render-blocking, and the page's content depends on
+       neither: the animation reads nothing from the page, and the form posts on
+       its own action with the reply script deleted. */
+    const srcs = tags.map((t) => (/\bsrc="([^"]+)"/.exec(t[1]) || [])[1]);
+    T("the landing page loads exactly two scripts, and both are this surface's own",
+        srcs.length === 2 && srcs[0] === "/graph.js" && srcs[1] === "/contact.js",
+        srcs.join(", ") || "none");
+    T("every script is deferred", tags.every((t) => /\bdefer\b/.test(t[1])),
+        tags.map((t) => t[1].trim()).join(" | "));
 }
 
 /* ---------- 4. claims that were retracted may not come back ----------
@@ -450,6 +476,8 @@ const CONTRAST_PAIRS = [
     ["--fg3", "--ink2", "every .status dt, .needs, the footer"],
     ["--fg3", "--ink3", "table column headers"],
     ["--acc", "--ink", "links in prose"],
+    ["--data", "--ink", "the sent confirmation on the correction form"],
+    ["--warn", "--ink", "the not-sent reason on the correction form"],
     ["--acc", "--ink2", "CTA verbs, eyebrows, the logo on hover, the predicate pill"],
     ["--acc", ["--ink2", "--acc-soft"], "a CTA card while hovered"],
     ["--data", "--ink2", "the bend: URI in the facet, the where-tag"],
@@ -496,6 +524,348 @@ T("the least legible declared pair clears the 4.5:1 floor", worst >= MIN_RATIO,
     T("/ every interactive element has a visible :hover", naked.length === 0,
         naked.length ? `no hover for: ${naked.join(", ")}` : `${handles.size} kinds, all covered`);
     T("/ declares a focus-visible ring", /:focus-visible\s*\{/.test(styles));
+}
+
+/* ==========================================================================
+   15. THE COMPUTED COLOUR ON A REAL .btn — NOT THE ONE THE TOKEN DECLARES
+   SHELL.md r7. Travis reported the header CTA unreadable. It was: `.top nav a`
+   is specificity 0,2,1 and `.btn` is 0,1,0, so the nav rule won and the button
+   painted --fg2 on the accent at 1.19:1 — while the identical button in the
+   hero painted its declared dark ink at 12:1.
+
+   EVERY CONTRAST CHECK ABOVE PASSED THE WHOLE TIME. They read the DECLARED
+   token pair (#ink on --acc) and never the colour the cascade actually gives a
+   real element in its real ancestor context. That is the entire hole, and it is
+   why this surface's deliberate-break count could not have caught it.
+
+   So: resolve the cascade over the ARTIFACT — every rule that sets `color` or a
+   custom property, matched against each .btn's real ancestor chain, with
+   specificity, source order, !important, @media at a given width, var() and
+   inherit — and refuse when a button's computed colour is not the one a .btn
+   rule declares for it.
+
+   Two properties keep the resolver honest rather than merely quiet:
+     · any selector or media condition it cannot parse is a REFUSAL, never a
+       skip. A resolver that silently ignores the rule it does not understand
+       has reproduced the blind spot it was written to close.
+     · finding zero buttons is a REFUSAL. A check that passes because it
+       measured nothing is the same failure wearing a green tick.
+   ========================================================================== */
+{
+    const CASCADE_WIDTHS = [1600, 1280, 800, 390];
+    const errors = [];
+
+    const splitTop = (s) => {
+        const list = []; let depth = 0, cur = "";
+        for (const ch of s) {
+            if (ch === "(") depth++; else if (ch === ")") depth--;
+            if (ch === "," && depth === 0) { list.push(cur); cur = ""; continue; }
+            cur += ch;
+        }
+        if (cur.trim()) list.push(cur);
+        return list;
+    };
+
+    /* ---- 1. every rule in the artifact that sets `color` or a custom property ---- */
+    const rules = [];
+    const collect = (css, media) => {
+        let i = 0;
+        while (i < css.length) {
+            const open = css.indexOf("{", i);
+            if (open < 0) break;
+            const prelude = css.slice(i, open).trim();
+            let depth = 1, j = open + 1;
+            while (j < css.length && depth) { const c = css[j]; if (c === "{") depth++; else if (c === "}") depth--; j++; }
+            const body = css.slice(open + 1, j - 1);
+            i = j;
+            if (prelude.startsWith("@")) {
+                if (/^@media\b/i.test(prelude)) collect(body, media.concat([prelude.replace(/^@media/i, "").trim()]));
+                else if (!/^@(keyframes|-webkit-keyframes|font-face|page|charset|import|namespace)\b/i.test(prelude)) errors.push(`unsupported at-rule "${prelude.slice(0, 40)}"`);
+                continue;
+            }
+            for (const d of body.split(";")) {
+                const k = d.indexOf(":");
+                if (k < 0) continue;
+                const prop = d.slice(0, k).trim().toLowerCase();
+                if (prop !== "color" && !prop.startsWith("--")) continue;
+                let val = d.slice(k + 1).trim();
+                const important = /!important$/i.test(val);
+                if (important) val = val.replace(/!important$/i, "").trim();
+                for (const sel of splitTop(prelude)) rules.push({ sel: sel.trim(), prop, val, important, media, order: rules.length });
+            }
+        }
+    };
+    const styleText = [...landing.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)].map((m) => m[1]).join("\n");
+    if (!styleText.trim()) errors.push("the artifact carries no <style> block");
+    collect(styleText.replace(/\/\*[\s\S]*?\*\//g, ""), []);
+
+    /* ---- 2. compound-selector parser ---- */
+    const STATE = new Set(["hover", "focus", "focus-visible", "focus-within", "active", "visited", "link", "target", "checked", "disabled", "enabled", "any-link"]);
+    const parseCompound = (s) => {
+        const c = { tag: null, id: null, classes: [], attrs: [], nots: [], state: false, pseudoEl: false, spec: [0, 0, 0], bad: null };
+        const bump = (a, b, d) => { c.spec[0] += a; c.spec[1] += b; c.spec[2] += d; };
+        let i = 0;
+        while (i < s.length) {
+            const rest = s.slice(i); let m;
+            if (rest[0] === "*") { i++; continue; }
+            if ((m = /^\.([\w-]+)/.exec(rest))) { c.classes.push(m[1]); bump(0, 1, 0); i += m[0].length; continue; }
+            if ((m = /^#([\w-]+)/.exec(rest))) { c.id = m[1]; bump(1, 0, 0); i += m[0].length; continue; }
+            if (rest[0] === "[") {
+                const j = s.indexOf("]", i);
+                if (j < 0) { c.bad = `unterminated [ in "${s}"`; break; }
+                const am = /^([\w:-]+)\s*(?:([~^$*|]?=)\s*(.*))?$/.exec(s.slice(i + 1, j).trim());
+                if (!am) { c.bad = `unreadable attribute selector in "${s}"`; break; }
+                if (am[2] && am[2] !== "=") { c.bad = `unsupported attribute operator ${am[2]}`; break; }
+                c.attrs.push([am[1].toLowerCase(), am[3] == null ? null : am[3].trim().replace(/^["']|["']$/g, "")]);
+                bump(0, 1, 0); i = j + 1; continue;
+            }
+            if (rest.startsWith("::")) { c.pseudoEl = true; break; }
+            if (rest[0] === ":") {
+                m = /^:([\w-]+)/.exec(rest);
+                if (!m) { c.bad = `unreadable pseudo in "${s}"`; break; }
+                const name = m[1].toLowerCase();
+                let arg = null, len = m[0].length;
+                if (rest[len] === "(") {
+                    let d = 1, k = len + 1;
+                    while (k < rest.length && d) { if (rest[k] === "(") d++; else if (rest[k] === ")") d--; k++; }
+                    arg = rest.slice(len + 1, k - 1); len = k;
+                }
+                if (name === "not") {
+                    if (arg == null) { c.bad = ":not() with no argument"; break; }
+                    const inner = splitTop(arg).map((x) => parseCompound(x.trim()));
+                    const bad = inner.find((x) => x.bad);
+                    if (bad) { c.bad = bad.bad; break; }
+                    c.nots.push(inner);
+                    const rank = (x) => x.spec[0] * 1e4 + x.spec[1] * 1e2 + x.spec[2];
+                    const worst = inner.reduce((a, x) => (rank(x) > rank(a) ? x : a), inner[0]);
+                    bump(worst.spec[0], worst.spec[1], worst.spec[2]);
+                } else if (STATE.has(name)) { c.state = true; bump(0, 1, 0); }
+                else if (name === "root") { c.tag = "html"; bump(0, 1, 0); }
+                else if (["before", "after", "selection", "marker", "placeholder", "first-line", "first-letter"].includes(name)) { c.pseudoEl = true; }
+                else { c.bad = `unsupported pseudo-class :${name}`; break; }
+                i += len; continue;
+            }
+            if ((m = /^[\w-]+/.exec(rest))) { c.tag = m[0].toLowerCase(); bump(0, 0, 1); i += m[0].length; continue; }
+            c.bad = `unreadable at "${rest.slice(0, 12)}" in "${s}"`; break;
+        }
+        return c;
+    };
+    const parseSelector = (sel) => {
+        const parts = sel.trim().split(/\s*([>+~])\s*|\s+/).filter((x) => x != null && x !== "");
+        const chainSel = []; let child = false;
+        for (const p of parts) {
+            if (p === ">") { child = true; continue; }
+            if (p === "+" || p === "~") return { bad: `unsupported combinator ${p} in "${sel}"` };
+            const c = parseCompound(p);
+            if (c.bad) return { bad: c.bad };
+            chainSel.push({ c, child }); child = false;
+        }
+        if (!chainSel.length) return { bad: `empty selector "${sel}"` };
+        return {
+            chainSel,
+            spec: chainSel.reduce((a, x) => [a[0] + x.c.spec[0], a[1] + x.c.spec[1], a[2] + x.c.spec[2]], [0, 0, 0]),
+            state: chainSel.some((x) => x.c.state),
+            pseudoEl: chainSel.some((x) => x.c.pseudoEl),
+        };
+    };
+    const matchCompound = (c, el) => {
+        if (c.tag && c.tag !== el.tag) return false;
+        if (c.id && c.id !== el.id) return false;
+        for (const k of c.classes) if (!el.cls.has(k)) return false;
+        for (const [a, v] of c.attrs) { if (!(a in el.attrs)) return false; if (v != null && el.attrs[a] !== v) return false; }
+        for (const g of c.nots) if (g.some((n) => matchCompound(n, el))) return false;
+        return true;
+    };
+    const matchChain = (chainSel, chain) => {
+        let ci = chain.length - 1, si = chainSel.length - 1;
+        if (!matchCompound(chainSel[si].c, chain[ci])) return false;
+        let child = chainSel[si].child; si--; ci--;
+        while (si >= 0) {
+            if (ci < 0) return false;
+            if (child) {
+                if (!matchCompound(chainSel[si].c, chain[ci])) return false;
+                child = chainSel[si].child; si--; ci--;
+            } else {
+                let hit = -1;
+                for (let k = ci; k >= 0; k--) if (matchCompound(chainSel[si].c, chain[k])) { hit = k; break; }
+                if (hit < 0) return false;
+                child = chainSel[si].child; si--; ci = hit - 1;
+            }
+        }
+        return true;
+    };
+
+    /* ---- 3. the element tree, and every .btn's real ancestor chain ---- */
+    const VOID = new Set("area base br col embed hr img input link meta param source track wbr".split(" "));
+    const scrubbed = landing
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "<style></style>")
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "<script></script>")
+        .replace(/<!--[\s\S]*?-->/g, "");
+    const stack = [], btns = [];
+    for (const m of scrubbed.matchAll(/<(\/?)([a-zA-Z][\w:-]*)((?:"[^"]*"|'[^']*'|[^>"'])*?)(\/?)>/g)) {
+        const tag = m[2].toLowerCase();
+        if (m[1] === "/") { for (let k = stack.length - 1; k >= 0; k--) if (stack[k].tag === tag) { stack.length = k; break; } continue; }
+        const attrs = {};
+        for (const a of m[3].matchAll(/([\w:-]+)\s*(?:=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+)))?/g)) attrs[a[1].toLowerCase()] = a[2] ?? a[3] ?? a[4] ?? "";
+        const el = { tag, attrs, id: attrs.id || "", cls: new Set((attrs.class || "").trim().split(/\s+/).filter(Boolean)) };
+        const chain = stack.concat([el]);
+        if (el.cls.has("btn")) btns.push(chain);
+        if (!VOID.has(tag) && m[4] !== "/") stack.push(el);
+    }
+
+    /* ---- 4. does an @media condition hold at this width? ---- */
+    const mediaHolds = (conds, w) => conds.every((q) => q.split(/\s+and\s+/i).every((c) => {
+        const t = c.trim().replace(/^\(|\)$/g, "");
+        let m;
+        if ((m = /^max-width\s*:\s*(\d+)px$/i.exec(t))) return w <= Number(m[1]);
+        if ((m = /^min-width\s*:\s*(\d+)px$/i.exec(t))) return w >= Number(m[1]);
+        if (/^prefers-reduced-motion/i.test(t)) return false;   /* the gate is not a reduced-motion reader */
+        if (/^(screen|all|print)$/i.test(t)) return !/print/i.test(t);
+        errors.push(`unsupported media condition (${t})`);
+        return false;
+    }));
+
+    /* ---- 5. the cascade ---- */
+    const parsed = rules.map((r) => ({ ...r, p: parseSelector(r.sel) }));
+    for (const r of parsed) if (r.p.bad) errors.push(`${r.p.bad}`);
+    const cmp = (a, b) => { for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] < b[i] ? -1 : 1; return 0; };
+    const declKey = (r) => [r.important ? 1 : 0, ...r.p.spec, r.order];
+    const winner = (chain, prop, w, only) => {
+        let best = null;
+        for (const r of parsed) {
+            if (r.prop !== prop || r.p.bad || r.p.state || r.p.pseudoEl) continue;
+            if (only && !only(r)) continue;
+            if (!mediaHolds(r.media, w) || !matchChain(r.p.chainSel, chain)) continue;
+            const key = declKey(r);
+            if (!best || cmp(key, best.key) > 0) best = { r, key };
+        }
+        return best;
+    };
+    const resolve = (chain, value, w, depth = 0) => {
+        if (depth > 12) return value;
+        const v = String(value).trim();
+        if (v === "inherit") {
+            const up = chain.slice(0, -1);
+            if (!up.length) return "(initial)";
+            const win = winner(up, "color", w);
+            return win ? resolve(up, win.r.val, w, depth + 1) : resolve(up, "inherit", w, depth + 1);
+        }
+        const m = /^var\(\s*(--[\w-]+)\s*(?:,([\s\S]*))?\)$/.exec(v);
+        if (m) {
+            for (let k = chain.length; k > 0; k--) {
+                const win = winner(chain.slice(0, k), m[1], w);
+                if (win) return resolve(chain.slice(0, k), win.r.val, w, depth + 1);
+            }
+            return m[2] != null ? resolve(chain, m[2].trim(), w, depth + 1) : "(unset)";
+        }
+        return v;
+    };
+    const norm = (v) => {
+        const s = String(v).trim().toLowerCase();
+        let m = /^#([0-9a-f]{3})$/.exec(s);
+        if (m) return `rgba(${parseInt(m[1][0] + m[1][0], 16)},${parseInt(m[1][1] + m[1][1], 16)},${parseInt(m[1][2] + m[1][2], 16)},1)`;
+        m = /^#([0-9a-f]{6})$/.exec(s);
+        if (m) return `rgba(${parseInt(m[1].slice(0, 2), 16)},${parseInt(m[1].slice(2, 4), 16)},${parseInt(m[1].slice(4, 6), 16)},1)`;
+        m = /^rgba?\(([^)]*)\)$/.exec(s);
+        if (m) { const p = m[1].split(/[,\s/]+/).filter(Boolean).map(Number); return `rgba(${p[0]},${p[1]},${p[2]},${p.length > 3 ? p[3] : 1})`; }
+        return s;
+    };
+    const computed = (chain, w) => {
+        for (let k = chain.length; k > 0; k--) {
+            const sub = chain.slice(0, k);
+            const inline = sub[sub.length - 1].attrs.style;
+            if (inline && /(^|;)\s*color\s*:/i.test(inline)) return { v: resolve(sub, /(?:^|;)\s*color\s*:([^;]+)/i.exec(inline)[1], w), from: "the style attribute" };
+            const win = winner(sub, "color", w);
+            if (win) return { v: resolve(sub, win.r.val, w), from: win.r.sel + (k === chain.length ? "" : " (inherited)") };
+        }
+        return { v: "(initial)", from: "(initial)" };
+    };
+
+    /* ---- 6. the verdict ---- */
+    T("the cascade resolver read every rule in the artifact", errors.length === 0,
+        errors.length ? [...new Set(errors)].slice(0, 4).join(" | ") : `${parsed.length} colour/custom-property declarations`);
+    T("the artifact actually has buttons to check", btns.length > 0,
+        "a check that measured nothing is not a check that passed");
+
+    let worst = null;
+    for (const w of CASCADE_WIDTHS) for (const chain of btns) {
+        const el = chain[chain.length - 1];
+        /* what a BUTTON rule declares for this button — the most specific rule whose
+           own subject compound carries .btn (so .btn.ghost beats .btn, as it should) */
+        const decl = winner(chain, "color", w, (r) => r.p.chainSel[r.p.chainSel.length - 1].c.classes.includes("btn"));
+        const got = computed(chain, w);
+        const want = decl ? resolve(chain, decl.r.val, w) : null;
+        const where = chain.some((a) => a.cls.has("top")) && chain.some((a) => a.tag === "nav") ? "header" : "body";
+        const id = `${el.tag}.${[...el.cls].join(".")} in the ${where}` +
+            (el.attrs.href ? ` → ${el.attrs.href}` : el.attrs.type ? ` [type=${el.attrs.type}]` : "");
+        const ok = !!decl && norm(got.v) === norm(want);
+        if (!ok && !worst) worst = `${id} at ${w}px computes ${got.v} from "${got.from}"`;
+        T(`computed colour @${w}px — ${id}`, ok,
+            !decl ? "no .btn rule declares a colour for it"
+                : ok ? `${got.v}, from "${got.from}"`
+                    : `computes ${got.v} from "${got.from}" — but ${decl.r.sel} declares ${want}`);
+    }
+    T("no button loses its declared colour to the cascade at any width", worst === null,
+        worst || `${btns.length} button(s) × ${CASCADE_WIDTHS.length} widths, every one painting what its rule declares`);
+}
+
+const ENDPOINT = surface.contact.endpoint;
+const contactJs = read("./src/contact.js");
+
+/* ==========================================================================
+   THE CORRECTION FORM — SHELL.md r9, ruled by Travis 2026-08-17
+   This closes the [TRAVIS] blocker fourteen surfaces reported. The endpoint is
+   the one computedriven.com posts to, and what is checked here is the SHAPE,
+   because the shape is what makes the form honest rather than decorative:
+
+     · a real `action` on a real `<form method="POST">`, so it posts with
+       JavaScript off. A fetch bolted to a button is a form that stops working
+       the moment a script fails, on a page whose whole argument is that its
+       content does not depend on scripts.
+     · the `_gotcha` honeypot. A honeypot dropped in a refactor fails SILENTLY —
+       nothing breaks, the spam just arrives — which is exactly the class of
+       defect a gate is for.
+     · `role="status" aria-live="polite"` on the reply, or the outcome is
+       invisible to a screen reader.
+     · and still no `mailto:` anywhere (checked above; this replaces the GitHub
+       issues fallback as the primary channel, it does not reintroduce a mailbox).
+   ========================================================================== */
+{
+    const formM = /<form\b([^>]*)>([\s\S]*?)<\/form>/i.exec(landing);
+    T("the page carries a correction form", !!formM, "SHELL.md r9 requires one on every surface");
+    const attrs = formM ? formM[1] : "";
+    const body = formM ? formM[2] : "";
+    const action = (/\baction="([^"]*)"/.exec(attrs) || [])[1];
+
+    T("the form posts to the endpoint the record declares", action === ENDPOINT,
+        `form action is ${JSON.stringify(action)}, records/surface.json declares ${JSON.stringify(ENDPOINT)}`);
+    T("the endpoint the record declares is the ruled one", ENDPOINT === "https://formspree.io/f/xaewoadr",
+        `records/surface.json says ${JSON.stringify(ENDPOINT)}`);
+    T("the form posts on its own, without JavaScript", /\bmethod="POST"/i.test(attrs) && !/\bonsubmit=/i.test(attrs),
+        `attributes: ${attrs.trim()}`);
+    T("the form carries novalidate, so the reply is ours to print", /\bnovalidate\b/i.test(attrs));
+
+    T("the _gotcha honeypot is present", /name="_gotcha"/.test(body),
+        "a honeypot dropped in a refactor fails silently — nothing breaks, the spam just arrives");
+    T("the honeypot is hidden off-screen, not display:none",
+        /\.say input\[name=_gotcha\]\{[^}]*left:-9999px/.test(landing),
+        "some bots skip anything a stylesheet has explicitly hidden");
+    T("the honeypot is out of the tab order and out of the a11y tree",
+        /name="_gotcha"[^>]*tabindex="-1"/.test(body) && /name="_gotcha"[^>]*aria-hidden="true"/.test(body));
+
+    T("the form asks for a reply address and a message",
+        /name="email"[^>]*required/.test(body) && /<textarea[^>]*name="message"[^>]*required/.test(body));
+    T("the reply paragraph is announced to a screen reader",
+        /class="say-msg"[^>]*role="status"[^>]*aria-live="polite"/.test(body),
+        "the outcome of a submit is invisible without it");
+    T("the submit control is a real submit button", /<button[^>]*type="submit"[^>]*class="btn"/.test(body));
+
+    /* The enhancement must not be the thing that decides success. */
+    T("the inline reply prints success only on a real 2xx",
+        /if\s*\(\s*r\.ok\s*\)/.test(contactJs) && !/say\(\s*"Sent/.test(contactJs.split("if (r.ok)")[0]),
+        "src/contact.js says sent before the endpoint has answered");
+    T("the inline reply is external and deferred, so the form survives it failing",
+        landing.includes('<script src="/contact.js" defer></script>'));
 }
 
 console.log(`\n${pass} passed, ${fail} failed (publication gate)`);
